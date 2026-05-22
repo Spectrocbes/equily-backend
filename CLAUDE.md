@@ -93,3 +93,7 @@ Base Java package: `com.equily.<module>` (e.g. `com.equily.shared`, `com.equily.
 - Null constructor args throw `InvalidMoneyException`, not `NullPointerException`.
 - Cross-currency arithmetic throws `CurrencyMismatchException` (RuntimeException).
 - `EquilyBackendApplicationTests` is `@Disabled` until Docker Compose and datasource are configured.
+- Spring profiles: local for Docker dev, prod for Supabase. No other profiles. 
+- Flyway migrations live in portfolio-infrastructure/src/main/resources/db/migration/portfolio/. Naming: V{n}__{description}.sql. 
+- Schema per Bounded Context: portfolio schema for Portfolio context. Future contexts get their own schema. 
+- ddl-auto: validate — Hibernate never modifies the schema. Flyway owns all DDL.
