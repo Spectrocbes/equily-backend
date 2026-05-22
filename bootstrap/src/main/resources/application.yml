@@ -1,3 +1,38 @@
 spring:
   application:
     name: equily-backend
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        default_schema: portfolio
+  flyway:
+    enabled: true
+    locations: classpath:db/migration/portfolio
+    schemas: portfolio
+    default-schema: portfolio
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: jdbc:postgresql://localhost:5432/equily_db
+    username: equily
+    password: equily_local
+    driver-class-name: org.postgresql.Driver
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${SUPABASE_DB_URL}
+    username: ${SUPABASE_DB_USER}
+    password: ${SUPABASE_DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
