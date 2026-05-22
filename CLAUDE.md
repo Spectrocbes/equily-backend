@@ -86,3 +86,10 @@ Base Java package: `com.equily.<module>` (e.g. `com.equily.shared`, `com.equily.
 - Each feature follows: failing test → minimal implementation → refactor.
 - Commit messages follow Conventional Commits (feat, fix, refactor, test, chore, docs).
 - A feature is "done" only when: tests pass, ArchUnit passes, no warnings in build.
+
+## Decisions Log
+- Lombok is forbidden everywhere. Use Java 21 records and explicit methods.
+- `Money` is a record. Scale is normalized via `stripTrailingZeros()` in the compact constructor. `toString()` uses `toPlainString()` with `setScale(2)`.
+- Null constructor args throw `InvalidMoneyException`, not `NullPointerException`.
+- Cross-currency arithmetic throws `CurrencyMismatchException` (RuntimeException).
+- `EquilyBackendApplicationTests` is `@Disabled` until Docker Compose and datasource are configured.
