@@ -24,16 +24,6 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
-      - name: Configure Maven to use setup-java JDK
-        run: |
-          echo "JAVA_HOME is: $JAVA_HOME"
-          echo "Current java: $(which java) — $(java -version 2>&1 | head -1)"
-          # Force Maven to use the JDK installed by setup-java, not the system JDK
-          echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
-          echo "$JAVA_HOME/bin" >> $GITHUB_PATH
-          # Verify cacerts is populated
-          keytool -list -cacerts -storepass changeit 2>/dev/null | grep -c "trustedCertEntry" || echo "cacerts check failed"
-
       - name: Cache SonarCloud packages
         uses: actions/cache@v4
         with:
@@ -41,37 +31,18 @@ jobs:
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
 
-      - name: Verify Maven version
-        run: mvn --version
-        env:
-          JAVA_HOME: ${{ env.JAVA_HOME }}
-
-      - name: Diagnose Java SSL
-        run: |
-          java -version
-          mvn --version
-          java -XshowSettings:all -version 2>&1 | grep -i "trust\|security\|java.home"
-          ls $JAVA_HOME/lib/security/
-          echo "---"
-          java -Djavax.net.debug=ssl:handshake -cp . nowhere 2>&1 | head -20 || true
-
       - name: Spotless check
-        run: mvn spotless:check --no-transfer-progress
-        env:
-          JAVA_HOME: ${{ env.JAVA_HOME }}
+        run: ./mvnw spotless:check --no-transfer-progress
 
       - name: Build, test & coverage
-        run: mvn clean verify --no-transfer-progress
-        env:
-          JAVA_HOME: ${{ env.JAVA_HOME }}
+        run: ./mvnw clean verify --no-transfer-progress
 
       - name: SonarCloud analysis
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          JAVA_HOME: ${{ env.JAVA_HOME }}
         run: |
-          mvn sonar:sonar \
+          ./mvnw sonar:sonar \
             --no-transfer-progress \
             -Dsonar.organization=Spectrocbes \
             -Dsonar.projectKey=Spectrocbes_equily-backend \
