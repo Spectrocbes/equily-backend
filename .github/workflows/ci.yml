@@ -34,6 +34,15 @@ jobs:
       - name: Verify Maven version
         run: mvn --version
 
+      - name: Diagnose Java SSL
+        run: |
+          java -version
+          mvn --version
+          java -XshowSettings:all -version 2>&1 | grep -i "trust\|security\|java.home"
+          ls $JAVA_HOME/lib/security/
+          echo "---"
+          java -Djavax.net.debug=ssl:handshake -cp . nowhere 2>&1 | head -20 || true
+
       - name: Spotless check
         run: mvn spotless:check --no-transfer-progress
 
