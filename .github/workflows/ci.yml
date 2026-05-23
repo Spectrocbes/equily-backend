@@ -24,6 +24,14 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
+      - name: Verify environment
+        run: |
+          echo "JAVA_HOME: $JAVA_HOME"
+          java -version
+          ./mvnw --version
+          echo "Trusted certs in cacerts:"
+          keytool -list -cacerts -storepass changeit 2>/dev/null | grep -c "trustedCertEntry"
+
       - name: Cache SonarCloud packages
         uses: actions/cache@v4
         with:
