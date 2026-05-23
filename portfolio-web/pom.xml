@@ -13,15 +13,6 @@
     <name>portfolio-web</name>
     <description>Portfolio bounded context — REST controllers and DTOs for the Angular frontend.</description>
 
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.jacoco</groupId>
-                <artifactId>jacoco-maven-plugin</artifactId>
-            </plugin>
-        </plugins>
-    </build>
-
     <dependencies>
         <dependency>
             <groupId>com.equily</groupId>

@@ -24,6 +24,14 @@
 - Full reactor BUILD SUCCESS (7 modules, 25.9s) including Spotless check
 - Next: FinancialAccountRepository port in portfolio-domain + JPA adapter in portfolio-infrastructure
 
+## 2026-05-23 — CI pipeline fully operational
+
+- CI pipeline fully operational after fixing `.mvn/maven.config` Windows-only SSL config
+- JaCoCo aggregate report module `coverage-report` added — single `jacoco.xml` at `coverage-report/target/site/jacoco-aggregate/jacoco.xml`
+- SonarCloud now receives real coverage data (39KB report, shared-kernel + portfolio-domain covered)
+- Root cause of SSL failure: `-Djavax.net.ssl.trustStoreType=WINDOWS-ROOT` in `.mvn/maven.config` breaks Linux CI
+- Next: merge CI branch, then FinancialAccountRepository port + JPA adapter
+
 ## Architecture Decisions
 
 - Lombok is forbidden everywhere. Java 21 records replace POJOs; explicit methods replace generated ones.

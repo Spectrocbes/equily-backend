@@ -25,10 +25,7 @@
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
         <sonar.java.coveragePlugin>jacoco</sonar.java.coveragePlugin>
         <sonar.coverage.jacoco.xmlReportPaths>
-            ${project.basedir}/../portfolio-domain/target/site/jacoco/jacoco.xml,
-            ${project.basedir}/../portfolio-application/target/site/jacoco/jacoco.xml,
-            ${project.basedir}/../portfolio-infrastructure/target/site/jacoco/jacoco.xml,
-            ${project.basedir}/../portfolio-web/target/site/jacoco/jacoco.xml
+            ${project.basedir}/coverage-report/target/site/jacoco-aggregate/jacoco.xml
         </sonar.coverage.jacoco.xmlReportPaths>
         <sonar.exclusions>
             **/bootstrap/**,
@@ -47,6 +44,7 @@
         <module>portfolio-infrastructure</module>
         <module>portfolio-web</module>
         <module>bootstrap</module>
+        <module>coverage-report</module>
     </modules>
 
     <dependencyManagement>
@@ -74,6 +72,12 @@
             <dependency>
                 <groupId>com.equily</groupId>
                 <artifactId>portfolio-web</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.equily</groupId>
+                <artifactId>coverage-report</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
@@ -129,13 +133,6 @@
                                 <goal>prepare-agent</goal>
                             </goals>
                         </execution>
-                        <execution>
-                            <id>report</id>
-                            <phase>verify</phase>
-                            <goals>
-                                <goal>report</goal>
-                            </goals>
-                        </execution>
                     </executions>
                 </plugin>
                 <plugin>
@@ -149,6 +146,10 @@
             <plugin>
                 <groupId>com.diffplug.spotless</groupId>
                 <artifactId>spotless-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
             </plugin>
         </plugins>
     </build>
