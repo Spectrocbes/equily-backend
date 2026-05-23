@@ -14,6 +14,11 @@
     <artifactId>coverage-report</artifactId>
     <name>Equily :: Coverage Report (aggregate)</name>
 
+    <properties>
+        <sonar.sources></sonar.sources>
+        <sonar.tests></sonar.tests>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>com.equily</groupId>
