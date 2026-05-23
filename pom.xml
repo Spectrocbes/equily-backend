@@ -31,7 +31,8 @@
             **/bootstrap/**,
             **/db/migration/**,
             **/*JpaEntity*,
-            **/*Application.java
+            **/*Application.java,
+            **/coverage-report/**
         </sonar.exclusions>
         <sonar.sources>src/main/java</sonar.sources>
         <sonar.tests>src/test/java</sonar.tests>
