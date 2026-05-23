@@ -43,8 +43,34 @@ jobs:
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
 
-      - name: Build, test & coverage
-        run: ./mvnw clean verify --no-transfer-progress
+      - name: Diagnose Maven SSL failure
+        run: |
+          echo "=== ENV VARS ==="
+          env | grep -iE "maven|java|ssl|trust|cert" || true
+          echo "=== MAVEN_OPTS ==="
+          echo "MAVEN_OPTS: $MAVEN_OPTS"
+          echo "=== Maven settings.xml files ==="
+          find / -name "settings.xml" 2>/dev/null || true
+          echo "=== .mvn/ directory ==="
+          ls -la .mvn/ 2>/dev/null || true
+          find .mvn/ -type f 2>/dev/null | xargs -I{} sh -c 'echo "--- {} ---"; cat "{}"' 2>/dev/null || true
+          echo "=== Test SSL directly with Java ==="
+          cat > /tmp/TestSsl.java <<'EOF'
+          import javax.net.ssl.SSLContext;
+          public class TestSsl {
+              public static void main(String[] args) throws Exception {
+                  SSLContext ctx = SSLContext.getDefault();
+                  System.out.println("SSL default context OK: " + ctx.getProtocol());
+              }
+          }
+          EOF
+          cd /tmp && javac TestSsl.java && java TestSsl
+          echo "=== Test SSL with curl ==="
+          curl -v https://repo.maven.apache.org/maven2/ 2>&1 | head -30
+          echo "=== Test Maven download directly ==="
+          curl -fsSL -o /tmp/parent.pom "https://repo.maven.apache.org/maven2/org/springframework/boot/spring-boot-starter-parent/3.5.14/spring-boot-starter-parent-3.5.14.pom" && echo "DIRECT DOWNLOAD OK" && head -5 /tmp/parent.pom
+          echo "=== Try mvn explicitly without any settings ==="
+          ./mvnw -B -X --batch-mode help:effective-settings 2>&1 | head -50
 
       - name: SonarCloud analysis
         env:
