@@ -13,6 +13,15 @@
     <name>portfolio-domain</name>
     <description>Portfolio bounded context — pure domain model. ZERO framework dependencies.</description>
 
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
     <dependencies>
         <dependency>
             <groupId>com.equily</groupId>

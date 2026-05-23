@@ -10,8 +10,6 @@ import org.springframework.test.context.ActiveProfiles;
 @ActiveProfiles("local")
 class EquilyBackendApplicationTests {
 
-    @Test
-    void contextLoads() {
-    }
-
+  @Test
+  void contextLoads() {}
 }

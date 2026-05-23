@@ -15,6 +15,15 @@
 - 26 tests passing (TickerTest, TransactionTest, HoldingTest, FinancialAccountTest, DomainArchitectureTest)
 - ArchUnit confirms zero Spring/JPA/Lombok deps in domain
 
+## 2026-05-23 — CI Phase 1 pipeline
+
+- CI Phase 1 pipeline configured: Spotless (Google Java Format) + JaCoCo + SonarCloud + Dependabot + GitHub Actions workflow
+- `spotless:apply` reformatted 37 files to Google Java Format — one-time normalization
+- `GITHUB_TOKEN` is auto-injected by GitHub Actions, no setup needed
+- `SONAR_TOKEN` added to GitHub repository secrets
+- Full reactor BUILD SUCCESS (7 modules, 25.9s) including Spotless check
+- Next: FinancialAccountRepository port in portfolio-domain + JPA adapter in portfolio-infrastructure
+
 ## Architecture Decisions
 
 - Lombok is forbidden everywhere. Java 21 records replace POJOs; explicit methods replace generated ones.
