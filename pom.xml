@@ -25,7 +25,7 @@
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
         <sonar.java.coveragePlugin>jacoco</sonar.java.coveragePlugin>
         <sonar.coverage.jacoco.xmlReportPaths>
-            ${maven.multiModuleProjectDirectory}/coverage-report/target/site/jacoco-aggregate/jacoco.xml
+            target/site/jacoco/jacoco.xml
         </sonar.coverage.jacoco.xmlReportPaths>
         <sonar.exclusions>
             **/bootstrap/**,
@@ -44,7 +44,6 @@
         <module>portfolio-infrastructure</module>
         <module>portfolio-web</module>
         <module>bootstrap</module>
-        <module>coverage-report</module>
     </modules>
 
     <dependencyManagement>
@@ -72,12 +71,6 @@
             <dependency>
                 <groupId>com.equily</groupId>
                 <artifactId>portfolio-web</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>com.equily</groupId>
-                <artifactId>coverage-report</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
@@ -129,9 +122,12 @@
                     <executions>
                         <execution>
                             <id>prepare-agent</id>
-                            <goals>
-                                <goal>prepare-agent</goal>
-                            </goals>
+                            <goals><goal>prepare-agent</goal></goals>
+                        </execution>
+                        <execution>
+                            <id>report</id>
+                            <phase>verify</phase>
+                            <goals><goal>report</goal></goals>
                         </execution>
                     </executions>
                 </plugin>
