@@ -32,16 +32,21 @@ jobs:
           restore-keys: ${{ runner.os }}-sonar
 
       - name: Spotless check
-        run: ./mvnw spotless:check --no-transfer-progress
+        run: |
+          chmod +x mvnw
+          ./mvnw spotless:check --no-transfer-progress
 
       - name: Build, test & coverage
-        run: ./mvnw clean verify --no-transfer-progress
+        run: |
+          chmod +x mvnw
+          ./mvnw clean verify --no-transfer-progress
 
       - name: SonarCloud analysis
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
+          chmod +x mvnw
           ./mvnw sonar:sonar \
             --no-transfer-progress \
             -Dsonar.organization=Spectrocbes \
