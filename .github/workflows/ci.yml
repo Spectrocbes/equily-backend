@@ -24,9 +24,15 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
+      - name: Force correct JDK in PATH
+        run: |
+          echo "JAVA_HOME: $JAVA_HOME"
+          echo "$JAVA_HOME/bin" >> $GITHUB_PATH
+
       - name: Verify environment
         run: |
           echo "JAVA_HOME: $JAVA_HOME"
+          which java
           java -version
           ./mvnw --version
           echo "Trusted certs in cacerts:"
