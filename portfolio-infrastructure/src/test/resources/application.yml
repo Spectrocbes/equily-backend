@@ -1,0 +1,12 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: portfolio
+  flyway:
+    enabled: true
+    locations: classpath:db/migration/portfolio
+    schemas: portfolio
+    default-schema: portfolio
