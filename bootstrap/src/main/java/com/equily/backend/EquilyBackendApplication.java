@@ -6,8 +6,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication(scanBasePackages = "com.equily")
 public class EquilyBackendApplication {
 
-    public static void main(String[] args) {
-        SpringApplication.run(EquilyBackendApplication.class, args);
-    }
-
+  public static void main(String[] args) {
+    SpringApplication.run(EquilyBackendApplication.class, args);
+  }
 }

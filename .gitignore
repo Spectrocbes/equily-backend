@@ -7,6 +7,7 @@ target/
 *.war
 !.mvn/wrapper/maven-wrapper.jar
 application-local.yml
+settings.local.json
 
 ### STS ###
 .apt_generated
