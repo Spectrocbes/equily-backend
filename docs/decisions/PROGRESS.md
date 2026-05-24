@@ -61,6 +61,32 @@
 - 55 tests, 0 failures
 - Next: application use cases (GetAllAccounts, RecordTransaction) + REST endpoints
 
+## 2026-05-24 — Application layer + REST endpoints
+
+- `CreateFinancialAccountCommand`, `RecordTransactionCommand` records in `portfolio-application`
+- `FinancialAccountUseCase` input port (interface); `FinancialAccountService` implementation (`@Service @Transactional`, package-private)
+- `AccountNotFoundException` added to `portfolio-domain/exception`
+- `FinancialAccountController`: 5 endpoints — `GET /api/v1/accounts`, `GET /{id}`, `POST /`, `POST /{id}/transactions`, `GET /{id}/transactions`
+- DTOs: `CreateAccountRequest`, `RecordTransactionRequest`, `FinancialAccountResponse`, `TransactionResponse` (all records, no domain types exposed)
+- `GlobalExceptionHandler`: maps `AccountNotFoundException` → 404, `InsufficientFundsException` → 422, `InvalidTransactionException` → 400
+- `PortfolioWebTestApplication` minimal bootstrap for `@WebMvcTest` (same pattern as infrastructure module)
+- `@MockBean` → `@MockitoBean` (Spring Boot 3.4 deprecation)
+- 67 tests total, 0 failures — shared-kernel: 24, portfolio-domain: 27, portfolio-application: 6, portfolio-infrastructure: 3, portfolio-web: 6, bootstrap: 1
+- Next: commit + push, then wire Angular or add remaining use cases
+
+## 2026-05-24 — Application layer + REST layer (with validation hardening)
+
+- `FinancialAccountUseCase` input port (interface); `FinancialAccountService` implementation (`@Service @Transactional`, package-private)
+- Commands: `CreateFinancialAccountCommand`, `RecordTransactionCommand` records in `portfolio-application`
+- `AccountNotFoundException` added to `portfolio-domain/exception`
+- `FinancialAccountController`: 5 endpoints — `GET /api/v1/accounts`, `GET /{id}`, `POST /`, `POST /{id}/transactions`, `GET /{id}/transactions`
+- DTOs: `CreateAccountRequest`, `RecordTransactionRequest`, `FinancialAccountResponse`, `TransactionResponse` (all records, no domain types exposed)
+- Jakarta validation on request DTOs: `@NotBlank` on `name`, `accountType`, `currency`, `type`, `totalCurrency`; `@NotNull` on `initialBalance`, `totalAmount`, `date`; `ticker`/`quantity`/`pricePerUnit`/`priceCurrency` intentionally nullable (DEPOSIT/WITHDRAWAL have no asset)
+- `GlobalExceptionHandler`: `AccountNotFoundException` → 404, `InsufficientFundsException` → 422, `InvalidTransactionException` → 400, `IllegalArgumentException` → 400 (catches invalid UUID path variables and invalid enum values)
+- `PortfolioWebTestApplication` minimal bootstrap for `@WebMvcTest`; `@MockitoBean` (Spring Boot 3.4 deprecation of `@MockBean`)
+- 67 tests total, 0 failures — shared-kernel: 24, portfolio-domain: 27, portfolio-application: 6, portfolio-infrastructure: 3, portfolio-web: 6, bootstrap: 1
+- Next: test the API manually with Docker running, then Angular frontend
+
 ## Architecture Decisions
 
 - Lombok is forbidden everywhere. Java 21 records replace POJOs; explicit methods replace generated ones.
