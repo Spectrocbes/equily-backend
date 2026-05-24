@@ -87,6 +87,14 @@
 - 67 tests total, 0 failures — shared-kernel: 24, portfolio-domain: 27, portfolio-application: 6, portfolio-infrastructure: 3, portfolio-web: 6, bootstrap: 1
 - Next: test the API manually with Docker running, then Angular frontend
 
+## 2026-05-24 — Security + end-to-end validation
+
+- `SecurityConfig` added in `bootstrap` under `@Profile("local")` — disables CSRF and permits all requests; `spring-boot-starter-security` was already declared in bootstrap's pom
+- Full API tested manually with Postman: `POST /api/v1/accounts`, `POST /api/v1/accounts/{id}/transactions` (DEPOSIT and BUY), `GET /api/v1/accounts`, `GET /api/v1/accounts/{id}/transactions` — all working correctly
+- Error cases validated end-to-end: invalid UUID → 400, invalid enum → 400, insufficient funds → 422
+- End-to-end stack confirmed: HTTP → Controller → Service → Repository → PostgreSQL (Docker)
+- Next: Angular frontend initialisation
+
 ## Architecture Decisions
 
 - Lombok is forbidden everywhere. Java 21 records replace POJOs; explicit methods replace generated ones.
