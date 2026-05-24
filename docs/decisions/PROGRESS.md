@@ -32,6 +32,15 @@
 - Root cause of SSL failure: `-Djavax.net.ssl.trustStoreType=WINDOWS-ROOT` in `.mvn/maven.config` breaks Linux CI
 - Next: merge CI branch, then FinancialAccountRepository port + JPA adapter
 
+## 2026-05-24 — CI coverage reporting stabilised
+
+- Reverted JaCoCo aggregate report approach (`coverage-report` module deleted) — SonarCloud cross-module file warnings made it unusable
+- Restored per-module JaCoCo reports: `portfolio-domain`, `portfolio-application`, `portfolio-infrastructure`, `portfolio-web` each generate `target/site/jacoco/jacoco.xml`
+- `sonar.coverage.jacoco.xmlReportPaths` set to relative `target/site/jacoco/jacoco.xml` — SonarCloud resolves it per-module correctly
+- `sonar.organization` corrected to lowercase `spectrocbes` (was `Spectrocbes`)
+- `.mvn/maven.config` deleted — contained `-Djavax.net.ssl.trustStoreType=WINDOWS-ROOT`, breaking all Linux CI steps
+- Next: merge CI branch, then FinancialAccountRepository port + JPA adapter
+
 ## Architecture Decisions
 
 - Lombok is forbidden everywhere. Java 21 records replace POJOs; explicit methods replace generated ones.
