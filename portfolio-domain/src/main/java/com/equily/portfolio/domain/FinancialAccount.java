@@ -30,6 +30,25 @@ public final class FinancialAccount {
     this.transactions = new ArrayList<>();
   }
 
+  /**
+   * Rebuilds a FinancialAccount from persisted state (DB round-trip). Does NOT replay transactions
+   * through recordTransaction() — the stored balance is authoritative.
+   *
+   * <p><strong>FOR INFRASTRUCTURE USE ONLY.</strong> Must only be called from {@code
+   * portfolio-infrastructure} repository adapters. Never call this from application or web layers —
+   * use {@link #open} instead.
+   */
+  public static FinancialAccount reconstruct(
+      FinancialAccountId id,
+      String name,
+      AccountType accountType,
+      Money balance,
+      List<Transaction> transactions) {
+    FinancialAccount account = new FinancialAccount(id, name, accountType, balance);
+    account.transactions.addAll(transactions);
+    return account;
+  }
+
   public static FinancialAccount open(String name, AccountType accountType, Money initialBalance) {
     if (name == null || name.isBlank()) {
       throw new InvalidFinancialAccountException("name must not be null or blank");

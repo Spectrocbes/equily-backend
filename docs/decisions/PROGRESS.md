@@ -11,13 +11,16 @@
 
 ## 2026-05-23 — FinancialAccount aggregate root
 
-- Implemented full Portfolio domain: AccountType, AssetType, TransactionType enums; Ticker, AssetMetadata, Country value objects; Transaction (append-only, static factory), Holding (computed projection, French fiscal rule), FinancialAccount aggregate root
+- Implemented full Portfolio domain: AccountType, AssetType, TransactionType enums; Ticker, AssetMetadata, Country value
+  objects; Transaction (append-only, static factory), Holding (computed projection, French fiscal rule),
+  FinancialAccount aggregate root
 - 26 tests passing (TickerTest, TransactionTest, HoldingTest, FinancialAccountTest, DomainArchitectureTest)
 - ArchUnit confirms zero Spring/JPA/Lombok deps in domain
 
 ## 2026-05-23 — CI Phase 1 pipeline
 
-- CI Phase 1 pipeline configured: Spotless (Google Java Format) + JaCoCo + SonarCloud + Dependabot + GitHub Actions workflow
+- CI Phase 1 pipeline configured: Spotless (Google Java Format) + JaCoCo + SonarCloud + Dependabot + GitHub Actions
+  workflow
 - `spotless:apply` reformatted 37 files to Google Java Format — one-time normalization
 - `GITHUB_TOKEN` is auto-injected by GitHub Actions, no setup needed
 - `SONAR_TOKEN` added to GitHub repository secrets
@@ -27,27 +30,49 @@
 ## 2026-05-23 — CI pipeline fully operational
 
 - CI pipeline fully operational after fixing `.mvn/maven.config` Windows-only SSL config
-- JaCoCo aggregate report module `coverage-report` added — single `jacoco.xml` at `coverage-report/target/site/jacoco-aggregate/jacoco.xml`
+- JaCoCo aggregate report module `coverage-report` added — single `jacoco.xml` at
+  `coverage-report/target/site/jacoco-aggregate/jacoco.xml`
 - SonarCloud now receives real coverage data (39KB report, shared-kernel + portfolio-domain covered)
 - Root cause of SSL failure: `-Djavax.net.ssl.trustStoreType=WINDOWS-ROOT` in `.mvn/maven.config` breaks Linux CI
 - Next: merge CI branch, then FinancialAccountRepository port + JPA adapter
 
 ## 2026-05-24 — CI coverage reporting stabilised
 
-- Reverted JaCoCo aggregate report approach (`coverage-report` module deleted) — SonarCloud cross-module file warnings made it unusable
-- Restored per-module JaCoCo reports: `portfolio-domain`, `portfolio-application`, `portfolio-infrastructure`, `portfolio-web` each generate `target/site/jacoco/jacoco.xml`
-- `sonar.coverage.jacoco.xmlReportPaths` set to relative `target/site/jacoco/jacoco.xml` — SonarCloud resolves it per-module correctly
+- Reverted JaCoCo aggregate report approach (`coverage-report` module deleted) — SonarCloud cross-module file warnings
+  made it unusable
+- Restored per-module JaCoCo reports: `portfolio-domain`, `portfolio-application`, `portfolio-infrastructure`,
+  `portfolio-web` each generate `target/site/jacoco/jacoco.xml`
+- `sonar.coverage.jacoco.xmlReportPaths` set to relative `target/site/jacoco/jacoco.xml` — SonarCloud resolves it
+  per-module correctly
 - `sonar.organization` corrected to lowercase `spectrocbes` (was `Spectrocbes`)
 - `.mvn/maven.config` deleted — contained `-Djavax.net.ssl.trustStoreType=WINDOWS-ROOT`, breaking all Linux CI steps
 - Next: merge CI branch, then FinancialAccountRepository port + JPA adapter
 
+## 2026-05-24 — FinancialAccountRepository port + JPA adapter
+
+- `FinancialAccountRepository` port added to `portfolio-domain` (pure Java interface, zero framework deps)
+- Flyway V3 (transaction table), V4 (balance column on financial_account), V5 (CHAR→VARCHAR normalization for Hibernate schema validation)
+- JPA entities: `FinancialAccountJpaEntity` + `TransactionJpaEntity` (package-private, infrastructure only)
+- `FinancialAccountJpaEntity` implements `Persistable<UUID>` — externally-managed UUIDs require this to prevent Hibernate treating new entities as detached (StaleObjectStateException)
+- `FinancialAccountMapper`: static `toJpa()` / `toDomain()` anti-corruption layer; `toDomain()` calls `reconstruct()` not `open()` to reload persisted state without replaying transactions
+- `FinancialAccountRepositoryAdapter`: implements port; calls `existsById()` before save to set `isNew` flag correctly
+- `CrossLayerArchitectureTest`: ArchUnit rule (scans all `com.equily`) enforcing `reconstruct()` only callable from `portfolio-infrastructure` or `portfolio-domain` — no `.allowEmptyShould(true)`
+- `@EntityScan("com.equily")` + `@EnableJpaRepositories("com.equily")` added to `EquilyBackendApplication` — `@AutoConfigurationPackage` only covers the declaring class's package, not the full multi-module tree
+- 55 tests, 0 failures
+- Next: application use cases (GetAllAccounts, RecordTransaction) + REST endpoints
+
 ## Architecture Decisions
 
 - Lombok is forbidden everywhere. Java 21 records replace POJOs; explicit methods replace generated ones.
-- `Money` is a record. Null constructor args throw `InvalidMoneyException`, not `NullPointerException`. Cross-currency arithmetic throws `CurrencyMismatchException` (RuntimeException).
-- `EquilyBackendApplicationTests` was `@Disabled` until Docker Compose was wired; re-enabled 2026-05-22 with `@ActiveProfiles("local")` + Testcontainers.
+- `Money` is a record. Null constructor args throw `InvalidMoneyException`, not `NullPointerException`. Cross-currency
+  arithmetic throws `CurrencyMismatchException` (RuntimeException).
+- `EquilyBackendApplicationTests` was `@Disabled` until Docker Compose was wired; re-enabled 2026-05-22 with
+  `@ActiveProfiles("local")` + Testcontainers.
 - `ddl-auto: validate` — Hibernate never modifies schema. Flyway owns all DDL from day 1.
 - Spring profiles: `local` (Docker dev datasource), `prod` (Supabase via env vars). No other profiles.
-- Flyway migrations in `portfolio-infrastructure/src/main/resources/db/migration/portfolio/`. Naming: `V{n}__{description}.sql`.
-- French fiscal rule: on SELL, `averageCostPrice` is not recalculated — only quantity decreases. `Holding` is a computed projection, never stored directly.
-- `AssetInfo` (AssetType + AssetMetadata) is passed as a `Map<Ticker, AssetInfo>` parameter to `getHoldings()` as a deliberate temporary coupling until the Market Data bounded context exists.
+- Flyway migrations in `portfolio-infrastructure/src/main/resources/db/migration/portfolio/`. Naming:
+  `V{n}__{description}.sql`.
+- French fiscal rule: on SELL, `averageCostPrice` is not recalculated — only quantity decreases. `Holding` is a computed
+  projection, never stored directly.
+- `AssetInfo` (AssetType + AssetMetadata) is passed as a `Map<Ticker, AssetInfo>` parameter to `getHoldings()` as a
+  deliberate temporary coupling until the Market Data bounded context exists.

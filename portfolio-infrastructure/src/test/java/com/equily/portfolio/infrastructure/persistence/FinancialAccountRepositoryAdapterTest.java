@@ -1,0 +1,149 @@
+package com.equily.portfolio.infrastructure.persistence;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.equily.portfolio.domain.AccountType;
+import com.equily.portfolio.domain.FinancialAccount;
+import com.equily.portfolio.domain.Ticker;
+import com.equily.portfolio.domain.Transaction;
+import com.equily.portfolio.domain.TransactionId;
+import com.equily.portfolio.domain.TransactionType;
+import com.equily.shared.Money;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.Currency;
+import java.util.List;
+import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+@DataJpaTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@Testcontainers
+@ActiveProfiles("local")
+class FinancialAccountRepositoryAdapterTest {
+
+  @Container
+  static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
+
+  @DynamicPropertySource
+  static void configureProperties(DynamicPropertyRegistry registry) {
+    registry.add("spring.datasource.url", postgres::getJdbcUrl);
+    registry.add("spring.datasource.username", postgres::getUsername);
+    registry.add("spring.datasource.password", postgres::getPassword);
+  }
+
+  @Autowired private FinancialAccountJpaRepository jpaRepository;
+
+  @Autowired private TestEntityManager testEntityManager;
+
+  private FinancialAccountRepositoryAdapter adapter;
+
+  private static final Currency EUR = Currency.getInstance("EUR");
+
+  @BeforeEach
+  void setUp() {
+    adapter = new FinancialAccountRepositoryAdapter(jpaRepository);
+  }
+
+  @Test
+  void save_and_findById_roundtrip() {
+    FinancialAccount account =
+        FinancialAccount.open(
+            "PEA Account", AccountType.PEA, new Money(new BigDecimal("1000.00"), EUR));
+
+    Transaction buy =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.BUY,
+            new Ticker("AAPL"),
+            new BigDecimal("2"),
+            new Money(new BigDecimal("150.00"), EUR),
+            new Money(new BigDecimal("300.00"), EUR),
+            LocalDate.of(2024, 1, 15));
+    account.recordTransaction(buy);
+
+    adapter.save(account);
+    testEntityManager.flush();
+    testEntityManager.clear();
+
+    Optional<FinancialAccount> found = adapter.findById(account.id());
+
+    assertThat(found).isPresent();
+    assertThat(found.get().name()).isEqualTo("PEA Account");
+    assertThat(found.get().accountType()).isEqualTo(AccountType.PEA);
+    assertThat(found.get().balance()).isEqualTo(new Money(new BigDecimal("700.00"), EUR));
+    assertThat(found.get().transactions()).hasSize(1);
+    assertThat(found.get().transactions().get(0).type()).isEqualTo(TransactionType.BUY);
+    assertThat(found.get().transactions().get(0).ticker()).isEqualTo(new Ticker("AAPL"));
+  }
+
+  @Test
+  void findAll_returns_all_saved_accounts() {
+    FinancialAccount pea =
+        FinancialAccount.open("PEA", AccountType.PEA, new Money(new BigDecimal("500.00"), EUR));
+    FinancialAccount crypto =
+        FinancialAccount.open(
+            "Crypto Wallet", AccountType.CRYPTO_WALLET, new Money(new BigDecimal("200.00"), EUR));
+
+    adapter.save(pea);
+    adapter.save(crypto);
+    testEntityManager.flush();
+    testEntityManager.clear();
+
+    List<FinancialAccount> all = adapter.findAll();
+
+    assertThat(all).hasSize(2);
+  }
+
+  @Test
+  void save_account_with_multiple_transactions_preserves_order() {
+    FinancialAccount account =
+        FinancialAccount.open(
+            "Compte-Titres", AccountType.COMPTE_TITRES, new Money(new BigDecimal("2000.00"), EUR));
+
+    Transaction deposit =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("500.00"), EUR),
+            LocalDate.of(2024, 1, 1));
+    account.recordTransaction(deposit);
+
+    Transaction buy =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.BUY,
+            new Ticker("MSFT"),
+            new BigDecimal("1"),
+            new Money(new BigDecimal("300.00"), EUR),
+            new Money(new BigDecimal("300.00"), EUR),
+            LocalDate.of(2024, 1, 15));
+    account.recordTransaction(buy);
+
+    adapter.save(account);
+    testEntityManager.flush();
+    testEntityManager.clear();
+
+    Optional<FinancialAccount> found = adapter.findById(account.id());
+
+    assertThat(found).isPresent();
+    assertThat(found.get().transactions()).hasSize(2);
+    // DEPOSIT is on 2024-01-01, BUY on 2024-01-15 → ordered by date ASC
+    assertThat(found.get().transactions().get(0).type()).isEqualTo(TransactionType.DEPOSIT);
+    assertThat(found.get().transactions().get(1).type()).isEqualTo(TransactionType.BUY);
+  }
+}
