@@ -72,6 +72,13 @@ Each Bounded Context: 4 modules — `*-domain`, `*-application`, `*-infrastructu
 - `*-infrastructure`: Testcontainers + real PostgreSQL.
 - `*-web`: `@WebMvcTest`, no DB.
 - Done means: tests pass + ArchUnit passes + zero build warnings.
+- **Coverage gate**: every PR must maintain ≥ 80% instruction coverage on new code.
+  SonarCloud enforces this automatically — a PR with < 80% coverage on new code will
+  not be mergeable. When adding new classes, always write tests that cover:
+    - All public methods (happy path + error cases)
+    - All nullable branches (null/non-null paths in mappers and controllers)
+    - All exception handler methods in `GlobalExceptionHandler`
+      JaCoCo reports are available locally at `*/target/site/jacoco/index.html` after `.\mvnw.cmd verify`.
 
 ## Development Workflow
 

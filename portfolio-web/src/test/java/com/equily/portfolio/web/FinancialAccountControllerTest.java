@@ -13,10 +13,16 @@ import com.equily.portfolio.application.FinancialAccountUseCase;
 import com.equily.portfolio.domain.AccountType;
 import com.equily.portfolio.domain.FinancialAccount;
 import com.equily.portfolio.domain.FinancialAccountId;
+import com.equily.portfolio.domain.Ticker;
+import com.equily.portfolio.domain.Transaction;
+import com.equily.portfolio.domain.TransactionId;
+import com.equily.portfolio.domain.TransactionType;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
 import com.equily.portfolio.domain.exception.InsufficientFundsException;
+import com.equily.portfolio.domain.exception.InvalidTransactionException;
 import com.equily.shared.Money;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Currency;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -124,5 +130,95 @@ class FinancialAccountControllerTest {
                      "totalCurrency": "EUR", "date": "2026-05-24"}
                     """))
         .andExpect(status().isUnprocessableEntity());
+  }
+
+  @Test
+  void getTransactions_returns_list_with_buy_transaction() throws Exception {
+    FinancialAccount account =
+        FinancialAccount.open(
+            "My PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.valueOf(2000), Currency.getInstance("EUR")));
+    Transaction buyTx =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.BUY,
+            new Ticker("AAPL"),
+            BigDecimal.valueOf(10),
+            new Money(BigDecimal.valueOf(150), Currency.getInstance("EUR")),
+            new Money(BigDecimal.valueOf(1500), Currency.getInstance("EUR")),
+            LocalDate.of(2026, 1, 15));
+    account.recordTransaction(buyTx);
+    when(useCase.getAccountById(any())).thenReturn(account);
+
+    mockMvc
+        .perform(get("/api/v1/accounts/{id}/transactions", account.id().value().toString()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.length()").value(1))
+        .andExpect(jsonPath("$[0].type").value("BUY"))
+        .andExpect(jsonPath("$[0].ticker").value("AAPL"))
+        .andExpect(jsonPath("$[0].quantity").value(10))
+        .andExpect(jsonPath("$[0].pricePerUnit").value(150))
+        .andExpect(jsonPath("$[0].totalAmount").value(1500));
+  }
+
+  @Test
+  void getTransactions_returns_list_with_deposit_transaction_no_ticker() throws Exception {
+    Transaction depositTx =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(BigDecimal.valueOf(1000), Currency.getInstance("EUR")),
+            LocalDate.of(2026, 1, 15));
+    testAccount.recordTransaction(depositTx);
+    when(useCase.getAccountById(any())).thenReturn(testAccount);
+
+    mockMvc
+        .perform(get("/api/v1/accounts/{id}/transactions", testAccount.id().value().toString()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.length()").value(1))
+        .andExpect(jsonPath("$[0].type").value("DEPOSIT"))
+        .andExpect(jsonPath("$[0].ticker").isEmpty())
+        .andExpect(jsonPath("$[0].pricePerUnit").isEmpty());
+  }
+
+  @Test
+  void recordTransaction_buy_with_ticker_and_price_returns_204() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/accounts/{id}/transactions", testAccount.id().value().toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"type": "BUY", "ticker": "AAPL", "quantity": 10,
+                     "pricePerUnit": 150.00, "priceCurrency": "EUR",
+                     "totalAmount": 1500.00, "totalCurrency": "EUR", "date": "2026-01-15"}
+                    """))
+        .andExpect(status().isNoContent());
+  }
+
+  @Test
+  void recordTransaction_throws_InvalidTransactionException_returns_400() throws Exception {
+    doThrow(new InvalidTransactionException("bad tx")).when(useCase).recordTransaction(any());
+
+    mockMvc
+        .perform(
+            post("/api/v1/accounts/{id}/transactions", testAccount.id().value().toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"type": "DEPOSIT", "totalAmount": 500,
+                     "totalCurrency": "EUR", "date": "2026-05-24"}
+                    """))
+        .andExpect(status().isBadRequest())
+        .andExpect(content().string("bad tx"));
+  }
+
+  @Test
+  void getAccountById_invalid_uuid_returns_400() throws Exception {
+    mockMvc.perform(get("/api/v1/accounts/not-a-valid-uuid")).andExpect(status().isBadRequest());
   }
 }
