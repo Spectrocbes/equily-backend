@@ -36,6 +36,7 @@ class FinancialAccountMapper {
     entity.accountType = account.accountType().name();
     entity.currency = account.balance().currency().getCurrencyCode();
     entity.balance = account.balance().amount();
+    entity.broker = account.broker();
 
     List<TransactionJpaEntity> txEntities =
         account.transactions().stream().map(t -> toJpaTransaction(t, entity)).toList();
@@ -56,7 +57,8 @@ class FinancialAccountMapper {
     // reconstruct() not open(): open() generates a new random ID and ignores any prior
     // transactions. reconstruct() bypasses recordTransaction() so the persisted balance
     // is used directly without re-deriving it from the transaction log.
-    return FinancialAccount.reconstruct(id, entity.name, accountType, balance, transactions);
+    return FinancialAccount.reconstruct(
+        id, entity.name, accountType, balance, transactions, entity.broker);
   }
 
   private static TransactionJpaEntity toJpaTransaction(

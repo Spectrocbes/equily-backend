@@ -8,4 +8,5 @@ public record FinancialAccountResponse(
     String accountType,
     BigDecimal balance,
     String currency,
-    int transactionCount) {}
+    int transactionCount,
+    String broker) {}

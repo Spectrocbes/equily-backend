@@ -48,7 +48,8 @@ class FinancialAccountControllerTest {
         FinancialAccount.open(
             "My PEA",
             AccountType.PEA,
-            new Money(BigDecimal.valueOf(1000), Currency.getInstance("EUR")));
+            new Money(BigDecimal.valueOf(1000), Currency.getInstance("EUR")),
+            "Fortuneo");
   }
 
   @Test
@@ -94,10 +95,10 @@ class FinancialAccountControllerTest {
                 .content(
                     """
                     {"name": "My PEA", "accountType": "PEA",
-                     "initialBalance": 1000, "currency": "EUR"}
+                     "initialBalance": 1000, "currency": "EUR", "broker": "Fortuneo"}
                     """))
         .andExpect(status().isCreated())
-        .andExpect(content().string(newId.value().toString()));
+        .andExpect(jsonPath("$.id").value(newId.value().toString()));
   }
 
   @Test
@@ -138,7 +139,8 @@ class FinancialAccountControllerTest {
         FinancialAccount.open(
             "My PEA",
             AccountType.PEA,
-            new Money(BigDecimal.valueOf(2000), Currency.getInstance("EUR")));
+            new Money(BigDecimal.valueOf(2000), Currency.getInstance("EUR")),
+            "Fortuneo");
     Transaction buyTx =
         Transaction.of(
             TransactionId.generate(),
