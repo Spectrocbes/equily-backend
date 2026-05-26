@@ -37,7 +37,7 @@ class FinancialAccountServiceTest {
   void createAccount_savesAccountAndReturnsId() {
     CreateFinancialAccountCommand command =
         new CreateFinancialAccountCommand(
-            "My PEA", AccountType.PEA, new Money(BigDecimal.valueOf(1000), EUR));
+            "My PEA", AccountType.PEA, new Money(BigDecimal.valueOf(1000), EUR), "Fortuneo");
 
     FinancialAccountId result = service.createAccount(command);
 
@@ -48,7 +48,8 @@ class FinancialAccountServiceTest {
   @Test
   void recordTransaction_loadsAccountRecordsTxAndSaves() {
     FinancialAccount account =
-        FinancialAccount.open("My PEA", AccountType.PEA, new Money(BigDecimal.valueOf(10000), EUR));
+        FinancialAccount.open(
+            "My PEA", AccountType.PEA, new Money(BigDecimal.valueOf(10000), EUR), "Fortuneo");
     FinancialAccountId accountId = account.id();
     when(repository.findById(accountId)).thenReturn(Optional.of(account));
 
@@ -90,7 +91,8 @@ class FinancialAccountServiceTest {
   @Test
   void getAllAccounts_delegatesToRepository() {
     FinancialAccount account =
-        FinancialAccount.open("My PEA", AccountType.PEA, new Money(BigDecimal.valueOf(1000), EUR));
+        FinancialAccount.open(
+            "My PEA", AccountType.PEA, new Money(BigDecimal.valueOf(1000), EUR), "Fortuneo");
     when(repository.findAll()).thenReturn(List.of(account));
 
     List<FinancialAccount> result = service.getAllAccounts();
@@ -102,7 +104,8 @@ class FinancialAccountServiceTest {
   @Test
   void getAccountById_returnsAccountWhenFound() {
     FinancialAccount account =
-        FinancialAccount.open("My PEA", AccountType.PEA, new Money(BigDecimal.valueOf(1000), EUR));
+        FinancialAccount.open(
+            "My PEA", AccountType.PEA, new Money(BigDecimal.valueOf(1000), EUR), "Fortuneo");
     FinancialAccountId id = account.id();
     when(repository.findById(id)).thenReturn(Optional.of(account));
 

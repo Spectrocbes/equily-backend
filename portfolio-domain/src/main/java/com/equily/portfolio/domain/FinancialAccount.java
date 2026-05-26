@@ -20,13 +20,15 @@ public final class FinancialAccount {
   private final AccountType accountType;
   private Money balance;
   private final List<Transaction> transactions;
+  private final String broker;
 
   private FinancialAccount(
-      FinancialAccountId id, String name, AccountType accountType, Money balance) {
+      FinancialAccountId id, String name, AccountType accountType, Money balance, String broker) {
     this.id = id;
     this.name = name;
     this.accountType = accountType;
     this.balance = balance;
+    this.broker = broker;
     this.transactions = new ArrayList<>();
   }
 
@@ -43,13 +45,15 @@ public final class FinancialAccount {
       String name,
       AccountType accountType,
       Money balance,
-      List<Transaction> transactions) {
-    FinancialAccount account = new FinancialAccount(id, name, accountType, balance);
+      List<Transaction> transactions,
+      String broker) {
+    FinancialAccount account = new FinancialAccount(id, name, accountType, balance, broker);
     account.transactions.addAll(transactions);
     return account;
   }
 
-  public static FinancialAccount open(String name, AccountType accountType, Money initialBalance) {
+  public static FinancialAccount open(
+      String name, AccountType accountType, Money initialBalance, String broker) {
     if (name == null || name.isBlank()) {
       throw new InvalidFinancialAccountException("name must not be null or blank");
     }
@@ -59,7 +63,11 @@ public final class FinancialAccount {
     if (initialBalance == null) {
       throw new InvalidFinancialAccountException("initialBalance must not be null");
     }
-    return new FinancialAccount(FinancialAccountId.generate(), name, accountType, initialBalance);
+    if (broker == null || broker.isBlank()) {
+      throw new InvalidFinancialAccountException("broker must not be null or blank");
+    }
+    return new FinancialAccount(
+        FinancialAccountId.generate(), name, accountType, initialBalance, broker);
   }
 
   public void recordTransaction(Transaction t) {
@@ -123,5 +131,9 @@ public final class FinancialAccount {
 
   public Money balance() {
     return balance;
+  }
+
+  public String broker() {
+    return broker;
   }
 }

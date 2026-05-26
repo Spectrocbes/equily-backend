@@ -13,6 +13,7 @@ import com.equily.shared.Money;
 import jakarta.validation.Valid;
 import java.util.Currency;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -47,14 +48,16 @@ class FinancialAccountController {
   }
 
   @PostMapping
-  ResponseEntity<String> createAccount(@RequestBody @Valid CreateAccountRequest request) {
+  ResponseEntity<Map<String, String>> createAccount(
+      @RequestBody @Valid CreateAccountRequest request) {
     CreateFinancialAccountCommand command =
         new CreateFinancialAccountCommand(
             request.name(),
             AccountType.valueOf(request.accountType()),
-            new Money(request.initialBalance(), Currency.getInstance(request.currency())));
+            new Money(request.initialBalance(), Currency.getInstance(request.currency())),
+            request.broker());
     FinancialAccountId id = useCase.createAccount(command);
-    return ResponseEntity.status(HttpStatus.CREATED).body(id.value().toString());
+    return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("id", id.value().toString()));
   }
 
   @PostMapping("/{id}/transactions")
@@ -93,7 +96,8 @@ class FinancialAccountController {
         account.accountType().name(),
         account.balance().amount(),
         account.balance().currency().getCurrencyCode(),
-        account.transactions().size());
+        account.transactions().size(),
+        account.broker());
   }
 
   private TransactionResponse toTransactionResponse(Transaction tx) {

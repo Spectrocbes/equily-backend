@@ -60,7 +60,7 @@ class FinancialAccountRepositoryAdapterTest {
   void save_and_findById_roundtrip() {
     FinancialAccount account =
         FinancialAccount.open(
-            "PEA Account", AccountType.PEA, new Money(new BigDecimal("1000.00"), EUR));
+            "PEA Account", AccountType.PEA, new Money(new BigDecimal("1000.00"), EUR), "Fortuneo");
 
     Transaction buy =
         Transaction.of(
@@ -91,10 +91,14 @@ class FinancialAccountRepositoryAdapterTest {
   @Test
   void findAll_returns_all_saved_accounts() {
     FinancialAccount pea =
-        FinancialAccount.open("PEA", AccountType.PEA, new Money(new BigDecimal("500.00"), EUR));
+        FinancialAccount.open(
+            "PEA", AccountType.PEA, new Money(new BigDecimal("500.00"), EUR), "Fortuneo");
     FinancialAccount crypto =
         FinancialAccount.open(
-            "Crypto Wallet", AccountType.CRYPTO_WALLET, new Money(new BigDecimal("200.00"), EUR));
+            "Crypto Wallet",
+            AccountType.CRYPTO_WALLET,
+            new Money(new BigDecimal("200.00"), EUR),
+            "Fortuneo");
 
     adapter.save(pea);
     adapter.save(crypto);
@@ -107,10 +111,29 @@ class FinancialAccountRepositoryAdapterTest {
   }
 
   @Test
+  void save_with_broker_preserves_broker_in_roundtrip() {
+    FinancialAccount account =
+        FinancialAccount.open(
+            "Fortuneo PEA", AccountType.PEA, new Money(new BigDecimal("500.00"), EUR), "Fortuneo");
+
+    adapter.save(account);
+    testEntityManager.flush();
+    testEntityManager.clear();
+
+    Optional<FinancialAccount> found = adapter.findById(account.id());
+
+    assertThat(found).isPresent();
+    assertThat(found.get().broker()).isEqualTo("Fortuneo");
+  }
+
+  @Test
   void save_account_with_multiple_transactions_preserves_order() {
     FinancialAccount account =
         FinancialAccount.open(
-            "Compte-Titres", AccountType.COMPTE_TITRES, new Money(new BigDecimal("2000.00"), EUR));
+            "Compte-Titres",
+            AccountType.COMPTE_TITRES,
+            new Money(new BigDecimal("2000.00"), EUR),
+            "Fortuneo");
 
     Transaction deposit =
         Transaction.of(

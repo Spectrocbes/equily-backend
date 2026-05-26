@@ -28,6 +28,9 @@ class FinancialAccountJpaEntity implements Persistable<UUID> {
   @Column(name = "balance", nullable = false, precision = 19, scale = 2)
   BigDecimal balance;
 
+  @Column(name = "broker", length = 100, nullable = false)
+  String broker;
+
   @OneToMany(
       mappedBy = "account",
       cascade = CascadeType.ALL,

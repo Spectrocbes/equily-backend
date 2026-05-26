@@ -95,6 +95,20 @@
 - End-to-end stack confirmed: HTTP → Controller → Service → Repository → PostgreSQL (Docker)
 - Next: Angular frontend initialisation
 
+## 2026-05-26 — broker field added to FinancialAccount
+
+- `broker` field added to `FinancialAccount` aggregate (mandatory, NOT NULL throughout the stack)
+- Flyway V6: `ADD COLUMN broker VARCHAR(100) NOT NULL`
+- `FinancialAccountJpaEntity`: `@Column(name = "broker", length = 100, nullable = false)`
+- `FinancialAccount.open()`: validates broker not null/blank — throws `InvalidFinancialAccountException`
+- `CreateAccountRequest`: `@NotBlank String broker` — enforced at REST layer
+- `CreateFinancialAccountCommand`: `String broker` record component
+- `FinancialAccountResponse`: `String broker` field exposed in API response
+- `POST /api/v1/accounts` returns `{"id": "..."}` JSON (was plain string)
+- Tests updated: `broker = "Fortuneo"` in all fixtures across domain, application, infrastructure, and web layers
+- 2 new domain tests: `open_with_null_broker_throws`, `open_with_blank_broker_throws`
+- 71 tests total, 0 failures
+
 ## Architecture Decisions
 
 - Lombok is forbidden everywhere. Java 21 records replace POJOs; explicit methods replace generated ones.

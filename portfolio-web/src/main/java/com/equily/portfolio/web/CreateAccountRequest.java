@@ -8,4 +8,5 @@ public record CreateAccountRequest(
     @NotBlank String name,
     @NotBlank String accountType,
     @NotNull BigDecimal initialBalance,
-    @NotBlank String currency) {}
+    @NotBlank String currency,
+    @NotBlank String broker) {}

@@ -23,7 +23,8 @@ class FinancialAccountService implements FinancialAccountUseCase {
   @Override
   public FinancialAccountId createAccount(CreateFinancialAccountCommand command) {
     FinancialAccount account =
-        FinancialAccount.open(command.name(), command.accountType(), command.initialBalance());
+        FinancialAccount.open(
+            command.name(), command.accountType(), command.initialBalance(), command.broker());
     repository.save(account);
     return account.id();
   }
