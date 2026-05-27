@@ -11,6 +11,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.equily.portfolio.application.FinancialAccountUseCase;
 import com.equily.portfolio.domain.AccountType;
+import com.equily.portfolio.domain.AssetMetadata;
+import com.equily.portfolio.domain.AssetType;
 import com.equily.portfolio.domain.FinancialAccount;
 import com.equily.portfolio.domain.FinancialAccountId;
 import com.equily.portfolio.domain.Holding;
@@ -21,6 +23,7 @@ import com.equily.portfolio.domain.TransactionType;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
 import com.equily.portfolio.domain.exception.InsufficientFundsException;
 import com.equily.portfolio.domain.exception.InvalidTransactionException;
+import com.equily.shared.Country;
 import com.equily.shared.Money;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -252,5 +255,35 @@ class FinancialAccountControllerTest {
     mockMvc
         .perform(get("/api/v1/accounts/{id}/holdings", UUID.randomUUID().toString()))
         .andExpect(status().isNotFound());
+  }
+
+  @Test
+  void getHoldings_returns_200_with_mapped_holding_fields() throws Exception {
+    Holding holding =
+        new Holding(
+            new Ticker("AAPL"),
+            AssetType.STOCK,
+            new AssetMetadata("Apple Inc.", "US0378331005", new Country("US")),
+            new BigDecimal("10"),
+            new Money(new BigDecimal("150.00"), Currency.getInstance("EUR")),
+            new Money(new BigDecimal("1500.00"), Currency.getInstance("EUR")));
+    when(useCase.getHoldings(any())).thenReturn(List.of(holding));
+
+    mockMvc
+        .perform(get("/api/v1/accounts/{id}/holdings", UUID.randomUUID().toString()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.length()").value(1))
+        .andExpect(jsonPath("$[0].ticker").value("AAPL"))
+        .andExpect(jsonPath("$[0].quantity").value(10))
+        .andExpect(jsonPath("$[0].averageCostPrice").value(150.00))
+        .andExpect(jsonPath("$[0].currency").value("EUR"))
+        .andExpect(jsonPath("$[0].totalInvested").value(1500.00));
+  }
+
+  @Test
+  void getHoldings_invalid_uuid_returns_400() throws Exception {
+    mockMvc
+        .perform(get("/api/v1/accounts/not-a-valid-uuid/holdings"))
+        .andExpect(status().isBadRequest());
   }
 }
