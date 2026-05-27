@@ -27,6 +27,7 @@ class TransactionTest {
             new Money(new BigDecimal("150.00"), EUR),
             new Money(new BigDecimal("1500.00"), EUR),
             TODAY,
+            null,
             null);
     assertThat(t.type()).isEqualTo(TransactionType.BUY);
     assertThat(t.ticker()).isEqualTo(AAPL);
@@ -45,6 +46,7 @@ class TransactionTest {
                     new Money(new BigDecimal("150.00"), EUR),
                     new Money(new BigDecimal("1500.00"), EUR),
                     TODAY,
+                    null,
                     null))
         .isInstanceOf(InvalidTransactionException.class);
   }
@@ -61,6 +63,7 @@ class TransactionTest {
                     new Money(new BigDecimal("150.00"), EUR),
                     new Money(new BigDecimal("1500.00"), EUR),
                     TODAY,
+                    null,
                     null))
         .isInstanceOf(InvalidTransactionException.class);
   }
@@ -77,6 +80,7 @@ class TransactionTest {
                     new Money(new BigDecimal("150.00"), EUR),
                     new Money(new BigDecimal("750.00"), EUR),
                     TODAY,
+                    null,
                     null))
         .isInstanceOf(InvalidTransactionException.class);
   }
@@ -93,6 +97,7 @@ class TransactionTest {
                     null,
                     null,
                     TODAY,
+                    null,
                     null))
         .isInstanceOf(InvalidTransactionException.class);
   }
@@ -109,6 +114,7 @@ class TransactionTest {
                     null,
                     new Money(new BigDecimal("1000.00"), EUR),
                     TODAY,
+                    null,
                     null))
         .isInstanceOf(InvalidTransactionException.class);
   }

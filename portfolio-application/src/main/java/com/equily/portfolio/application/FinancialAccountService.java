@@ -45,6 +45,7 @@ class FinancialAccountService implements FinancialAccountUseCase {
             command.pricePerUnit(),
             command.totalAmount(),
             command.date(),
+            command.fees(),
             command.description());
 
     account.recordTransaction(transaction);

@@ -71,6 +71,7 @@ class FinancialAccountRepositoryAdapterTest {
             new Money(new BigDecimal("150.00"), EUR),
             new Money(new BigDecimal("300.00"), EUR),
             LocalDate.of(2024, 1, 15),
+            BigDecimal.ZERO,
             null);
     account.recordTransaction(buy);
 
@@ -145,6 +146,7 @@ class FinancialAccountRepositoryAdapterTest {
             null,
             new Money(new BigDecimal("500.00"), EUR),
             LocalDate.of(2024, 1, 1),
+            null,
             null);
     account.recordTransaction(deposit);
 
@@ -157,6 +159,7 @@ class FinancialAccountRepositoryAdapterTest {
             new Money(new BigDecimal("300.00"), EUR),
             new Money(new BigDecimal("300.00"), EUR),
             LocalDate.of(2024, 1, 15),
+            null,
             null);
     account.recordTransaction(buy);
 

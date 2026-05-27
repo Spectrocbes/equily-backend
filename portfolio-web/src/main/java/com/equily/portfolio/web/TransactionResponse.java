@@ -12,4 +12,5 @@ public record TransactionResponse(
     BigDecimal totalAmount,
     String currency,
     LocalDate date,
+    BigDecimal fees,
     String description) {}

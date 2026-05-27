@@ -62,6 +62,7 @@ class FinancialAccountServiceTest {
             null,
             new Money(BigDecimal.valueOf(500), EUR),
             LocalDate.of(2026, 5, 24),
+            null,
             null);
 
     service.recordTransaction(command);
@@ -84,6 +85,7 @@ class FinancialAccountServiceTest {
             null,
             new Money(BigDecimal.valueOf(100), EUR),
             LocalDate.of(2026, 5, 24),
+            null,
             null);
 
     assertThatThrownBy(() -> service.recordTransaction(command))

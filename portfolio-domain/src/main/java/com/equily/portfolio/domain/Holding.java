@@ -40,7 +40,9 @@ public record Holding(
       if (t.type() == TransactionType.BUY) {
         BigDecimal qty = t.quantity().setScale(QUANTITY_SCALE, RoundingMode.HALF_EVEN);
         BigDecimal price = t.pricePerUnit().amount().setScale(MONEY_SCALE, RoundingMode.HALF_EVEN);
-        weightedCostSum = weightedCostSum.add(qty.multiply(price));
+        BigDecimal fees = t.fees().setScale(MONEY_SCALE, RoundingMode.HALF_EVEN);
+        BigDecimal costWithFees = qty.multiply(price).add(fees);
+        weightedCostSum = weightedCostSum.add(costWithFees);
         totalQty = totalQty.add(qty);
         totalBoughtQty = totalBoughtQty.add(qty);
       } else if (t.type() == TransactionType.SELL) {
