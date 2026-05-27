@@ -120,6 +120,14 @@
 - `FinancialAccountMapper`: `toJpaTransaction()` maps `t.fees()` → `tx.fees`; `toDomainTransaction()` passes `tx.fees` to canonical constructor
 - 78 tests, 0 failures — 7 new tests including `buy_with_fees_includes_fees_in_average_cost` and `negative_fees_throws_InvalidTransactionException`
 
+## 2026-05-27 — GET /accounts/{id}/holdings endpoint
+
+- `HoldingResponse` DTO added to `portfolio-web` (ticker, quantity, averageCostPrice, currency, totalInvested)
+- `FinancialAccountUseCase.getHoldings(FinancialAccountId)` added to input port
+- `FinancialAccountService.getHoldings()`: builds `Map<Ticker, AssetInfo>` from transaction log (`AssetType.STOCK` default, `Country("US")` placeholder — TODO: wire MarketDataContext in Phase 2)
+- `GET /api/v1/accounts/{id}/holdings` endpoint added to `FinancialAccountController`
+- 82 tests, 0 failures — 4 new tests: service happy path + 404, controller 200 + 404
+
 ## Architecture Decisions
 
 - Lombok is forbidden everywhere. Java 21 records replace POJOs; explicit methods replace generated ones.

@@ -10,6 +10,10 @@ import com.equily.portfolio.domain.AccountType;
 import com.equily.portfolio.domain.FinancialAccount;
 import com.equily.portfolio.domain.FinancialAccountId;
 import com.equily.portfolio.domain.FinancialAccountRepository;
+import com.equily.portfolio.domain.Holding;
+import com.equily.portfolio.domain.Ticker;
+import com.equily.portfolio.domain.Transaction;
+import com.equily.portfolio.domain.TransactionId;
 import com.equily.portfolio.domain.TransactionType;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
 import com.equily.shared.Money;
@@ -127,5 +131,109 @@ class FinancialAccountServiceTest {
     assertThatThrownBy(() -> service.getAccountById(id))
         .isInstanceOf(AccountNotFoundException.class)
         .hasMessageContaining(id.value().toString());
+  }
+
+  @Test
+  void getHoldings_returns_holdings_for_account_with_buy_transactions() {
+    FinancialAccount account =
+        FinancialAccount.open(
+            "Mon PEA",
+            AccountType.PEA,
+            new Money(new BigDecimal("10000"), Currency.getInstance("EUR")),
+            "Fortuneo");
+    Transaction buy =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.BUY,
+            new Ticker("AAPL"),
+            new BigDecimal("10"),
+            new Money(new BigDecimal("150.00"), Currency.getInstance("EUR")),
+            new Money(new BigDecimal("1500.00"), Currency.getInstance("EUR")),
+            LocalDate.now(),
+            BigDecimal.ZERO,
+            null);
+    account.recordTransaction(buy);
+
+    when(repository.findById(any())).thenReturn(Optional.of(account));
+
+    List<Holding> holdings = service.getHoldings(FinancialAccountId.generate());
+
+    assertThat(holdings).hasSize(1);
+    assertThat(holdings.get(0).ticker().symbol()).isEqualTo("AAPL");
+    assertThat(holdings.get(0).quantity()).isEqualByComparingTo(new BigDecimal("10"));
+    assertThat(holdings.get(0).averageCostPrice().amount())
+        .isEqualByComparingTo(new BigDecimal("150.00"));
+  }
+
+  @Test
+  void getHoldings_throws_AccountNotFoundException_when_account_not_found() {
+    when(repository.findById(any())).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> service.getHoldings(FinancialAccountId.generate()))
+        .isInstanceOf(AccountNotFoundException.class);
+  }
+
+  @Test
+  void getHoldings_returns_empty_list_when_account_has_no_ticker_transactions() {
+    FinancialAccount account =
+        FinancialAccount.open(
+            "Mon PEA", AccountType.PEA, new Money(new BigDecimal("5000"), EUR), "Fortuneo");
+    Transaction deposit =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("500.00"), EUR),
+            LocalDate.of(2026, 5, 27),
+            null,
+            null);
+    account.recordTransaction(deposit);
+    when(repository.findById(any())).thenReturn(Optional.of(account));
+
+    List<Holding> holdings = service.getHoldings(FinancialAccountId.generate());
+
+    assertThat(holdings).isEmpty();
+  }
+
+  @Test
+  void getHoldings_merges_multiple_buys_same_ticker_into_one_holding() {
+    FinancialAccount account =
+        FinancialAccount.open(
+            "Mon PEA", AccountType.PEA, new Money(new BigDecimal("10000"), EUR), "Fortuneo");
+    Transaction buy1 =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.BUY,
+            new Ticker("AAPL"),
+            new BigDecimal("5"),
+            new Money(new BigDecimal("100.00"), EUR),
+            new Money(new BigDecimal("500.00"), EUR),
+            LocalDate.of(2026, 5, 1),
+            BigDecimal.ZERO,
+            null);
+    Transaction buy2 =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.BUY,
+            new Ticker("AAPL"),
+            new BigDecimal("5"),
+            new Money(new BigDecimal("200.00"), EUR),
+            new Money(new BigDecimal("1000.00"), EUR),
+            LocalDate.of(2026, 5, 15),
+            BigDecimal.ZERO,
+            null);
+    account.recordTransaction(buy1);
+    account.recordTransaction(buy2);
+    when(repository.findById(any())).thenReturn(Optional.of(account));
+
+    List<Holding> holdings = service.getHoldings(FinancialAccountId.generate());
+
+    assertThat(holdings).hasSize(1);
+    assertThat(holdings.get(0).ticker().symbol()).isEqualTo("AAPL");
+    assertThat(holdings.get(0).quantity()).isEqualByComparingTo(new BigDecimal("10"));
+    assertThat(holdings.get(0).averageCostPrice().amount())
+        .isEqualByComparingTo(new BigDecimal("150.00"));
   }
 }
