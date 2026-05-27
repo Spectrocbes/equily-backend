@@ -14,7 +14,8 @@ public record Holding(
     AssetMetadata metadata,
     BigDecimal quantity,
     Money averageCostPrice,
-    Money totalInvested) {
+    Money totalInvested,
+    Money totalFeesPaid) {
 
   private static final int QUANTITY_SCALE = 8;
   private static final int MONEY_SCALE = 2;
@@ -35,14 +36,16 @@ public record Holding(
     BigDecimal totalBoughtQty = BigDecimal.ZERO.setScale(QUANTITY_SCALE, RoundingMode.HALF_EVEN);
     BigDecimal weightedCostSum =
         BigDecimal.ZERO.setScale(MONEY_SCALE + QUANTITY_SCALE, RoundingMode.HALF_EVEN);
+    BigDecimal totalFees = BigDecimal.ZERO.setScale(MONEY_SCALE, RoundingMode.HALF_EVEN);
 
     for (Transaction t : transactions) {
       if (t.type() == TransactionType.BUY) {
         BigDecimal qty = t.quantity().setScale(QUANTITY_SCALE, RoundingMode.HALF_EVEN);
         BigDecimal price = t.pricePerUnit().amount().setScale(MONEY_SCALE, RoundingMode.HALF_EVEN);
         BigDecimal fees = t.fees().setScale(MONEY_SCALE, RoundingMode.HALF_EVEN);
-        BigDecimal costWithFees = qty.multiply(price).add(fees);
-        weightedCostSum = weightedCostSum.add(costWithFees);
+        // averageCostPrice excludes fees — pure fiscal price
+        weightedCostSum = weightedCostSum.add(qty.multiply(price));
+        totalFees = totalFees.add(fees);
         totalQty = totalQty.add(qty);
         totalBoughtQty = totalBoughtQty.add(qty);
       } else if (t.type() == TransactionType.SELL) {
@@ -53,8 +56,7 @@ public record Holding(
               "sell quantity exceeds held quantity for ticker " + ticker.symbol());
         }
         // French fiscal rule: SELL reduces quantity but does not change averageCostPrice.
-        // weightedCostSum is preserved; averageCostPrice will be recalculated from totalBoughtQty
-        // below.
+        // fees on SELL reduce proceeds — handled at tax time, not tracked here.
       }
     }
 
@@ -69,8 +71,10 @@ public record Holding(
 
     Money averageCostPrice = new Money(avgCostAmount, currency);
     Money totalInvested = averageCostPrice.multiply(totalQty);
+    Money totalFeesPaid = new Money(totalFees, currency);
 
     return Optional.of(
-        new Holding(ticker, assetType, metadata, totalQty, averageCostPrice, totalInvested));
+        new Holding(
+            ticker, assetType, metadata, totalQty, averageCostPrice, totalInvested, totalFeesPaid));
   }
 }

@@ -55,14 +55,62 @@ class HoldingTest {
 
   @Test
   void two_buy_transactions_compute_correct_weighted_average_cost() {
-    // Buy 10 @ 100 + Buy 10 @ 200 → avg = 150
-    List<Transaction> txns = List.of(buy("10", "100.00"), buy("10", "200.00"));
+    // Buy 10 @ 100 + fees 2€, Buy 10 @ 200 + fees 3€ → avg = 150 (fees excluded)
+    List<Transaction> txns =
+        List.of(
+            Transaction.of(
+                TransactionId.generate(),
+                TransactionType.BUY,
+                AAPL,
+                new BigDecimal("10"),
+                new Money(new BigDecimal("100.00"), EUR),
+                new Money(new BigDecimal("1002.00"), EUR),
+                TODAY,
+                new BigDecimal("2.00"),
+                null),
+            Transaction.of(
+                TransactionId.generate(),
+                TransactionType.BUY,
+                AAPL,
+                new BigDecimal("10"),
+                new Money(new BigDecimal("200.00"), EUR),
+                new Money(new BigDecimal("2003.00"), EUR),
+                TODAY,
+                new BigDecimal("3.00"),
+                null));
     Optional<Holding> result = Holding.computeFrom(txns, STOCK, META);
 
     assertThat(result).isPresent();
     Holding h = result.get();
     assertThat(h.quantity()).isEqualByComparingTo(new BigDecimal("20"));
     assertThat(h.averageCostPrice().amount()).isEqualByComparingTo(new BigDecimal("150.00"));
+    assertThat(h.totalFeesPaid().amount()).isEqualByComparingTo(new BigDecimal("5.00"));
+    assertThat(h.totalInvested().amount()).isEqualByComparingTo(new BigDecimal("3000.00"));
+  }
+
+  @Test
+  void buy_with_fees_avgcost_excludes_fees() {
+    // Buy 10 @ 150 + 5€ fees → avgCost = 150 (not 150.50)
+    List<Transaction> txns =
+        List.of(
+            Transaction.of(
+                TransactionId.generate(),
+                TransactionType.BUY,
+                AAPL,
+                new BigDecimal("10"),
+                new Money(new BigDecimal("150.00"), EUR),
+                new Money(new BigDecimal("1505.00"), EUR),
+                TODAY,
+                new BigDecimal("5.00"),
+                null));
+    Optional<Holding> result = Holding.computeFrom(txns, STOCK, META);
+
+    assertThat(result).isPresent();
+    assertThat(result.get().averageCostPrice().amount())
+        .isEqualByComparingTo(new BigDecimal("150.00"));
+    assertThat(result.get().totalFeesPaid().amount()).isEqualByComparingTo(new BigDecimal("5.00"));
+    assertThat(result.get().totalInvested().amount())
+        .isEqualByComparingTo(new BigDecimal("1500.00"));
   }
 
   @Test
@@ -78,6 +126,40 @@ class HoldingTest {
   }
 
   @Test
+  void buy_then_sell_preserves_avgcost_and_accumulates_fees() {
+    // Buy 10 @ 100 + 2€ fees, Sell 4 → qty=6, avgCost=100, fees=2
+    List<Transaction> txns =
+        List.of(
+            Transaction.of(
+                TransactionId.generate(),
+                TransactionType.BUY,
+                AAPL,
+                new BigDecimal("10"),
+                new Money(new BigDecimal("100.00"), EUR),
+                new Money(new BigDecimal("1002.00"), EUR),
+                TODAY,
+                new BigDecimal("2.00"),
+                null),
+            Transaction.of(
+                TransactionId.generate(),
+                TransactionType.SELL,
+                AAPL,
+                new BigDecimal("4"),
+                new Money(new BigDecimal("120.00"), EUR),
+                new Money(new BigDecimal("480.00"), EUR),
+                TODAY,
+                BigDecimal.ZERO,
+                null));
+    Optional<Holding> result = Holding.computeFrom(txns, STOCK, META);
+
+    assertThat(result).isPresent();
+    Holding h = result.get();
+    assertThat(h.quantity()).isEqualByComparingTo(new BigDecimal("6"));
+    assertThat(h.averageCostPrice().amount()).isEqualByComparingTo(new BigDecimal("100.00"));
+    assertThat(h.totalFeesPaid().amount()).isEqualByComparingTo(new BigDecimal("2.00"));
+  }
+
+  @Test
   void selling_more_than_held_throws_InvalidHoldingException() {
     List<Transaction> txns = List.of(buy("5", "100.00"), sell("10", "120.00"));
     assertThatThrownBy(() -> Holding.computeFrom(txns, STOCK, META))
@@ -89,27 +171,6 @@ class HoldingTest {
     List<Transaction> txns = List.of(buy("10", "100.00"), sell("10", "150.00"));
     Optional<Holding> result = Holding.computeFrom(txns, STOCK, META);
     assertThat(result).isEmpty();
-  }
-
-  @Test
-  void buy_with_fees_includes_fees_in_average_cost() {
-    // Buy 10 @ 100 + 5€ fees → costBasis = 1005, avgCost = 1005 / 10 = 100.50
-    List<Transaction> txns =
-        List.of(
-            Transaction.of(
-                TransactionId.generate(),
-                TransactionType.BUY,
-                AAPL,
-                new BigDecimal("10"),
-                new Money(new BigDecimal("100.00"), EUR),
-                new Money(new BigDecimal("1005.00"), EUR),
-                TODAY,
-                new BigDecimal("5.00"),
-                null));
-    Optional<Holding> result = Holding.computeFrom(txns, STOCK, META);
-    assertThat(result).isPresent();
-    assertThat(result.get().averageCostPrice().amount())
-        .isEqualByComparingTo(new BigDecimal("100.50"));
   }
 
   @Test

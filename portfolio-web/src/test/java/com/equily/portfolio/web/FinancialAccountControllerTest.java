@@ -266,7 +266,8 @@ class FinancialAccountControllerTest {
             new AssetMetadata("Apple Inc.", "US0378331005", new Country("US")),
             new BigDecimal("10"),
             new Money(new BigDecimal("150.00"), Currency.getInstance("EUR")),
-            new Money(new BigDecimal("1500.00"), Currency.getInstance("EUR")));
+            new Money(new BigDecimal("1500.00"), Currency.getInstance("EUR")),
+            new Money(new BigDecimal("4.99"), Currency.getInstance("EUR")));
     when(useCase.getHoldings(any())).thenReturn(List.of(holding));
 
     mockMvc
@@ -277,7 +278,8 @@ class FinancialAccountControllerTest {
         .andExpect(jsonPath("$[0].quantity").value(10))
         .andExpect(jsonPath("$[0].averageCostPrice").value(150.00))
         .andExpect(jsonPath("$[0].currency").value("EUR"))
-        .andExpect(jsonPath("$[0].totalInvested").value(1500.00));
+        .andExpect(jsonPath("$[0].totalInvested").value(1500.00))
+        .andExpect(jsonPath("$[0].totalFeesPaid").value(4.99));
   }
 
   @Test

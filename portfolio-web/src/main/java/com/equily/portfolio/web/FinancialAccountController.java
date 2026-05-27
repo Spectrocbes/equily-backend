@@ -96,7 +96,8 @@ class FinancialAccountController {
                         h.quantity(),
                         h.averageCostPrice().amount(),
                         h.averageCostPrice().currency().getCurrencyCode(),
-                        h.totalInvested().amount()))
+                        h.totalInvested().amount(),
+                        h.totalFeesPaid().amount()))
             .toList();
     return ResponseEntity.ok(response);
   }
