@@ -75,6 +75,7 @@ class FinancialAccountMapper {
     tx.totalAmount = t.totalAmount().amount();
     tx.totalCurrency = t.totalAmount().currency().getCurrencyCode();
     tx.date = t.date();
+    tx.description = t.description();
     return tx;
   }
 
@@ -88,7 +89,8 @@ class FinancialAccountMapper {
             : null;
     Money totalAmount = new Money(tx.totalAmount, Currency.getInstance(tx.totalCurrency));
     // Canonical record constructor: data comes from DB and was validated on write.
-    return new Transaction(id, type, ticker, tx.quantity, pricePerUnit, totalAmount, tx.date);
+    return new Transaction(
+        id, type, ticker, tx.quantity, pricePerUnit, totalAmount, tx.date, tx.description);
   }
 
   private FinancialAccountMapper() {}

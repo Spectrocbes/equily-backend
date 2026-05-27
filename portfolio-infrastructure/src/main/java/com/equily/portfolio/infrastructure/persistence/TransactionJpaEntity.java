@@ -42,5 +42,8 @@ class TransactionJpaEntity {
   @Column(nullable = false)
   LocalDate date;
 
+  @Column(length = 255)
+  String description;
+
   protected TransactionJpaEntity() {}
 }

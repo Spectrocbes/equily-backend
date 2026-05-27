@@ -35,7 +35,8 @@ class FinancialAccountTest {
         null,
         null,
         new Money(new BigDecimal(amount), EUR),
-        TODAY);
+        TODAY,
+        null);
   }
 
   private Transaction withdrawal(String amount) {
@@ -46,7 +47,8 @@ class FinancialAccountTest {
         null,
         null,
         new Money(new BigDecimal(amount), EUR),
-        TODAY);
+        TODAY,
+        null);
   }
 
   private Transaction buy(String qty, String price) {
@@ -59,7 +61,8 @@ class FinancialAccountTest {
         q,
         new Money(p, EUR),
         new Money(q.multiply(p), EUR),
-        TODAY);
+        TODAY,
+        null);
   }
 
   private Transaction sell(String qty, String price) {
@@ -72,7 +75,8 @@ class FinancialAccountTest {
         q,
         new Money(p, EUR),
         new Money(q.multiply(p), EUR),
-        TODAY);
+        TODAY,
+        null);
   }
 
   @Test

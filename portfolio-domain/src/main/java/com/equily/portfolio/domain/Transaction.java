@@ -14,7 +14,8 @@ public record Transaction(
     BigDecimal quantity,
     Money pricePerUnit,
     Money totalAmount,
-    LocalDate date) {
+    LocalDate date,
+    String description) {
 
   private static final Set<TransactionType> ASSET_TYPES =
       EnumSet.of(TransactionType.BUY, TransactionType.SELL);
@@ -34,7 +35,8 @@ public record Transaction(
       BigDecimal quantity,
       Money pricePerUnit,
       Money totalAmount,
-      LocalDate date) {
+      LocalDate date,
+      String description) {
     if (type == null) throw new InvalidTransactionException("type must not be null");
     if (date == null) throw new InvalidTransactionException("date must not be null");
     if (totalAmount == null) throw new InvalidTransactionException("totalAmount must not be null");
@@ -57,6 +59,7 @@ public record Transaction(
       }
     }
 
-    return new Transaction(id, type, ticker, quantity, pricePerUnit, totalAmount, date);
+    return new Transaction(
+        id, type, ticker, quantity, pricePerUnit, totalAmount, date, description);
   }
 }

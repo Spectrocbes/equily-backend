@@ -13,4 +13,5 @@ public record RecordTransactionRequest(
     String priceCurrency,
     @NotNull BigDecimal totalAmount,
     @NotBlank String totalCurrency,
-    @NotNull LocalDate date) {}
+    @NotNull LocalDate date,
+    String description) {}
