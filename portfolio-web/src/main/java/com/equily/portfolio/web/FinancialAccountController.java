@@ -6,6 +6,7 @@ import com.equily.portfolio.application.RecordTransactionCommand;
 import com.equily.portfolio.domain.AccountType;
 import com.equily.portfolio.domain.FinancialAccount;
 import com.equily.portfolio.domain.FinancialAccountId;
+import com.equily.portfolio.domain.Holding;
 import com.equily.portfolio.domain.Ticker;
 import com.equily.portfolio.domain.Transaction;
 import com.equily.portfolio.domain.TransactionType;
@@ -81,6 +82,23 @@ class FinancialAccountController {
             request.description());
     useCase.recordTransaction(command);
     return ResponseEntity.noContent().build();
+  }
+
+  @GetMapping("/{id}/holdings")
+  ResponseEntity<List<HoldingResponse>> getHoldings(@PathVariable String id) {
+    List<Holding> holdings = useCase.getHoldings(new FinancialAccountId(UUID.fromString(id)));
+    List<HoldingResponse> response =
+        holdings.stream()
+            .map(
+                h ->
+                    new HoldingResponse(
+                        h.ticker().symbol(),
+                        h.quantity(),
+                        h.averageCostPrice().amount(),
+                        h.averageCostPrice().currency().getCurrencyCode(),
+                        h.totalInvested().amount()))
+            .toList();
+    return ResponseEntity.ok(response);
   }
 
   @GetMapping("/{id}/transactions")

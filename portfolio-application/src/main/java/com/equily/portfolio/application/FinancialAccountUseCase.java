@@ -2,6 +2,7 @@ package com.equily.portfolio.application;
 
 import com.equily.portfolio.domain.FinancialAccount;
 import com.equily.portfolio.domain.FinancialAccountId;
+import com.equily.portfolio.domain.Holding;
 import java.util.List;
 
 /**
@@ -27,4 +28,11 @@ public interface FinancialAccountUseCase {
 
   /** Returns a single account by ID. Throws AccountNotFoundException if not found. */
   FinancialAccount getAccountById(FinancialAccountId id);
+
+  /**
+   * Returns computed holdings for a given account. Holdings are derived from the transaction log —
+   * no market data required. AssetType defaults to STOCK for all holdings (Phase 1 — no Market Data
+   * context yet).
+   */
+  List<Holding> getHoldings(FinancialAccountId id);
 }

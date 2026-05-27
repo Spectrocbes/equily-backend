@@ -10,6 +10,10 @@ import com.equily.portfolio.domain.AccountType;
 import com.equily.portfolio.domain.FinancialAccount;
 import com.equily.portfolio.domain.FinancialAccountId;
 import com.equily.portfolio.domain.FinancialAccountRepository;
+import com.equily.portfolio.domain.Holding;
+import com.equily.portfolio.domain.Ticker;
+import com.equily.portfolio.domain.Transaction;
+import com.equily.portfolio.domain.TransactionId;
 import com.equily.portfolio.domain.TransactionType;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
 import com.equily.shared.Money;
@@ -127,5 +131,45 @@ class FinancialAccountServiceTest {
     assertThatThrownBy(() -> service.getAccountById(id))
         .isInstanceOf(AccountNotFoundException.class)
         .hasMessageContaining(id.value().toString());
+  }
+
+  @Test
+  void getHoldings_returns_holdings_for_account_with_buy_transactions() {
+    FinancialAccount account =
+        FinancialAccount.open(
+            "Mon PEA",
+            AccountType.PEA,
+            new Money(new BigDecimal("10000"), Currency.getInstance("EUR")),
+            "Fortuneo");
+    Transaction buy =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.BUY,
+            new Ticker("AAPL"),
+            new BigDecimal("10"),
+            new Money(new BigDecimal("150.00"), Currency.getInstance("EUR")),
+            new Money(new BigDecimal("1500.00"), Currency.getInstance("EUR")),
+            LocalDate.now(),
+            BigDecimal.ZERO,
+            null);
+    account.recordTransaction(buy);
+
+    when(repository.findById(any())).thenReturn(Optional.of(account));
+
+    List<Holding> holdings = service.getHoldings(FinancialAccountId.generate());
+
+    assertThat(holdings).hasSize(1);
+    assertThat(holdings.get(0).ticker().symbol()).isEqualTo("AAPL");
+    assertThat(holdings.get(0).quantity()).isEqualByComparingTo(new BigDecimal("10"));
+    assertThat(holdings.get(0).averageCostPrice().amount())
+        .isEqualByComparingTo(new BigDecimal("150.00"));
+  }
+
+  @Test
+  void getHoldings_throws_AccountNotFoundException_when_account_not_found() {
+    when(repository.findById(any())).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> service.getHoldings(FinancialAccountId.generate()))
+        .isInstanceOf(AccountNotFoundException.class);
   }
 }
