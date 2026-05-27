@@ -149,7 +149,8 @@ class FinancialAccountControllerTest {
             BigDecimal.valueOf(10),
             new Money(BigDecimal.valueOf(150), Currency.getInstance("EUR")),
             new Money(BigDecimal.valueOf(1500), Currency.getInstance("EUR")),
-            LocalDate.of(2026, 1, 15));
+            LocalDate.of(2026, 1, 15),
+            "DCA janvier");
     account.recordTransaction(buyTx);
     when(useCase.getAccountById(any())).thenReturn(account);
 
@@ -161,7 +162,8 @@ class FinancialAccountControllerTest {
         .andExpect(jsonPath("$[0].ticker").value("AAPL"))
         .andExpect(jsonPath("$[0].quantity").value(10))
         .andExpect(jsonPath("$[0].pricePerUnit").value(150))
-        .andExpect(jsonPath("$[0].totalAmount").value(1500));
+        .andExpect(jsonPath("$[0].totalAmount").value(1500))
+        .andExpect(jsonPath("$[0].description").value("DCA janvier"));
   }
 
   @Test
@@ -174,7 +176,8 @@ class FinancialAccountControllerTest {
             null,
             null,
             new Money(BigDecimal.valueOf(1000), Currency.getInstance("EUR")),
-            LocalDate.of(2026, 1, 15));
+            LocalDate.of(2026, 1, 15),
+            null);
     testAccount.recordTransaction(depositTx);
     when(useCase.getAccountById(any())).thenReturn(testAccount);
 

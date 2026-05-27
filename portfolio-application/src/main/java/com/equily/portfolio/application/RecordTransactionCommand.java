@@ -18,4 +18,5 @@ public record RecordTransactionCommand(
     BigDecimal quantity,
     Money pricePerUnit,
     Money totalAmount,
-    LocalDate date) {}
+    LocalDate date,
+    String description) {}

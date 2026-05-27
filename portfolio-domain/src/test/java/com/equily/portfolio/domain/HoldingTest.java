@@ -32,7 +32,8 @@ class HoldingTest {
         q,
         new Money(p, EUR),
         new Money(q.multiply(p), EUR),
-        TODAY);
+        TODAY,
+        null);
   }
 
   private Transaction sell(String qty, String price) {
@@ -45,7 +46,8 @@ class HoldingTest {
         q,
         new Money(p, EUR),
         new Money(q.multiply(p), EUR),
-        TODAY);
+        TODAY,
+        null);
   }
 
   @Test

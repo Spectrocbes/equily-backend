@@ -61,7 +61,8 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(BigDecimal.valueOf(500), EUR),
-            LocalDate.of(2026, 5, 24));
+            LocalDate.of(2026, 5, 24),
+            null);
 
     service.recordTransaction(command);
 
@@ -82,7 +83,8 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(BigDecimal.valueOf(100), EUR),
-            LocalDate.of(2026, 5, 24));
+            LocalDate.of(2026, 5, 24),
+            null);
 
     assertThatThrownBy(() -> service.recordTransaction(command))
         .isInstanceOf(AccountNotFoundException.class);

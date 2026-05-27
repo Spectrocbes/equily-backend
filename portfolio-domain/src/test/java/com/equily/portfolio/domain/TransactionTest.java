@@ -26,7 +26,8 @@ class TransactionTest {
             new BigDecimal("10"),
             new Money(new BigDecimal("150.00"), EUR),
             new Money(new BigDecimal("1500.00"), EUR),
-            TODAY);
+            TODAY,
+            null);
     assertThat(t.type()).isEqualTo(TransactionType.BUY);
     assertThat(t.ticker()).isEqualTo(AAPL);
     assertThat(t.quantity()).isEqualByComparingTo(new BigDecimal("10"));
@@ -43,7 +44,8 @@ class TransactionTest {
                     new BigDecimal("10"),
                     new Money(new BigDecimal("150.00"), EUR),
                     new Money(new BigDecimal("1500.00"), EUR),
-                    TODAY))
+                    TODAY,
+                    null))
         .isInstanceOf(InvalidTransactionException.class);
   }
 
@@ -58,7 +60,8 @@ class TransactionTest {
                     BigDecimal.ZERO,
                     new Money(new BigDecimal("150.00"), EUR),
                     new Money(new BigDecimal("1500.00"), EUR),
-                    TODAY))
+                    TODAY,
+                    null))
         .isInstanceOf(InvalidTransactionException.class);
   }
 
@@ -73,7 +76,8 @@ class TransactionTest {
                     new BigDecimal("-5"),
                     new Money(new BigDecimal("150.00"), EUR),
                     new Money(new BigDecimal("750.00"), EUR),
-                    TODAY))
+                    TODAY,
+                    null))
         .isInstanceOf(InvalidTransactionException.class);
   }
 
@@ -88,7 +92,8 @@ class TransactionTest {
                     null,
                     null,
                     null,
-                    TODAY))
+                    TODAY,
+                    null))
         .isInstanceOf(InvalidTransactionException.class);
   }
 
@@ -103,7 +108,8 @@ class TransactionTest {
                     new BigDecimal("1"),
                     null,
                     new Money(new BigDecimal("1000.00"), EUR),
-                    TODAY))
+                    TODAY,
+                    null))
         .isInstanceOf(InvalidTransactionException.class);
   }
 }

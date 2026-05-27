@@ -11,4 +11,5 @@ public record TransactionResponse(
     BigDecimal pricePerUnit,
     BigDecimal totalAmount,
     String currency,
-    LocalDate date) {}
+    LocalDate date,
+    String description) {}
