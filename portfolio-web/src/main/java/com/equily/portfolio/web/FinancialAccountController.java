@@ -77,6 +77,7 @@ class FinancialAccountController {
             pricePerUnit,
             new Money(request.totalAmount(), Currency.getInstance(request.totalCurrency())),
             request.date(),
+            request.fees(),
             request.description());
     useCase.recordTransaction(command);
     return ResponseEntity.noContent().build();
@@ -111,6 +112,7 @@ class FinancialAccountController {
         tx.totalAmount().amount(),
         tx.totalAmount().currency().getCurrencyCode(),
         tx.date(),
+        tx.fees(),
         tx.description());
   }
 }

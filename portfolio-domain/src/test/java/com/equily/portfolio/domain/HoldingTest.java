@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.equily.portfolio.domain.exception.InvalidHoldingException;
+import com.equily.portfolio.domain.exception.InvalidTransactionException;
 import com.equily.shared.Country;
 import com.equily.shared.Money;
 import java.math.BigDecimal;
@@ -33,6 +34,7 @@ class HoldingTest {
         new Money(p, EUR),
         new Money(q.multiply(p), EUR),
         TODAY,
+        null,
         null);
   }
 
@@ -47,6 +49,7 @@ class HoldingTest {
         new Money(p, EUR),
         new Money(q.multiply(p), EUR),
         TODAY,
+        null,
         null);
   }
 
@@ -86,5 +89,43 @@ class HoldingTest {
     List<Transaction> txns = List.of(buy("10", "100.00"), sell("10", "150.00"));
     Optional<Holding> result = Holding.computeFrom(txns, STOCK, META);
     assertThat(result).isEmpty();
+  }
+
+  @Test
+  void buy_with_fees_includes_fees_in_average_cost() {
+    // Buy 10 @ 100 + 5€ fees → costBasis = 1005, avgCost = 1005 / 10 = 100.50
+    List<Transaction> txns =
+        List.of(
+            Transaction.of(
+                TransactionId.generate(),
+                TransactionType.BUY,
+                AAPL,
+                new BigDecimal("10"),
+                new Money(new BigDecimal("100.00"), EUR),
+                new Money(new BigDecimal("1005.00"), EUR),
+                TODAY,
+                new BigDecimal("5.00"),
+                null));
+    Optional<Holding> result = Holding.computeFrom(txns, STOCK, META);
+    assertThat(result).isPresent();
+    assertThat(result.get().averageCostPrice().amount())
+        .isEqualByComparingTo(new BigDecimal("100.50"));
+  }
+
+  @Test
+  void negative_fees_throws_InvalidTransactionException() {
+    assertThatThrownBy(
+            () ->
+                Transaction.of(
+                    TransactionId.generate(),
+                    TransactionType.BUY,
+                    AAPL,
+                    new BigDecimal("10"),
+                    new Money(new BigDecimal("100.00"), EUR),
+                    new Money(new BigDecimal("1000.00"), EUR),
+                    TODAY,
+                    new BigDecimal("-1.00"),
+                    null))
+        .isInstanceOf(InvalidTransactionException.class);
   }
 }

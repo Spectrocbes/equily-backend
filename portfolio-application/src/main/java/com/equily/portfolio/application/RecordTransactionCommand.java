@@ -19,4 +19,5 @@ public record RecordTransactionCommand(
     Money pricePerUnit,
     Money totalAmount,
     LocalDate date,
+    BigDecimal fees,
     String description) {}

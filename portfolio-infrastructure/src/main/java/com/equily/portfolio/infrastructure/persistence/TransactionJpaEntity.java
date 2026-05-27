@@ -42,6 +42,9 @@ class TransactionJpaEntity {
   @Column(nullable = false)
   LocalDate date;
 
+  @Column(name = "fees", nullable = false, precision = 19, scale = 2)
+  BigDecimal fees;
+
   @Column(length = 255)
   String description;
 

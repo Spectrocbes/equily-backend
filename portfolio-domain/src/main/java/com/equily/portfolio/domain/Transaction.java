@@ -15,6 +15,7 @@ public record Transaction(
     Money pricePerUnit,
     Money totalAmount,
     LocalDate date,
+    BigDecimal fees,
     String description) {
 
   private static final Set<TransactionType> ASSET_TYPES =
@@ -36,6 +37,7 @@ public record Transaction(
       Money pricePerUnit,
       Money totalAmount,
       LocalDate date,
+      BigDecimal fees,
       String description) {
     if (type == null) throw new InvalidTransactionException("type must not be null");
     if (date == null) throw new InvalidTransactionException("date must not be null");
@@ -59,7 +61,12 @@ public record Transaction(
       }
     }
 
+    if (fees != null && fees.compareTo(BigDecimal.ZERO) < 0) {
+      throw new InvalidTransactionException("fees must not be negative");
+    }
+    BigDecimal safeFees = fees != null ? fees : BigDecimal.ZERO;
+
     return new Transaction(
-        id, type, ticker, quantity, pricePerUnit, totalAmount, date, description);
+        id, type, ticker, quantity, pricePerUnit, totalAmount, date, safeFees, description);
   }
 }
