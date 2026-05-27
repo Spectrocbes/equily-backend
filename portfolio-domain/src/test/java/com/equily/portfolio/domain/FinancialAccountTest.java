@@ -36,6 +36,7 @@ class FinancialAccountTest {
         null,
         new Money(new BigDecimal(amount), EUR),
         TODAY,
+        null,
         null);
   }
 
@@ -48,6 +49,7 @@ class FinancialAccountTest {
         null,
         new Money(new BigDecimal(amount), EUR),
         TODAY,
+        null,
         null);
   }
 
@@ -62,6 +64,7 @@ class FinancialAccountTest {
         new Money(p, EUR),
         new Money(q.multiply(p), EUR),
         TODAY,
+        null,
         null);
   }
 
@@ -76,6 +79,7 @@ class FinancialAccountTest {
         new Money(p, EUR),
         new Money(q.multiply(p), EUR),
         TODAY,
+        null,
         null);
   }
 

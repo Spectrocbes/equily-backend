@@ -109,6 +109,17 @@
 - 2 new domain tests: `open_with_null_broker_throws`, `open_with_blank_broker_throws`
 - 71 tests total, 0 failures
 
+## 2026-05-27 — fees field added to Transaction
+
+- `fees` field added to `Transaction` record (`BigDecimal`, between `date` and `description`)
+- Flyway V8: `ADD COLUMN fees NUMERIC(19,2) NOT NULL DEFAULT 0` on `portfolio.transaction`
+- `Transaction.of()`: nullable fees input defaults to `BigDecimal.ZERO`; negative fees throw `InvalidTransactionException`
+- `Holding.computeFrom()`: BUY cost basis now includes fees — `weightedCostSum += (qty × price) + fees`
+- `RecordTransactionCommand`, `RecordTransactionRequest`, `TransactionResponse`: `fees` field added (nullable in request — defaults to 0 in domain)
+- `TransactionJpaEntity`: `@Column(name = "fees", nullable = false, precision = 19, scale = 2)`
+- `FinancialAccountMapper`: `toJpaTransaction()` maps `t.fees()` → `tx.fees`; `toDomainTransaction()` passes `tx.fees` to canonical constructor
+- 78 tests, 0 failures — 7 new tests including `buy_with_fees_includes_fees_in_average_cost` and `negative_fees_throws_InvalidTransactionException`
+
 ## Architecture Decisions
 
 - Lombok is forbidden everywhere. Java 21 records replace POJOs; explicit methods replace generated ones.

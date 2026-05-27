@@ -110,7 +110,7 @@ class FinancialAccountControllerTest {
                 .content(
                     """
                     {"type": "DEPOSIT", "totalAmount": 500,
-                     "totalCurrency": "EUR", "date": "2026-05-24"}
+                     "totalCurrency": "EUR", "date": "2026-05-24", "fees": 0}
                     """))
         .andExpect(status().isNoContent());
   }
@@ -128,7 +128,7 @@ class FinancialAccountControllerTest {
                 .content(
                     """
                     {"type": "WITHDRAWAL", "totalAmount": 999999,
-                     "totalCurrency": "EUR", "date": "2026-05-24"}
+                     "totalCurrency": "EUR", "date": "2026-05-24", "fees": 0}
                     """))
         .andExpect(status().isUnprocessableEntity());
   }
@@ -150,6 +150,7 @@ class FinancialAccountControllerTest {
             new Money(BigDecimal.valueOf(150), Currency.getInstance("EUR")),
             new Money(BigDecimal.valueOf(1500), Currency.getInstance("EUR")),
             LocalDate.of(2026, 1, 15),
+            BigDecimal.ZERO,
             "DCA janvier");
     account.recordTransaction(buyTx);
     when(useCase.getAccountById(any())).thenReturn(account);
@@ -163,6 +164,7 @@ class FinancialAccountControllerTest {
         .andExpect(jsonPath("$[0].quantity").value(10))
         .andExpect(jsonPath("$[0].pricePerUnit").value(150))
         .andExpect(jsonPath("$[0].totalAmount").value(1500))
+        .andExpect(jsonPath("$[0].fees").value(0))
         .andExpect(jsonPath("$[0].description").value("DCA janvier"));
   }
 
@@ -177,6 +179,7 @@ class FinancialAccountControllerTest {
             null,
             new Money(BigDecimal.valueOf(1000), Currency.getInstance("EUR")),
             LocalDate.of(2026, 1, 15),
+            null,
             null);
     testAccount.recordTransaction(depositTx);
     when(useCase.getAccountById(any())).thenReturn(testAccount);
@@ -200,7 +203,8 @@ class FinancialAccountControllerTest {
                     """
                     {"type": "BUY", "ticker": "AAPL", "quantity": 10,
                      "pricePerUnit": 150.00, "priceCurrency": "EUR",
-                     "totalAmount": 1500.00, "totalCurrency": "EUR", "date": "2026-01-15"}
+                     "totalAmount": 1500.00, "totalCurrency": "EUR", "date": "2026-01-15",
+                     "fees": 4.99}
                     """))
         .andExpect(status().isNoContent());
   }
@@ -216,7 +220,7 @@ class FinancialAccountControllerTest {
                 .content(
                     """
                     {"type": "DEPOSIT", "totalAmount": 500,
-                     "totalCurrency": "EUR", "date": "2026-05-24"}
+                     "totalCurrency": "EUR", "date": "2026-05-24", "fees": 0}
                     """))
         .andExpect(status().isBadRequest())
         .andExpect(content().string("bad tx"));
