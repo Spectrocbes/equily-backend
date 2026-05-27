@@ -7,4 +7,5 @@ public record HoldingResponse(
     BigDecimal quantity,
     BigDecimal averageCostPrice,
     String currency,
-    BigDecimal totalInvested) {}
+    BigDecimal totalInvested,
+    BigDecimal totalFeesPaid) {}

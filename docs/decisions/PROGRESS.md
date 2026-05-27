@@ -128,6 +128,15 @@
 - `GET /api/v1/accounts/{id}/holdings` endpoint added to `FinancialAccountController`
 - 82 tests, 0 failures — 4 new tests: service happy path + 404, controller 200 + 404
 
+## 2026-05-27 — Holding.totalFeesPaid — fees separated from averageCostPrice
+
+- `averageCostPrice` is now pure fiscal price (excludes fees) — `weightedCostSum = qty × price` only
+- `totalInvested = qty × averageCostPrice` (no fees)
+- `totalFeesPaid` new field on `Holding` — cumulative brokerage fees on BUY transactions
+- `HoldingResponse` updated with `totalFeesPaid` field
+- `buy_with_fees_includes_fees_in_average_cost` test removed (was incorrect); replaced with `buy_with_fees_avgcost_excludes_fees` + `buy_then_sell_preserves_avgcost_and_accumulates_fees`
+- 87 tests, 0 failures
+
 ## Architecture Decisions
 
 - Lombok is forbidden everywhere. Java 21 records replace POJOs; explicit methods replace generated ones.
