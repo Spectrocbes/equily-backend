@@ -43,6 +43,8 @@
         <module>portfolio-application</module>
         <module>portfolio-infrastructure</module>
         <module>portfolio-web</module>
+        <module>identity-domain</module>
+        <module>identity-infrastructure</module>
         <module>bootstrap</module>
     </modules>
 
@@ -72,6 +74,22 @@
                 <groupId>com.equily</groupId>
                 <artifactId>portfolio-web</artifactId>
                 <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.equily</groupId>
+                <artifactId>identity-domain</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.equily</groupId>
+                <artifactId>identity-infrastructure</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-api</artifactId>
+                <version>0.12.6</version>
             </dependency>
 
             <dependency>

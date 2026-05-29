@@ -4,11 +4,10 @@ spring:
       ddl-auto: validate
     properties:
       hibernate:
-        default_schema: portfolio
+        default_schema: identity
   flyway:
     enabled: true
     locations:
-      - classpath:db/migration/portfolio
       - classpath:db/migration/identity
-    schemas: portfolio
-    default-schema: portfolio
+    schemas: identity
+    default-schema: identity

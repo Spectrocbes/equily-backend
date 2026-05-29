@@ -1,5 +1,7 @@
 package com.equily.portfolio.web;
 
+import com.equily.identity.domain.exception.InvalidCredentialsException;
+import com.equily.identity.domain.exception.UserAlreadyExistsException;
 import com.equily.portfolio.application.exception.CsvParsingException;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
 import com.equily.portfolio.domain.exception.InsufficientFundsException;
@@ -35,5 +37,15 @@ class GlobalExceptionHandler {
   @ExceptionHandler(CsvParsingException.class)
   ResponseEntity<String> handleCsvParsing(CsvParsingException ex) {
     return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
+  }
+
+  @ExceptionHandler(UserAlreadyExistsException.class)
+  ResponseEntity<String> handleUserAlreadyExists(UserAlreadyExistsException ex) {
+    return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());
+  }
+
+  @ExceptionHandler(InvalidCredentialsException.class)
+  ResponseEntity<String> handleInvalidCredentials(InvalidCredentialsException ex) {
+    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ex.getMessage());
   }
 }

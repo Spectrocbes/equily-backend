@@ -152,6 +152,48 @@
 - 110 tests, 0 failures (was 87)
 - Next: frontend CSV import UI
 
+## 2026-05-29 — Phase 5 Session 1: Authentication & Multi-user support (identity bounded context)
+
+- Two new Maven modules: `identity-domain` (pure Java, zero framework deps) and `identity-infrastructure` (Spring Security, JPA, JWT)
+- **identity-domain**: `UserId`, `User`, `HouseholdId`, `Household`, `HouseholdMemberRole`; `UserRepository` port; `UserAlreadyExistsException`, `InvalidCredentialsException`, `UserNotFoundException`
+- **identity-infrastructure persistence**: `UserJpaEntity`, `RefreshTokenJpaEntity` (both implement `Persistable<UUID>`); `UserRepositoryAdapter`; `RefreshTokenService` (in persistence package — same package as JPA classes it manipulates)
+- **identity-infrastructure security**: `JwtService` (RS256, reads PEM files from filesystem); `JwtAuthenticationFilter` (`OncePerRequestFilter`); `SecurityConfig` (replaces old `@Profile("local")` bootstrap config — now global, JWT-stateless, permits `/auth/**`)
+- **identity-infrastructure usecase**: `AuthService` (register, login, refresh, logout); `AuthTokenPair` record
+- Flyway: 5 new migrations — identity `V10`–`V13` (identity schema, users, households, refresh_tokens) + portfolio `V14` (nullable `user_id` FK on `financial_account`). Identity migrations start at V10 to avoid flat namespace conflict with portfolio V1–V8.
+- `POST /auth/register` (201), `POST /auth/login` (200), `POST /auth/refresh` (200), `POST /auth/logout` (204), `GET /auth/me` (200) — wired in `AuthController` in `portfolio-web`
+- `GlobalExceptionHandler` extended: `UserAlreadyExistsException` → 409, `InvalidCredentialsException` → 401
+- `TestSecurityConfig` added to portfolio-web test sources — permits all + CSRF disabled — imported in both `@WebMvcTest` test classes to isolate from real `SecurityConfig`
+- `FinancialAccountControllerTest` updated with `@Import(TestSecurityConfig.class)` to survive security now being on the test classpath
+- JWT key paths: local profile → `src/main/resources/jwt-{private,public}.pem` (PEM files already existed in bootstrap); prod profile → `${JWT_PRIVATE_KEY_PATH}` / `${JWT_PUBLIC_KEY_PATH}` env vars
+- 130 tests, 0 failures (was 110): shared-kernel 24, portfolio-domain 33, portfolio-application 16, portfolio-infrastructure 21, identity-domain 4, identity-infrastructure 6, portfolio-web 25, bootstrap 1
+- Next: frontend CSV import UI or wire `user_id` onto `FinancialAccount` aggregate
+
+## 2026-05-30 — Phase 5 Session 2: CI fix + coverage gap closed
+
+- CI fix: `JwtService` now loads PEM files from classpath first (via `getResourceAsStream`), filesystem fallback — makes
+  CI pass without PEM files on the runner
+- `TestJwtConfig`: `@TestConfiguration` in bootstrap test sources generating an in-memory RSA-2048 key pair via
+  `@Primary JwtService` — no PEM files needed in CI
+- `application.yml` local profile: JWT paths changed from `src/main/resources/jwt-*.pem` → `jwt-*.pem`
+  (classpath-relative)
+- `SecurityConfig`: `@SuppressWarnings("java:S4502")` on class + `// NOSONAR — stateless JWT API, CSRF not applicable`
+  on the csrf line — suppresses SonarCloud security hotspot for intentional CSRF disable
+- Coverage gap fixed: identity-domain **97%**, identity-infrastructure **88%**, portfolio-web **97%** — all ≥ 80% gate
+- Tests added:
+  - `identity-domain`: `UserIdTest`, `HouseholdIdTest`, `HouseholdTest`, `DomainExceptionsTest`
+  - `identity-infrastructure/security`: `JwtServiceTest` (generateAccessToken, parseToken, isTokenValid,
+    extractUserId), `JwtAuthenticationFilterTest` (no header, non-bearer, valid token, invalid token),
+    `JwtServicePemLoadingTest` (production constructor + filesystem PEM loading via `@TempDir`)
+  - `identity-infrastructure/persistence`: `UserRepositoryAdapterTest` + `RefreshTokenServiceTest`
+    (`@DataJpaTest` + Testcontainers)
+  - `identity-infrastructure/usecase`: `AuthServiceTest` extended — refresh happy path, refresh invalid token, logout
+  - `portfolio-web`: `AuthControllerTest` extended — `GET /auth/me` (200)
+- `IdentityInfrastructureTestApplication`: minimal `@SpringBootApplication` for `@DataJpaTest` entity scanning in
+  `identity-infrastructure` (same pattern as `InfrastructureTestApplication` in portfolio-infrastructure)
+- Identity SQL migrations copied to `identity-infrastructure/src/test/resources` — needed because
+  `portfolio-infrastructure` is not on the identity module's test classpath
+- All 9 modules green, 0 test failures, coverage ≥ 80% on all new code
+
 ## Architecture Decisions
 
 - Lombok is forbidden everywhere. Java 21 records replace POJOs; explicit methods replace generated ones.
