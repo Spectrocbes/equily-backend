@@ -129,4 +129,28 @@ class BoursobankOperationParserTest {
     CsvImportResult result = parser.parse(csv(content));
     assertThat(result.transactions().get(0).description()).isEqualTo("Imported from Boursobank");
   }
+
+  @Test
+  void calculates_implicit_fees_for_buy() {
+    // 20 × 29.47 = 589.40, total = 593.11 → fees = 3.71
+    String content =
+        """
+        Date opération;Date valeur;Opération;Valeur;Code ISIN;Montant;Quantité;Cours
+        10/03/2026;10/03/2026;ACHAT COMPTANT;SOME FUND;FR0000000001;-593,11;20;29,47 €
+        """;
+    CsvImportResult result = parser.parse(csv(content));
+    assertThat(result.transactions().get(0).fees()).isEqualByComparingTo(new BigDecimal("3.71"));
+  }
+
+  @Test
+  void fees_are_zero_when_total_equals_quantity_times_price() {
+    // 1 × 1100 = 1100, total = 1100 → fees = 0
+    String content =
+        """
+        Date opération;Date valeur;Opération;Valeur;Code ISIN;Montant;Quantité;Cours
+        29/01/2026;02/02/2026;ACHAT COMPTANT;AM.P.NASD.100 D.2X;FR0010342592;-1100;1;1 100,00 €
+        """;
+    CsvImportResult result = parser.parse(csv(content));
+    assertThat(result.transactions().get(0).fees()).isEqualByComparingTo(BigDecimal.ZERO);
+  }
 }
