@@ -6,7 +6,6 @@ target/
 *.jar
 *.war
 !.mvn/wrapper/maven-wrapper.jar
-application-local.yml
 settings.local.json
 
 ### STS ###
@@ -52,3 +51,4 @@ logs/
 .env.local
 application-local.yml
 application-secrets.yml
+*.pem
