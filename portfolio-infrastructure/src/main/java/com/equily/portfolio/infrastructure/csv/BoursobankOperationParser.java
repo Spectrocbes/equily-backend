@@ -10,6 +10,7 @@ import com.equily.shared.Money;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Currency;
@@ -92,6 +93,7 @@ class BoursobankOperationParser extends AbstractBoursobankParser {
 
     BigDecimal quantity = null;
     Money pricePerUnit = null;
+    BigDecimal fees = BigDecimal.ZERO;
 
     if (type == TransactionType.BUY || type == TransactionType.SELL) {
       String qtyStr = record.get("Quantité").trim();
@@ -105,6 +107,15 @@ class BoursobankOperationParser extends AbstractBoursobankParser {
           pricePerUnit = new Money(cours, eur);
         }
       }
+
+      // Boursobank has no fees column — fees are implicit in the total amount
+      if (quantity != null && pricePerUnit != null) {
+        BigDecimal expectedAmount =
+            quantity.multiply(pricePerUnit.amount()).setScale(2, RoundingMode.HALF_EVEN);
+        BigDecimal implicitFees =
+            totalAmount.subtract(expectedAmount).setScale(2, RoundingMode.HALF_EVEN);
+        fees = implicitFees.compareTo(BigDecimal.ZERO) > 0 ? implicitFees : BigDecimal.ZERO;
+      }
     }
 
     return Transaction.of(
@@ -115,7 +126,7 @@ class BoursobankOperationParser extends AbstractBoursobankParser {
         pricePerUnit,
         totalMoney,
         date,
-        BigDecimal.ZERO,
+        fees,
         "Imported from Boursobank");
   }
 
