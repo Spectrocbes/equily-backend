@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -146,5 +147,23 @@ class AuthControllerTest {
                         new UsernamePasswordAuthenticationToken(
                             userId, null, List.of(new SimpleGrantedAuthority("ROLE_USER"))))))
         .andExpect(status().isNoContent());
+  }
+
+  @Test
+  void getMe_returns_200_with_user_info() throws Exception {
+    UserId userId = UserId.generate();
+    User user = User.reconstruct(userId, "me@test.com", "hash", "Me User", Instant.now());
+    when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+    mockMvc
+        .perform(
+            get("/auth/me")
+                .with(
+                    authentication(
+                        new UsernamePasswordAuthenticationToken(
+                            userId, null, List.of(new SimpleGrantedAuthority("ROLE_USER"))))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.email").value("me@test.com"))
+        .andExpect(jsonPath("$.displayName").value("Me User"));
   }
 }

@@ -92,6 +92,30 @@ class AuthServiceTest {
   }
 
   @Test
+  void refresh_returns_new_token_pair_when_valid() {
+    UserId userId = UserId.generate();
+    User user = testUser();
+
+    when(refreshTokenService.rotateRefreshToken(any(), any())).thenReturn(Optional.of(userId));
+    when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+    when(refreshTokenService.createRefreshToken(userId)).thenReturn("new-refresh");
+    when(jwtService.generateAccessToken(user)).thenReturn("new-access");
+
+    AuthTokenPair result = authService.refresh("old-refresh-token");
+
+    assertThat(result.accessToken()).isEqualTo("new-access");
+    assertThat(result.refreshToken()).isEqualTo("new-refresh");
+  }
+
+  @Test
+  void refresh_throws_InvalidCredentialsException_when_token_invalid() {
+    when(refreshTokenService.rotateRefreshToken(any(), any())).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> authService.refresh("bad-token"))
+        .isInstanceOf(InvalidCredentialsException.class);
+  }
+
+  @Test
   void logout_revokes_all_refresh_tokens_for_user() {
     UserId userId = UserId.generate();
 
