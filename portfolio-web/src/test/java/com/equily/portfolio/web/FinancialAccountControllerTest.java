@@ -1,15 +1,19 @@
 package com.equily.portfolio.web;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.equily.portfolio.application.BrokerCsvParserPort;
 import com.equily.portfolio.application.FinancialAccountUseCase;
+import com.equily.portfolio.application.exception.CsvParsingException;
 import com.equily.portfolio.domain.AccountType;
 import com.equily.portfolio.domain.AssetMetadata;
 import com.equily.portfolio.domain.AssetType;
@@ -20,6 +24,7 @@ import com.equily.portfolio.domain.Ticker;
 import com.equily.portfolio.domain.Transaction;
 import com.equily.portfolio.domain.TransactionId;
 import com.equily.portfolio.domain.TransactionType;
+import com.equily.portfolio.domain.csv.CsvImportResult;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
 import com.equily.portfolio.domain.exception.InsufficientFundsException;
 import com.equily.portfolio.domain.exception.InvalidTransactionException;
@@ -35,6 +40,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -42,6 +48,7 @@ import org.springframework.test.web.servlet.MockMvc;
 class FinancialAccountControllerTest {
 
   @MockitoBean private FinancialAccountUseCase useCase;
+  @MockitoBean private BrokerCsvParserPort parserPort;
 
   @Autowired private MockMvc mockMvc;
 
@@ -287,5 +294,68 @@ class FinancialAccountControllerTest {
     mockMvc
         .perform(get("/api/v1/accounts/not-a-valid-uuid/holdings"))
         .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  void importCsv_returns_200_with_summary() throws Exception {
+    CsvImportResult parseResult = new CsvImportResult(3, 0, 0, List.of(), List.of());
+    CsvImportResult importResult = new CsvImportResult(3, 0, 0, List.of(), List.of());
+    when(parserPort.parse(any(), eq("BOURSOBANK"), eq("OPERATIONS"))).thenReturn(parseResult);
+    when(useCase.importCsv(any(), any())).thenReturn(importResult);
+
+    mockMvc
+        .perform(
+            multipart("/api/v1/accounts/{id}/import/csv", UUID.randomUUID().toString())
+                .file(
+                    new MockMultipartFile(
+                        "file", "ops.csv", "text/csv", "Date opération;...\n".getBytes()))
+                .param("broker", "BOURSOBANK")
+                .param("mode", "OPERATIONS"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.imported").value(3))
+        .andExpect(jsonPath("$.skipped").value(0))
+        .andExpect(jsonPath("$.errors").value(0));
+  }
+
+  @Test
+  void importCsv_returns_400_on_empty_file() throws Exception {
+    mockMvc
+        .perform(
+            multipart("/api/v1/accounts/{id}/import/csv", UUID.randomUUID().toString())
+                .file(new MockMultipartFile("file", "", "text/csv", new byte[0]))
+                .param("broker", "BOURSOBANK")
+                .param("mode", "OPERATIONS"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errors").value(1));
+  }
+
+  @Test
+  void importCsv_returns_400_on_unsupported_broker() throws Exception {
+    when(parserPort.parse(any(), eq("UNKNOWN"), eq("OPERATIONS")))
+        .thenThrow(new IllegalArgumentException("Unsupported broker/mode: UNKNOWN/OPERATIONS"));
+
+    mockMvc
+        .perform(
+            multipart("/api/v1/accounts/{id}/import/csv", UUID.randomUUID().toString())
+                .file(new MockMultipartFile("file", "f.csv", "text/csv", "data".getBytes()))
+                .param("broker", "UNKNOWN")
+                .param("mode", "OPERATIONS"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errors").value(1));
+  }
+
+  @Test
+  void importCsv_returns_400_on_csv_parsing_exception() throws Exception {
+    when(parserPort.parse(any(), any(), any()))
+        .thenThrow(new CsvParsingException("Failed to parse"));
+
+    mockMvc
+        .perform(
+            multipart("/api/v1/accounts/{id}/import/csv", UUID.randomUUID().toString())
+                .file(new MockMultipartFile("file", "f.csv", "text/csv", "bad".getBytes()))
+                .param("broker", "BOURSOBANK")
+                .param("mode", "OPERATIONS"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errors").value(1));
   }
 }

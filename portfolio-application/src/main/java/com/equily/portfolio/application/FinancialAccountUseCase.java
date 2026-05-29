@@ -3,6 +3,7 @@ package com.equily.portfolio.application;
 import com.equily.portfolio.domain.FinancialAccount;
 import com.equily.portfolio.domain.FinancialAccountId;
 import com.equily.portfolio.domain.Holding;
+import com.equily.portfolio.domain.csv.CsvImportResult;
 import java.util.List;
 
 /**
@@ -35,4 +36,11 @@ public interface FinancialAccountUseCase {
    * context yet).
    */
   List<Holding> getHoldings(FinancialAccountId id);
+
+  /**
+   * Imports transactions from an already-parsed CSV result into an account. Skips transactions that
+   * duplicate an existing one by (date, ticker, totalAmount). Throws AccountNotFoundException if
+   * the account does not exist.
+   */
+  CsvImportResult importCsv(FinancialAccountId accountId, CsvImportResult parsed);
 }
