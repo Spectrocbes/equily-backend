@@ -9,12 +9,14 @@ import com.equily.portfolio.domain.Holding;
 import com.equily.portfolio.domain.Ticker;
 import com.equily.portfolio.domain.Transaction;
 import com.equily.portfolio.domain.TransactionId;
+import com.equily.portfolio.domain.TransactionType;
 import com.equily.portfolio.domain.csv.CsvImportResult;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
 import com.equily.shared.Country;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -25,6 +27,16 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional
 class FinancialAccountService implements FinancialAccountUseCase {
+
+  // DEPOSIT/WITHDRAWAL/DIVIDEND must precede asset operations within the same day
+  // to avoid InsufficientFundsException when Boursobank exports newest-first
+  private static final Map<TransactionType, Integer> TYPE_PRIORITY =
+      Map.of(
+          TransactionType.DEPOSIT, 1,
+          TransactionType.WITHDRAWAL, 2,
+          TransactionType.DIVIDEND, 3,
+          TransactionType.BUY, 4,
+          TransactionType.SELL, 5);
 
   private final FinancialAccountRepository repository;
 
@@ -122,6 +134,12 @@ class FinancialAccountService implements FinancialAccountUseCase {
         existingKeys.add(key);
       }
     }
+
+    // Sort ascending by date, then by type priority within the same day.
+    // Boursobank exports newest-first; DEPOSIT must precede BUY on the same day.
+    toImport.sort(
+        Comparator.comparing(Transaction::date)
+            .thenComparingInt(t -> TYPE_PRIORITY.getOrDefault(t.type(), 99)));
 
     toImport.forEach(account::recordTransaction);
     repository.save(account);

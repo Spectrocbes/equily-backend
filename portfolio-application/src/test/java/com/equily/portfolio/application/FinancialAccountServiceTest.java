@@ -311,6 +311,83 @@ class FinancialAccountServiceTest {
   }
 
   @Test
+  void importCsv_sorts_transactions_by_date_before_applying() {
+    // Account starts empty — BUY before its DEPOSIT would fail without sorting
+    FinancialAccount account =
+        FinancialAccount.open(
+            "My PEA", AccountType.PEA, new Money(BigDecimal.ZERO, EUR), "BoursoBank");
+    when(repository.findById(any())).thenReturn(Optional.of(account));
+
+    // Boursobank exports newest-first: BUY on day 2 comes before DEPOSIT on day 1
+    Transaction buyDay2 =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.BUY,
+            new Ticker("FR0010342592"),
+            new BigDecimal("1"),
+            new Money(new BigDecimal("1100"), EUR),
+            new Money(new BigDecimal("1100"), EUR),
+            LocalDate.of(2026, 1, 30),
+            BigDecimal.ZERO,
+            "Imported from Boursobank");
+    Transaction depositDay1 =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("3700"), EUR),
+            LocalDate.of(2026, 1, 29),
+            BigDecimal.ZERO,
+            "Imported from Boursobank");
+    CsvImportResult parsed = new CsvImportResult(2, 0, 0, List.of(), List.of(buyDay2, depositDay1));
+
+    CsvImportResult result = service.importCsv(FinancialAccountId.generate(), parsed);
+
+    assertThat(result.imported()).isEqualTo(2);
+  }
+
+  @Test
+  void importCsv_sorts_same_day_deposit_before_buy() {
+    // Account starts empty — BUY before same-day DEPOSIT would fail without type priority
+    FinancialAccount account =
+        FinancialAccount.open(
+            "My PEA", AccountType.PEA, new Money(BigDecimal.ZERO, EUR), "BoursoBank");
+    when(repository.findById(any())).thenReturn(Optional.of(account));
+
+    // Same day: BUY arrives first in parsed list (Boursobank newest-first within same day)
+    Transaction sameDayBuy =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.BUY,
+            new Ticker("FR0010342592"),
+            new BigDecimal("1"),
+            new Money(new BigDecimal("1100"), EUR),
+            new Money(new BigDecimal("1100"), EUR),
+            LocalDate.of(2026, 1, 29),
+            BigDecimal.ZERO,
+            "Imported from Boursobank");
+    Transaction sameDayDeposit =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("3700"), EUR),
+            LocalDate.of(2026, 1, 29),
+            BigDecimal.ZERO,
+            "Imported from Boursobank");
+    CsvImportResult parsed =
+        new CsvImportResult(2, 0, 0, List.of(), List.of(sameDayBuy, sameDayDeposit));
+
+    CsvImportResult result = service.importCsv(FinancialAccountId.generate(), parsed);
+
+    assertThat(result.imported()).isEqualTo(2);
+  }
+
+  @Test
   void getHoldings_merges_multiple_buys_same_ticker_into_one_holding() {
     FinancialAccount account =
         FinancialAccount.open(
