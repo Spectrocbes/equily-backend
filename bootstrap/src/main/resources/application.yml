@@ -29,8 +29,8 @@ spring:
     driver-class-name: org.postgresql.Driver
 
 jwt:
-  private-key-path: src/main/resources/jwt-private.pem
-  public-key-path: src/main/resources/jwt-public.pem
+  private-key-path: jwt-private.pem
+  public-key-path: jwt-public.pem
 
 ---
 spring:
