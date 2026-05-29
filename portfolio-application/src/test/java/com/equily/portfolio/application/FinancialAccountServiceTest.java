@@ -15,6 +15,7 @@ import com.equily.portfolio.domain.Ticker;
 import com.equily.portfolio.domain.Transaction;
 import com.equily.portfolio.domain.TransactionId;
 import com.equily.portfolio.domain.TransactionType;
+import com.equily.portfolio.domain.csv.CsvImportResult;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
 import com.equily.shared.Money;
 import java.math.BigDecimal;
@@ -195,6 +196,118 @@ class FinancialAccountServiceTest {
     List<Holding> holdings = service.getHoldings(FinancialAccountId.generate());
 
     assertThat(holdings).isEmpty();
+  }
+
+  @Test
+  void importCsv_imports_new_transactions() {
+    FinancialAccount account =
+        FinancialAccount.open(
+            "My PEA", AccountType.PEA, new Money(BigDecimal.valueOf(10000), EUR), "BoursoBank");
+    when(repository.findById(any())).thenReturn(Optional.of(account));
+
+    Transaction newTx =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("500"), EUR),
+            LocalDate.of(2026, 1, 15),
+            BigDecimal.ZERO,
+            "Imported from Boursobank");
+    CsvImportResult parsed = new CsvImportResult(1, 0, 0, List.of(), List.of(newTx));
+
+    CsvImportResult result = service.importCsv(FinancialAccountId.generate(), parsed);
+
+    assertThat(result.imported()).isEqualTo(1);
+    assertThat(result.skipped()).isZero();
+    verify(repository).save(account);
+  }
+
+  @Test
+  void importCsv_skips_duplicate_transactions() {
+    FinancialAccount account =
+        FinancialAccount.open(
+            "My PEA", AccountType.PEA, new Money(BigDecimal.valueOf(10000), EUR), "BoursoBank");
+    Transaction existingDeposit =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("3700"), EUR),
+            LocalDate.of(2026, 1, 29),
+            BigDecimal.ZERO,
+            null);
+    account.recordTransaction(existingDeposit);
+    when(repository.findById(any())).thenReturn(Optional.of(account));
+
+    Transaction duplicateTx =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("3700"), EUR),
+            LocalDate.of(2026, 1, 29),
+            BigDecimal.ZERO,
+            "Imported from Boursobank");
+    CsvImportResult parsed = new CsvImportResult(1, 0, 0, List.of(), List.of(duplicateTx));
+
+    CsvImportResult result = service.importCsv(FinancialAccountId.generate(), parsed);
+
+    assertThat(result.imported()).isZero();
+    assertThat(result.skipped()).isEqualTo(1);
+    verify(repository).save(account);
+  }
+
+  @Test
+  void importCsv_throws_AccountNotFoundException_when_account_missing() {
+    when(repository.findById(any())).thenReturn(Optional.empty());
+    CsvImportResult parsed = new CsvImportResult(0, 0, 0, List.of(), List.of());
+
+    assertThatThrownBy(() -> service.importCsv(FinancialAccountId.generate(), parsed))
+        .isInstanceOf(AccountNotFoundException.class);
+  }
+
+  @Test
+  void importCsv_deduplicates_within_same_file() {
+    FinancialAccount account =
+        FinancialAccount.open(
+            "My PEA", AccountType.PEA, new Money(BigDecimal.valueOf(10000), EUR), "BoursoBank");
+    when(repository.findById(any())).thenReturn(Optional.of(account));
+
+    Transaction tx1 =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("500"), EUR),
+            LocalDate.of(2026, 1, 15),
+            BigDecimal.ZERO,
+            "Imported from Boursobank");
+    Transaction tx2 =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("500"), EUR),
+            LocalDate.of(2026, 1, 15),
+            BigDecimal.ZERO,
+            "Imported from Boursobank");
+    CsvImportResult parsed = new CsvImportResult(2, 0, 0, List.of(), List.of(tx1, tx2));
+
+    CsvImportResult result = service.importCsv(FinancialAccountId.generate(), parsed);
+
+    assertThat(result.imported()).isEqualTo(1);
+    assertThat(result.skipped()).isEqualTo(1);
   }
 
   @Test

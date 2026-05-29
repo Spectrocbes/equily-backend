@@ -1,5 +1,6 @@
 package com.equily.portfolio.web;
 
+import com.equily.portfolio.application.exception.CsvParsingException;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
 import com.equily.portfolio.domain.exception.InsufficientFundsException;
 import com.equily.portfolio.domain.exception.InvalidTransactionException;
@@ -28,6 +29,11 @@ class GlobalExceptionHandler {
 
   @ExceptionHandler(IllegalArgumentException.class)
   ResponseEntity<String> handleIllegalArgument(IllegalArgumentException ex) {
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
+  }
+
+  @ExceptionHandler(CsvParsingException.class)
+  ResponseEntity<String> handleCsvParsing(CsvParsingException ex) {
     return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
   }
 }

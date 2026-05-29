@@ -9,10 +9,15 @@ import com.equily.portfolio.domain.Holding;
 import com.equily.portfolio.domain.Ticker;
 import com.equily.portfolio.domain.Transaction;
 import com.equily.portfolio.domain.TransactionId;
+import com.equily.portfolio.domain.csv.CsvImportResult;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
 import com.equily.shared.Country;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -92,5 +97,44 @@ class FinancialAccountService implements FinancialAccountUseCase {
                     (existing, replacement) -> existing));
 
     return account.getHoldings(assetInfoMap);
+  }
+
+  @Override
+  @Transactional
+  public CsvImportResult importCsv(FinancialAccountId accountId, CsvImportResult parsed) {
+    FinancialAccount account =
+        repository.findById(accountId).orElseThrow(() -> new AccountNotFoundException(accountId));
+
+    Set<String> existingKeys =
+        account.transactions().stream()
+            .map(t -> duplicateKey(t.date(), t.ticker(), t.totalAmount().amount()))
+            .collect(Collectors.toSet());
+
+    List<Transaction> toImport = new ArrayList<>();
+    int skipped = parsed.skipped();
+
+    for (Transaction tx : parsed.transactions()) {
+      String key = duplicateKey(tx.date(), tx.ticker(), tx.totalAmount().amount());
+      if (existingKeys.contains(key)) {
+        skipped++;
+      } else {
+        toImport.add(tx);
+        existingKeys.add(key);
+      }
+    }
+
+    toImport.forEach(account::recordTransaction);
+    repository.save(account);
+
+    return new CsvImportResult(
+        toImport.size(), skipped, parsed.errors(), parsed.errorDetails(), toImport);
+  }
+
+  private String duplicateKey(LocalDate date, Ticker ticker, BigDecimal amount) {
+    return date
+        + "|"
+        + (ticker != null ? ticker.symbol() : "null")
+        + "|"
+        + amount.stripTrailingZeros().toPlainString();
   }
 }

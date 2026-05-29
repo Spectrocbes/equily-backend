@@ -137,6 +137,21 @@
 - `buy_with_fees_includes_fees_in_average_cost` test removed (was incorrect); replaced with `buy_with_fees_avgcost_excludes_fees` + `buy_then_sell_preserves_avgcost_and_accumulates_fees`
 - 87 tests, 0 failures
 
+## 2026-05-29 — Phase 4 Session 1: CSV import for Boursobank
+
+- `CsvImportResult` domain record (imported/skipped/errors/errorDetails/transactions)
+- `BrokerCsvParserPort` application port — hexagonal boundary; controller depends on the interface, never on infrastructure parsers directly
+- `BoursobankOperationParser`: parses operations CSV (DEPOSIT/BUY/SELL/DIVIDEND/WITHDRAWAL); maps `Opération` column via keyword matching; ISIN used as ticker (Phase 1)
+- `BoursobankPositionParser`: parses positions CSV; each row becomes a synthetic BUY at `buyingPrice` on `lastMovementDate`
+- `BrokerCsvParserAdapter` (`@Component`): dispatches to the right parser by `broker_mode` key (e.g. `BOURSOBANK_OPERATIONS`)
+- `CsvParsingException` in `portfolio-application` — accessible from both infrastructure (throwers) and web (handlers)
+- `POST /api/v1/accounts/{id}/import/csv` multipart endpoint: params `file`, `broker`, `mode`; returns `CsvImportResponse`
+- Deduplication in `FinancialAccountService.importCsv()` by `(date|ticker|amount)` key — skips within-file duplicates too
+- Sample CSV test resources at `portfolio-infrastructure/src/test/resources/csv/` — replace with real Boursobank exports
+- Apache Commons CSV 1.11.0 + Commons IO 2.16.1 added to `portfolio-infrastructure`; managed in root `dependencyManagement`
+- 110 tests, 0 failures (was 87)
+- Next: frontend CSV import UI
+
 ## Architecture Decisions
 
 - Lombok is forbidden everywhere. Java 21 records replace POJOs; explicit methods replace generated ones.
