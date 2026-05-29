@@ -194,6 +194,23 @@
   `portfolio-infrastructure` is not on the identity module's test classpath
 - All 9 modules green, 0 test failures, coverage ≥ 80% on all new code
 
+## 2026-05-30 — Phase 5 Session 3: User data isolation
+
+- V15 migration: `DELETE FROM portfolio.financial_account WHERE user_id IS NULL` + `ALTER COLUMN user_id SET NOT NULL`
+- `FinancialAccount.open()` requires `UserId ownerId` (5th parameter); `reconstruct()` updated to match
+- `FinancialAccountRepository.findAllByOwnerId(UserId)` — primary query method; `findAll()` retained for tests only
+- All use cases scoped by `UserId`: `getAllAccounts(UserId)`, `getAccountById(id, UserId)`, `getHoldings(id, UserId)`,
+  `importCsv(id, parsed, UserId)`
+- `getAccountById`: ownership mismatch returns `AccountNotFoundException` — no existence reveal to other users
+- All controller endpoints extract `UserId` from `Authentication.getPrincipal()`
+- `FinancialAccountRepositoryAdapterTest`: inserts a real `identity.users` row via native SQL in `@BeforeEach` to satisfy
+  the `financial_account.user_id` FK (UserJpaEntity not on portfolio-infrastructure classpath)
+- `CrossLayerArchitectureTest`: `reconstruct()` ArchUnit rule updated for new `UserId` parameter
+- New tests: `open_preserves_ownerId`, `open_with_null_ownerId_throws`, `getAccountById_throwsAccountNotFoundWhenOwnerMismatch`,
+  `findAllByOwnerId_returns_only_accounts_for_that_user`; controller tests use `.with(authentication(mockAuth()))`
+- 169 tests (was 130), 0 failures, all 9 modules green
+- **Phase 5 complete** — app is now multi-user with full data isolation
+
 ## Architecture Decisions
 
 - Lombok is forbidden everywhere. Java 21 records replace POJOs; explicit methods replace generated ones.

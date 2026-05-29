@@ -1,5 +1,6 @@
 package com.equily.portfolio.application;
 
+import com.equily.identity.domain.UserId;
 import com.equily.portfolio.domain.AssetMetadata;
 import com.equily.portfolio.domain.AssetType;
 import com.equily.portfolio.domain.FinancialAccount;
@@ -48,7 +49,11 @@ class FinancialAccountService implements FinancialAccountUseCase {
   public FinancialAccountId createAccount(CreateFinancialAccountCommand command) {
     FinancialAccount account =
         FinancialAccount.open(
-            command.name(), command.accountType(), command.initialBalance(), command.broker());
+            command.name(),
+            command.accountType(),
+            command.initialBalance(),
+            command.broker(),
+            command.ownerId());
     repository.save(account);
     return account.id();
   }
@@ -78,21 +83,25 @@ class FinancialAccountService implements FinancialAccountUseCase {
 
   @Override
   @Transactional(readOnly = true)
-  public List<FinancialAccount> getAllAccounts() {
-    return repository.findAll();
+  public List<FinancialAccount> getAllAccounts(UserId ownerId) {
+    return repository.findAllByOwnerId(ownerId);
   }
 
   @Override
   @Transactional(readOnly = true)
-  public FinancialAccount getAccountById(FinancialAccountId id) {
-    return repository.findById(id).orElseThrow(() -> new AccountNotFoundException(id));
-  }
-
-  @Override
-  @Transactional(readOnly = true)
-  public List<Holding> getHoldings(FinancialAccountId id) {
+  public FinancialAccount getAccountById(FinancialAccountId id, UserId ownerId) {
     FinancialAccount account =
         repository.findById(id).orElseThrow(() -> new AccountNotFoundException(id));
+    if (!account.ownerId().equals(ownerId)) {
+      throw new AccountNotFoundException(id);
+    }
+    return account;
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public List<Holding> getHoldings(FinancialAccountId id, UserId ownerId) {
+    FinancialAccount account = getAccountById(id, ownerId);
 
     // Phase 1: AssetType defaults to STOCK, no metadata available yet
     // TODO: wire with MarketDataContext in Phase 2
@@ -113,9 +122,9 @@ class FinancialAccountService implements FinancialAccountUseCase {
 
   @Override
   @Transactional
-  public CsvImportResult importCsv(FinancialAccountId accountId, CsvImportResult parsed) {
-    FinancialAccount account =
-        repository.findById(accountId).orElseThrow(() -> new AccountNotFoundException(accountId));
+  public CsvImportResult importCsv(
+      FinancialAccountId accountId, CsvImportResult parsed, UserId ownerId) {
+    FinancialAccount account = getAccountById(accountId, ownerId);
 
     Set<String> existingKeys =
         account.transactions().stream()

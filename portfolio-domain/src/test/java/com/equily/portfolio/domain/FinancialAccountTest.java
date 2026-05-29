@@ -3,6 +3,7 @@ package com.equily.portfolio.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.equily.identity.domain.UserId;
 import com.equily.portfolio.domain.exception.InsufficientFundsException;
 import com.equily.portfolio.domain.exception.InvalidFinancialAccountException;
 import com.equily.shared.Country;
@@ -24,7 +25,11 @@ class FinancialAccountTest {
 
   private FinancialAccount accountWith(String balance) {
     return FinancialAccount.open(
-        "Mon PEA", AccountType.PEA, new Money(new BigDecimal(balance), EUR), "Fortuneo");
+        "Mon PEA",
+        AccountType.PEA,
+        new Money(new BigDecimal(balance), EUR),
+        "Fortuneo",
+        UserId.generate());
   }
 
   private Transaction deposit(String amount) {
@@ -87,8 +92,30 @@ class FinancialAccountTest {
   void open_preserves_broker() {
     FinancialAccount account =
         FinancialAccount.open(
-            "Mon PEA", AccountType.PEA, new Money(BigDecimal.ZERO, EUR), "Fortuneo");
+            "Mon PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            UserId.generate());
     assertThat(account.broker()).isEqualTo("Fortuneo");
+  }
+
+  @Test
+  void open_preserves_ownerId() {
+    UserId ownerId = UserId.generate();
+    FinancialAccount account =
+        FinancialAccount.open(
+            "Mon PEA", AccountType.PEA, new Money(BigDecimal.ZERO, EUR), "Fortuneo", ownerId);
+    assertThat(account.ownerId()).isEqualTo(ownerId);
+  }
+
+  @Test
+  void open_with_null_ownerId_throws() {
+    assertThatThrownBy(
+            () ->
+                FinancialAccount.open(
+                    "Mon PEA", AccountType.PEA, new Money(BigDecimal.ZERO, EUR), "Fortuneo", null))
+        .isInstanceOf(NullPointerException.class);
   }
 
   @Test
@@ -96,7 +123,11 @@ class FinancialAccountTest {
     assertThatThrownBy(
             () ->
                 FinancialAccount.open(
-                    "Mon PEA", AccountType.PEA, new Money(BigDecimal.ZERO, EUR), null))
+                    "Mon PEA",
+                    AccountType.PEA,
+                    new Money(BigDecimal.ZERO, EUR),
+                    null,
+                    UserId.generate()))
         .isInstanceOf(InvalidFinancialAccountException.class);
   }
 
@@ -105,7 +136,11 @@ class FinancialAccountTest {
     assertThatThrownBy(
             () ->
                 FinancialAccount.open(
-                    "Mon PEA", AccountType.PEA, new Money(BigDecimal.ZERO, EUR), "  "))
+                    "Mon PEA",
+                    AccountType.PEA,
+                    new Money(BigDecimal.ZERO, EUR),
+                    "  ",
+                    UserId.generate()))
         .isInstanceOf(InvalidFinancialAccountException.class);
   }
 
@@ -113,20 +148,28 @@ class FinancialAccountTest {
   void open_with_blank_name_throws() {
     assertThatThrownBy(
             () ->
-                FinancialAccount.open("  ", AccountType.PEA, new Money(BigDecimal.ZERO, EUR), null))
+                FinancialAccount.open(
+                    "  ",
+                    AccountType.PEA,
+                    new Money(BigDecimal.ZERO, EUR),
+                    null,
+                    UserId.generate()))
         .isInstanceOf(InvalidFinancialAccountException.class);
   }
 
   @Test
   void open_with_null_accountType_throws() {
     assertThatThrownBy(
-            () -> FinancialAccount.open("Mon PEA", null, new Money(BigDecimal.ZERO, EUR), null))
+            () ->
+                FinancialAccount.open(
+                    "Mon PEA", null, new Money(BigDecimal.ZERO, EUR), null, UserId.generate()))
         .isInstanceOf(InvalidFinancialAccountException.class);
   }
 
   @Test
   void open_with_null_initialBalance_throws() {
-    assertThatThrownBy(() -> FinancialAccount.open("Mon PEA", AccountType.PEA, null, null))
+    assertThatThrownBy(
+            () -> FinancialAccount.open("Mon PEA", AccountType.PEA, null, null, UserId.generate()))
         .isInstanceOf(InvalidFinancialAccountException.class);
   }
 

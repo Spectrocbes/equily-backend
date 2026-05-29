@@ -1,5 +1,6 @@
 package com.equily.portfolio.domain;
 
+import com.equily.identity.domain.UserId;
 import java.util.List;
 import java.util.Optional;
 
@@ -12,5 +13,11 @@ public interface FinancialAccountRepository {
 
   Optional<FinancialAccount> findById(FinancialAccountId id);
 
+  /** Scoped to a specific user — primary query method for all user-facing reads. */
+  List<FinancialAccount> findAllByOwnerId(UserId ownerId);
+
+  /**
+   * Returns all accounts across all users. For tests only — never called from application layer.
+   */
   List<FinancialAccount> findAll();
 }

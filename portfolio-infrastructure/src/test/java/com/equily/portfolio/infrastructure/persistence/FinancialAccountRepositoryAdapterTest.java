@@ -2,6 +2,7 @@ package com.equily.portfolio.infrastructure.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.equily.identity.domain.UserId;
 import com.equily.portfolio.domain.AccountType;
 import com.equily.portfolio.domain.FinancialAccount;
 import com.equily.portfolio.domain.Ticker;
@@ -14,6 +15,7 @@ import java.time.LocalDate;
 import java.util.Currency;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,16 +53,42 @@ class FinancialAccountRepositoryAdapterTest {
 
   private static final Currency EUR = Currency.getInstance("EUR");
 
+  // One user shared across all tests in a single test run; UUID stable per container lifecycle.
+  private UserId testUserId;
+
   @BeforeEach
   void setUp() {
     adapter = new FinancialAccountRepositoryAdapter(jpaRepository);
+    testUserId = insertTestUser();
+  }
+
+  // identity.users FK requires a real user row. Use native SQL because UserJpaEntity
+  // is in identity-infrastructure which is not on this module's test classpath.
+  private UserId insertTestUser() {
+    UUID id = UUID.randomUUID();
+    testEntityManager
+        .getEntityManager()
+        .createNativeQuery(
+            "INSERT INTO identity.users (id, email, password_hash, display_name)"
+                + " VALUES (:id, :email, :pw, :name)"
+                + " ON CONFLICT DO NOTHING")
+        .setParameter("id", id)
+        .setParameter("email", id + "@test.local")
+        .setParameter("pw", "hashed")
+        .setParameter("name", "Test User")
+        .executeUpdate();
+    return new UserId(id);
   }
 
   @Test
   void save_and_findById_roundtrip() {
     FinancialAccount account =
         FinancialAccount.open(
-            "PEA Account", AccountType.PEA, new Money(new BigDecimal("1000.00"), EUR), "Fortuneo");
+            "PEA Account",
+            AccountType.PEA,
+            new Money(new BigDecimal("1000.00"), EUR),
+            "Fortuneo",
+            testUserId);
 
     Transaction buy =
         Transaction.of(
@@ -88,19 +116,25 @@ class FinancialAccountRepositoryAdapterTest {
     assertThat(found.get().transactions()).hasSize(1);
     assertThat(found.get().transactions().get(0).type()).isEqualTo(TransactionType.BUY);
     assertThat(found.get().transactions().get(0).ticker()).isEqualTo(new Ticker("AAPL"));
+    assertThat(found.get().ownerId()).isEqualTo(testUserId);
   }
 
   @Test
   void findAll_returns_all_saved_accounts() {
     FinancialAccount pea =
         FinancialAccount.open(
-            "PEA", AccountType.PEA, new Money(new BigDecimal("500.00"), EUR), "Fortuneo");
+            "PEA",
+            AccountType.PEA,
+            new Money(new BigDecimal("500.00"), EUR),
+            "Fortuneo",
+            testUserId);
     FinancialAccount crypto =
         FinancialAccount.open(
             "Crypto Wallet",
             AccountType.CRYPTO_WALLET,
             new Money(new BigDecimal("200.00"), EUR),
-            "Fortuneo");
+            "Fortuneo",
+            testUserId);
 
     adapter.save(pea);
     adapter.save(crypto);
@@ -113,10 +147,46 @@ class FinancialAccountRepositoryAdapterTest {
   }
 
   @Test
+  void findAllByOwnerId_returns_only_accounts_for_that_user() {
+    // Second user — also needs a real row in identity.users
+    UserId user2 = insertTestUser();
+
+    FinancialAccount acc1 =
+        FinancialAccount.open(
+            "User1 PEA",
+            AccountType.PEA,
+            new Money(new BigDecimal("500.00"), EUR),
+            "Fortuneo",
+            testUserId);
+    FinancialAccount acc2 =
+        FinancialAccount.open(
+            "User2 PEA",
+            AccountType.PEA,
+            new Money(new BigDecimal("200.00"), EUR),
+            "Fortuneo",
+            user2);
+
+    adapter.save(acc1);
+    adapter.save(acc2);
+    testEntityManager.flush();
+    testEntityManager.clear();
+
+    List<FinancialAccount> user1Accounts = adapter.findAllByOwnerId(testUserId);
+
+    assertThat(user1Accounts).hasSize(1);
+    assertThat(user1Accounts.get(0).name()).isEqualTo("User1 PEA");
+    assertThat(user1Accounts.get(0).ownerId()).isEqualTo(testUserId);
+  }
+
+  @Test
   void save_with_broker_preserves_broker_in_roundtrip() {
     FinancialAccount account =
         FinancialAccount.open(
-            "Fortuneo PEA", AccountType.PEA, new Money(new BigDecimal("500.00"), EUR), "Fortuneo");
+            "Fortuneo PEA",
+            AccountType.PEA,
+            new Money(new BigDecimal("500.00"), EUR),
+            "Fortuneo",
+            testUserId);
 
     adapter.save(account);
     testEntityManager.flush();
@@ -135,7 +205,8 @@ class FinancialAccountRepositoryAdapterTest {
             "Compte-Titres",
             AccountType.COMPTE_TITRES,
             new Money(new BigDecimal("2000.00"), EUR),
-            "Fortuneo");
+            "Fortuneo",
+            testUserId);
 
     Transaction deposit =
         Transaction.of(

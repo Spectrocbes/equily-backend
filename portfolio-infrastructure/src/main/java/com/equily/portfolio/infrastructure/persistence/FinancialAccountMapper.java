@@ -1,5 +1,6 @@
 package com.equily.portfolio.infrastructure.persistence;
 
+import com.equily.identity.domain.UserId;
 import com.equily.portfolio.domain.AccountType;
 import com.equily.portfolio.domain.FinancialAccount;
 import com.equily.portfolio.domain.FinancialAccountId;
@@ -25,6 +26,7 @@ import java.util.List;
  *   <li>Ticker ↔ String (nullable — null for DEPOSIT / WITHDRAWAL / DIVIDEND)
  *   <li>TransactionType enum ↔ String: TransactionType.name() / TransactionType.valueOf()
  *   <li>FinancialAccountId / TransactionId ↔ UUID: via .value() and new XxxId(uuid)
+ *   <li>UserId ↔ UUID: via .value() and new UserId(uuid)
  * </ul>
  */
 class FinancialAccountMapper {
@@ -37,6 +39,7 @@ class FinancialAccountMapper {
     entity.currency = account.balance().currency().getCurrencyCode();
     entity.balance = account.balance().amount();
     entity.broker = account.broker();
+    entity.userId = account.ownerId().value();
 
     List<TransactionJpaEntity> txEntities =
         account.transactions().stream().map(t -> toJpaTransaction(t, entity)).toList();
@@ -50,6 +53,7 @@ class FinancialAccountMapper {
     AccountType accountType = AccountType.valueOf(entity.accountType);
     Currency currency = Currency.getInstance(entity.currency);
     Money balance = new Money(entity.balance, currency);
+    UserId ownerId = new UserId(entity.userId);
 
     List<Transaction> transactions =
         entity.transactions.stream().map(FinancialAccountMapper::toDomainTransaction).toList();
@@ -58,7 +62,7 @@ class FinancialAccountMapper {
     // transactions. reconstruct() bypasses recordTransaction() so the persisted balance
     // is used directly without re-deriving it from the transaction log.
     return FinancialAccount.reconstruct(
-        id, entity.name, accountType, balance, transactions, entity.broker);
+        id, entity.name, accountType, balance, transactions, entity.broker, ownerId);
   }
 
   private static TransactionJpaEntity toJpaTransaction(
