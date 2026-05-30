@@ -1,5 +1,6 @@
 package com.equily.portfolio.application;
 
+import com.equily.identity.domain.UserId;
 import com.equily.portfolio.domain.FinancialAccountId;
 import com.equily.portfolio.domain.Ticker;
 import com.equily.portfolio.domain.TransactionType;
@@ -13,6 +14,7 @@ import java.time.LocalDate;
  */
 public record RecordTransactionCommand(
     FinancialAccountId accountId,
+    UserId userId,
     TransactionType type,
     Ticker ticker,
     BigDecimal quantity,

@@ -211,6 +211,23 @@
 - 169 tests (was 130), 0 failures, all 9 modules green
 - **Phase 5 complete** — app is now multi-user with full data isolation
 
+## 2026-05-30 — Phase 5.5a: French regulatory deposit limits
+
+- `AccountSubType` enum (14 values): `LIVRET_A`, `LDDS`, `LEP`, `LIVRET_JEUNE`, `CEL`, `PEL`, `PEA`, `PEA_PME`,
+  `COMPTE_TITRE_ORDINAIRE`, `ASSURANCE_VIE`, `PER`, `CRYPTO_WALLET`, `CHECKING`, `SAVINGS` — each carrying its legal
+  reference (Code Monétaire et Financier article or decree)
+- `DepositLimits` constants class: Livret A 22 950 €, LDDS 12 000 €, LEP 10 000 €, PEA 150 000 €,
+  PEA + PEA-PME combined ceiling 225 000 €
+- `DepositLimitExceededException` in `portfolio-domain/exception` — carries `limit`, `currentTotal`, `attempted`,
+  `remaining`; used by the domain service and mapped at the REST layer
+- `AccountBusinessRules` pure domain service (zero framework deps): `validateDeposit`, `remainingCapacity`,
+  `isApproachingLimit`; combined PEA + PEA-PME rule checks all user accounts
+- Flyway V16: `sub_type VARCHAR(50)` nullable column on `portfolio.financial_account`
+- `FinancialAccountResponse` extended: `subType`, `depositLimit`, `totalDeposits`, `remainingCapacity` fields
+- `GlobalExceptionHandler`: `DepositLimitExceededException` → 422 with `DepositLimitErrorResponse` body (limit,
+  currentTotal, attempted, remaining)
+- All 9 modules green, BUILD SUCCESS
+
 ## Architecture Decisions
 
 - Lombok is forbidden everywhere. Java 21 records replace POJOs; explicit methods replace generated ones.

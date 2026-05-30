@@ -16,8 +16,10 @@ import com.equily.portfolio.domain.Ticker;
 import com.equily.portfolio.domain.Transaction;
 import com.equily.portfolio.domain.TransactionId;
 import com.equily.portfolio.domain.TransactionType;
+import com.equily.portfolio.domain.account.AccountSubType;
 import com.equily.portfolio.domain.csv.CsvImportResult;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
+import com.equily.portfolio.domain.exception.DepositLimitExceededException;
 import com.equily.shared.Money;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -45,7 +47,8 @@ class FinancialAccountServiceTest {
         AccountType.PEA,
         new Money(BigDecimal.valueOf(Double.parseDouble(balance)), EUR),
         "Fortuneo",
-        UserId.generate());
+        UserId.generate(),
+        null);
   }
 
   @Test
@@ -56,7 +59,8 @@ class FinancialAccountServiceTest {
             AccountType.PEA,
             new Money(BigDecimal.valueOf(1000), EUR),
             "Fortuneo",
-            UserId.generate());
+            UserId.generate(),
+            null);
 
     FinancialAccountId result = service.createAccount(command);
 
@@ -73,6 +77,7 @@ class FinancialAccountServiceTest {
     RecordTransactionCommand command =
         new RecordTransactionCommand(
             accountId,
+            account.ownerId(),
             TransactionType.DEPOSIT,
             null,
             null,
@@ -96,11 +101,78 @@ class FinancialAccountServiceTest {
     RecordTransactionCommand command =
         new RecordTransactionCommand(
             id,
+            UserId.generate(),
             TransactionType.DEPOSIT,
             null,
             null,
             null,
             new Money(BigDecimal.valueOf(100), EUR),
+            LocalDate.of(2026, 5, 24),
+            null,
+            null);
+
+    assertThatThrownBy(() -> service.recordTransaction(command))
+        .isInstanceOf(AccountNotFoundException.class);
+  }
+
+  @Test
+  void recordTransaction_throwsDepositLimitExceeded_when_livretA_full() {
+    UserId ownerId = UserId.generate();
+    FinancialAccount livretA =
+        FinancialAccount.open(
+            "Livret A",
+            AccountType.PEA, // AccountType irrelevant for this rule
+            new Money(BigDecimal.ZERO, EUR),
+            "Test Bank",
+            ownerId,
+            AccountSubType.LIVRET_A);
+    // Add deposits totaling 22000 EUR
+    Transaction existingDeposit =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("22000"), EUR),
+            LocalDate.of(2026, 1, 1),
+            null,
+            null);
+    livretA.recordTransaction(existingDeposit);
+    when(repository.findById(livretA.id())).thenReturn(Optional.of(livretA));
+    when(repository.findAllByOwnerId(ownerId)).thenReturn(List.of(livretA));
+
+    RecordTransactionCommand command =
+        new RecordTransactionCommand(
+            livretA.id(),
+            ownerId,
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("1000"), EUR),
+            LocalDate.of(2026, 5, 24),
+            null,
+            null);
+
+    assertThatThrownBy(() -> service.recordTransaction(command))
+        .isInstanceOf(DepositLimitExceededException.class);
+  }
+
+  @Test
+  void recordTransaction_throwsWhenOwnershipMismatch() {
+    FinancialAccount account = openAccount("My PEA", "10000");
+    when(repository.findById(account.id())).thenReturn(Optional.of(account));
+
+    RecordTransactionCommand command =
+        new RecordTransactionCommand(
+            account.id(),
+            UserId.generate(), // different user
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(BigDecimal.valueOf(500), EUR),
             LocalDate.of(2026, 5, 24),
             null,
             null);
@@ -118,7 +190,8 @@ class FinancialAccountServiceTest {
             AccountType.PEA,
             new Money(BigDecimal.valueOf(1000), EUR),
             "Fortuneo",
-            ownerId);
+            ownerId,
+            null);
     when(repository.findAllByOwnerId(ownerId)).thenReturn(List.of(account));
 
     List<FinancialAccount> result = service.getAllAccounts(ownerId);
@@ -136,7 +209,8 @@ class FinancialAccountServiceTest {
             AccountType.PEA,
             new Money(BigDecimal.valueOf(1000), EUR),
             "Fortuneo",
-            ownerId);
+            ownerId,
+            null);
     FinancialAccountId id = account.id();
     when(repository.findById(id)).thenReturn(Optional.of(account));
 
@@ -162,7 +236,12 @@ class FinancialAccountServiceTest {
     UserId otherUser = UserId.generate();
     FinancialAccount account =
         FinancialAccount.open(
-            "My PEA", AccountType.PEA, new Money(BigDecimal.valueOf(1000), EUR), "Fortuneo", owner);
+            "My PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.valueOf(1000), EUR),
+            "Fortuneo",
+            owner,
+            null);
     when(repository.findById(account.id())).thenReturn(Optional.of(account));
 
     assertThatThrownBy(() -> service.getAccountById(account.id(), otherUser))
@@ -178,7 +257,8 @@ class FinancialAccountServiceTest {
             AccountType.PEA,
             new Money(new BigDecimal("10000"), Currency.getInstance("EUR")),
             "Fortuneo",
-            ownerId);
+            ownerId,
+            null);
     Transaction buy =
         Transaction.of(
             TransactionId.generate(),
@@ -220,7 +300,8 @@ class FinancialAccountServiceTest {
             AccountType.PEA,
             new Money(new BigDecimal("5000"), EUR),
             "Fortuneo",
-            ownerId);
+            ownerId,
+            null);
     Transaction deposit =
         Transaction.of(
             TransactionId.generate(),
@@ -249,7 +330,8 @@ class FinancialAccountServiceTest {
             AccountType.PEA,
             new Money(BigDecimal.valueOf(10000), EUR),
             "BoursoBank",
-            ownerId);
+            ownerId,
+            null);
     when(repository.findById(any())).thenReturn(Optional.of(account));
 
     Transaction newTx =
@@ -281,7 +363,8 @@ class FinancialAccountServiceTest {
             AccountType.PEA,
             new Money(BigDecimal.valueOf(10000), EUR),
             "BoursoBank",
-            ownerId);
+            ownerId,
+            null);
     Transaction existingDeposit =
         Transaction.of(
             TransactionId.generate(),
@@ -335,7 +418,8 @@ class FinancialAccountServiceTest {
             AccountType.PEA,
             new Money(BigDecimal.valueOf(10000), EUR),
             "BoursoBank",
-            ownerId);
+            ownerId,
+            null);
     when(repository.findById(any())).thenReturn(Optional.of(account));
 
     Transaction tx1 =
@@ -373,7 +457,12 @@ class FinancialAccountServiceTest {
     UserId ownerId = UserId.generate();
     FinancialAccount account =
         FinancialAccount.open(
-            "My PEA", AccountType.PEA, new Money(BigDecimal.ZERO, EUR), "BoursoBank", ownerId);
+            "My PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "BoursoBank",
+            ownerId,
+            null);
     when(repository.findById(any())).thenReturn(Optional.of(account));
 
     // Boursobank exports newest-first: BUY on day 2 comes before DEPOSIT on day 1
@@ -411,7 +500,12 @@ class FinancialAccountServiceTest {
     UserId ownerId = UserId.generate();
     FinancialAccount account =
         FinancialAccount.open(
-            "My PEA", AccountType.PEA, new Money(BigDecimal.ZERO, EUR), "BoursoBank", ownerId);
+            "My PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "BoursoBank",
+            ownerId,
+            null);
     when(repository.findById(any())).thenReturn(Optional.of(account));
 
     // Same day: BUY arrives first in parsed list (Boursobank newest-first within same day)
@@ -454,7 +548,8 @@ class FinancialAccountServiceTest {
             AccountType.PEA,
             new Money(new BigDecimal("10000"), EUR),
             "Fortuneo",
-            ownerId);
+            ownerId,
+            null);
     Transaction buy1 =
         Transaction.of(
             TransactionId.generate(),

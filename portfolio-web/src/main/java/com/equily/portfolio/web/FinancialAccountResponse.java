@@ -6,7 +6,11 @@ public record FinancialAccountResponse(
     String id,
     String name,
     String accountType,
+    String subType,
     BigDecimal balance,
     String currency,
     int transactionCount,
-    String broker) {}
+    String broker,
+    BigDecimal depositLimit,
+    BigDecimal totalDeposits,
+    BigDecimal remainingCapacity) {}

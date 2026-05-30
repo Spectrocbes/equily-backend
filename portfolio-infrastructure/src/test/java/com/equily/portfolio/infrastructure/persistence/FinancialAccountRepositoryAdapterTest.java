@@ -88,7 +88,8 @@ class FinancialAccountRepositoryAdapterTest {
             AccountType.PEA,
             new Money(new BigDecimal("1000.00"), EUR),
             "Fortuneo",
-            testUserId);
+            testUserId,
+            null);
 
     Transaction buy =
         Transaction.of(
@@ -127,14 +128,16 @@ class FinancialAccountRepositoryAdapterTest {
             AccountType.PEA,
             new Money(new BigDecimal("500.00"), EUR),
             "Fortuneo",
-            testUserId);
+            testUserId,
+            null);
     FinancialAccount crypto =
         FinancialAccount.open(
             "Crypto Wallet",
             AccountType.CRYPTO_WALLET,
             new Money(new BigDecimal("200.00"), EUR),
             "Fortuneo",
-            testUserId);
+            testUserId,
+            null);
 
     adapter.save(pea);
     adapter.save(crypto);
@@ -157,14 +160,16 @@ class FinancialAccountRepositoryAdapterTest {
             AccountType.PEA,
             new Money(new BigDecimal("500.00"), EUR),
             "Fortuneo",
-            testUserId);
+            testUserId,
+            null);
     FinancialAccount acc2 =
         FinancialAccount.open(
             "User2 PEA",
             AccountType.PEA,
             new Money(new BigDecimal("200.00"), EUR),
             "Fortuneo",
-            user2);
+            user2,
+            null);
 
     adapter.save(acc1);
     adapter.save(acc2);
@@ -186,7 +191,8 @@ class FinancialAccountRepositoryAdapterTest {
             AccountType.PEA,
             new Money(new BigDecimal("500.00"), EUR),
             "Fortuneo",
-            testUserId);
+            testUserId,
+            null);
 
     adapter.save(account);
     testEntityManager.flush();
@@ -206,7 +212,8 @@ class FinancialAccountRepositoryAdapterTest {
             AccountType.COMPTE_TITRES,
             new Money(new BigDecimal("2000.00"), EUR),
             "Fortuneo",
-            testUserId);
+            testUserId,
+            null);
 
     Transaction deposit =
         Transaction.of(
