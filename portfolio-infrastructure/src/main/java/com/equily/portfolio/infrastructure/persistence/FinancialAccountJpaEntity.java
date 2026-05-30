@@ -31,6 +31,9 @@ class FinancialAccountJpaEntity implements Persistable<UUID> {
   @Column(name = "broker", length = 100, nullable = false)
   String broker;
 
+  @Column(name = "user_id", nullable = false)
+  UUID userId;
+
   @OneToMany(
       mappedBy = "account",
       cascade = CascadeType.ALL,

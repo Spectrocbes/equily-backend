@@ -1,5 +1,6 @@
 package com.equily.portfolio.application;
 
+import com.equily.identity.domain.UserId;
 import com.equily.portfolio.domain.FinancialAccount;
 import com.equily.portfolio.domain.FinancialAccountId;
 import com.equily.portfolio.domain.Holding;
@@ -21,26 +22,25 @@ public interface FinancialAccountUseCase {
    */
   void recordTransaction(RecordTransactionCommand command);
 
-  /**
-   * Returns all accounts. Holdings are NOT computed here — that requires market data. Returns raw
-   * accounts with transaction logs.
-   */
-  List<FinancialAccount> getAllAccounts();
-
-  /** Returns a single account by ID. Throws AccountNotFoundException if not found. */
-  FinancialAccount getAccountById(FinancialAccountId id);
+  /** Returns all accounts owned by the given user. */
+  List<FinancialAccount> getAllAccounts(UserId ownerId);
 
   /**
-   * Returns computed holdings for a given account. Holdings are derived from the transaction log —
-   * no market data required. AssetType defaults to STOCK for all holdings (Phase 1 — no Market Data
-   * context yet).
+   * Returns a single account by ID. Throws AccountNotFoundException if not found or if the account
+   * does not belong to the requesting user (ownership not revealed).
    */
-  List<Holding> getHoldings(FinancialAccountId id);
+  FinancialAccount getAccountById(FinancialAccountId id, UserId ownerId);
+
+  /**
+   * Returns computed holdings for a given account. Throws AccountNotFoundException if not found or
+   * not owned by the requesting user.
+   */
+  List<Holding> getHoldings(FinancialAccountId id, UserId ownerId);
 
   /**
    * Imports transactions from an already-parsed CSV result into an account. Skips transactions that
    * duplicate an existing one by (date, ticker, totalAmount). Throws AccountNotFoundException if
-   * the account does not exist.
+   * the account does not exist or is not owned by the requesting user.
    */
-  CsvImportResult importCsv(FinancialAccountId accountId, CsvImportResult parsed);
+  CsvImportResult importCsv(FinancialAccountId accountId, CsvImportResult parsed, UserId ownerId);
 }

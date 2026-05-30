@@ -1,5 +1,6 @@
 package com.equily.portfolio.web;
 
+import com.equily.identity.domain.UserId;
 import com.equily.portfolio.application.BrokerCsvParserPort;
 import com.equily.portfolio.application.CreateFinancialAccountCommand;
 import com.equily.portfolio.application.FinancialAccountUseCase;
@@ -23,6 +24,7 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -44,35 +46,50 @@ class FinancialAccountController {
     this.parserPort = parserPort;
   }
 
+  private UserId extractUserId(Authentication auth) {
+    return (UserId) auth.getPrincipal();
+  }
+
   @GetMapping
-  ResponseEntity<List<FinancialAccountResponse>> getAllAccounts() {
+  ResponseEntity<List<FinancialAccountResponse>> getAllAccounts(Authentication auth) {
+    UserId userId = extractUserId(auth);
     List<FinancialAccountResponse> accounts =
-        useCase.getAllAccounts().stream().map(this::toAccountResponse).toList();
+        useCase.getAllAccounts(userId).stream().map(this::toAccountResponse).toList();
     return ResponseEntity.ok(accounts);
   }
 
   @GetMapping("/{id}")
-  ResponseEntity<FinancialAccountResponse> getAccountById(@PathVariable String id) {
-    FinancialAccount account = useCase.getAccountById(new FinancialAccountId(UUID.fromString(id)));
+  ResponseEntity<FinancialAccountResponse> getAccountById(
+      @PathVariable String id, Authentication auth) {
+    UserId userId = extractUserId(auth);
+    FinancialAccount account =
+        useCase.getAccountById(new FinancialAccountId(UUID.fromString(id)), userId);
     return ResponseEntity.ok(toAccountResponse(account));
   }
 
   @PostMapping
   ResponseEntity<Map<String, String>> createAccount(
-      @RequestBody @Valid CreateAccountRequest request) {
+      @RequestBody @Valid CreateAccountRequest request, Authentication auth) {
+    UserId userId = extractUserId(auth);
     CreateFinancialAccountCommand command =
         new CreateFinancialAccountCommand(
             request.name(),
             AccountType.valueOf(request.accountType()),
             new Money(request.initialBalance(), Currency.getInstance(request.currency())),
-            request.broker());
+            request.broker(),
+            userId);
     FinancialAccountId id = useCase.createAccount(command);
     return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("id", id.value().toString()));
   }
 
   @PostMapping("/{id}/transactions")
   ResponseEntity<Void> recordTransaction(
-      @PathVariable String id, @RequestBody @Valid RecordTransactionRequest request) {
+      @PathVariable String id,
+      @RequestBody @Valid RecordTransactionRequest request,
+      Authentication auth) {
+    UserId userId = extractUserId(auth);
+    FinancialAccountId accountId = new FinancialAccountId(UUID.fromString(id));
+    useCase.getAccountById(accountId, userId);
     Ticker ticker = request.ticker() != null ? new Ticker(request.ticker()) : null;
     Money pricePerUnit =
         request.pricePerUnit() != null
@@ -80,7 +97,7 @@ class FinancialAccountController {
             : null;
     RecordTransactionCommand command =
         new RecordTransactionCommand(
-            new FinancialAccountId(UUID.fromString(id)),
+            accountId,
             TransactionType.valueOf(request.type()),
             ticker,
             request.quantity(),
@@ -94,8 +111,10 @@ class FinancialAccountController {
   }
 
   @GetMapping("/{id}/holdings")
-  ResponseEntity<List<HoldingResponse>> getHoldings(@PathVariable String id) {
-    List<Holding> holdings = useCase.getHoldings(new FinancialAccountId(UUID.fromString(id)));
+  ResponseEntity<List<HoldingResponse>> getHoldings(@PathVariable String id, Authentication auth) {
+    UserId userId = extractUserId(auth);
+    List<Holding> holdings =
+        useCase.getHoldings(new FinancialAccountId(UUID.fromString(id)), userId);
     List<HoldingResponse> response =
         holdings.stream()
             .map(
@@ -112,8 +131,11 @@ class FinancialAccountController {
   }
 
   @GetMapping("/{id}/transactions")
-  ResponseEntity<List<TransactionResponse>> getTransactions(@PathVariable String id) {
-    FinancialAccount account = useCase.getAccountById(new FinancialAccountId(UUID.fromString(id)));
+  ResponseEntity<List<TransactionResponse>> getTransactions(
+      @PathVariable String id, Authentication auth) {
+    UserId userId = extractUserId(auth);
+    FinancialAccount account =
+        useCase.getAccountById(new FinancialAccountId(UUID.fromString(id)), userId);
     List<TransactionResponse> transactions =
         account.transactions().stream().map(this::toTransactionResponse).toList();
     return ResponseEntity.ok(transactions);
@@ -124,7 +146,8 @@ class FinancialAccountController {
       @PathVariable String id,
       @RequestParam("file") MultipartFile file,
       @RequestParam("broker") String broker,
-      @RequestParam("mode") String mode) {
+      @RequestParam("mode") String mode,
+      Authentication auth) {
 
     if (file.isEmpty()) {
       return ResponseEntity.badRequest()
@@ -132,9 +155,10 @@ class FinancialAccountController {
     }
 
     try {
+      UserId userId = extractUserId(auth);
       CsvImportResult parsed = parserPort.parse(file.getInputStream(), broker, mode);
       FinancialAccountId accountId = new FinancialAccountId(UUID.fromString(id));
-      CsvImportResult result = useCase.importCsv(accountId, parsed);
+      CsvImportResult result = useCase.importCsv(accountId, parsed, userId);
       return ResponseEntity.ok(
           new CsvImportResponse(
               result.imported(), result.skipped(), result.errors(), result.errorDetails()));

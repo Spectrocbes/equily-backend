@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.equily.identity.domain.UserId;
 import com.equily.portfolio.domain.AccountType;
 import com.equily.portfolio.domain.FinancialAccount;
 import com.equily.portfolio.domain.FinancialAccountId;
@@ -38,11 +39,24 @@ class FinancialAccountServiceTest {
 
   private static final Currency EUR = Currency.getInstance("EUR");
 
+  private static FinancialAccount openAccount(String name, String balance) {
+    return FinancialAccount.open(
+        name,
+        AccountType.PEA,
+        new Money(BigDecimal.valueOf(Double.parseDouble(balance)), EUR),
+        "Fortuneo",
+        UserId.generate());
+  }
+
   @Test
   void createAccount_savesAccountAndReturnsId() {
     CreateFinancialAccountCommand command =
         new CreateFinancialAccountCommand(
-            "My PEA", AccountType.PEA, new Money(BigDecimal.valueOf(1000), EUR), "Fortuneo");
+            "My PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.valueOf(1000), EUR),
+            "Fortuneo",
+            UserId.generate());
 
     FinancialAccountId result = service.createAccount(command);
 
@@ -52,9 +66,7 @@ class FinancialAccountServiceTest {
 
   @Test
   void recordTransaction_loadsAccountRecordsTxAndSaves() {
-    FinancialAccount account =
-        FinancialAccount.open(
-            "My PEA", AccountType.PEA, new Money(BigDecimal.valueOf(10000), EUR), "Fortuneo");
+    FinancialAccount account = openAccount("My PEA", "10000");
     FinancialAccountId accountId = account.id();
     when(repository.findById(accountId)).thenReturn(Optional.of(account));
 
@@ -99,26 +111,36 @@ class FinancialAccountServiceTest {
 
   @Test
   void getAllAccounts_delegatesToRepository() {
+    UserId ownerId = UserId.generate();
     FinancialAccount account =
         FinancialAccount.open(
-            "My PEA", AccountType.PEA, new Money(BigDecimal.valueOf(1000), EUR), "Fortuneo");
-    when(repository.findAll()).thenReturn(List.of(account));
+            "My PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.valueOf(1000), EUR),
+            "Fortuneo",
+            ownerId);
+    when(repository.findAllByOwnerId(ownerId)).thenReturn(List.of(account));
 
-    List<FinancialAccount> result = service.getAllAccounts();
+    List<FinancialAccount> result = service.getAllAccounts(ownerId);
 
     assertThat(result).hasSize(1);
-    verify(repository).findAll();
+    verify(repository).findAllByOwnerId(ownerId);
   }
 
   @Test
   void getAccountById_returnsAccountWhenFound() {
+    UserId ownerId = UserId.generate();
     FinancialAccount account =
         FinancialAccount.open(
-            "My PEA", AccountType.PEA, new Money(BigDecimal.valueOf(1000), EUR), "Fortuneo");
+            "My PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.valueOf(1000), EUR),
+            "Fortuneo",
+            ownerId);
     FinancialAccountId id = account.id();
     when(repository.findById(id)).thenReturn(Optional.of(account));
 
-    FinancialAccount result = service.getAccountById(id);
+    FinancialAccount result = service.getAccountById(id, ownerId);
 
     assertThat(result.id()).isEqualTo(id);
     assertThat(result.name()).isEqualTo("My PEA");
@@ -129,19 +151,34 @@ class FinancialAccountServiceTest {
     FinancialAccountId id = FinancialAccountId.generate();
     when(repository.findById(id)).thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> service.getAccountById(id))
+    assertThatThrownBy(() -> service.getAccountById(id, UserId.generate()))
         .isInstanceOf(AccountNotFoundException.class)
         .hasMessageContaining(id.value().toString());
   }
 
   @Test
+  void getAccountById_throwsAccountNotFoundWhenOwnerMismatch() {
+    UserId owner = UserId.generate();
+    UserId otherUser = UserId.generate();
+    FinancialAccount account =
+        FinancialAccount.open(
+            "My PEA", AccountType.PEA, new Money(BigDecimal.valueOf(1000), EUR), "Fortuneo", owner);
+    when(repository.findById(account.id())).thenReturn(Optional.of(account));
+
+    assertThatThrownBy(() -> service.getAccountById(account.id(), otherUser))
+        .isInstanceOf(AccountNotFoundException.class);
+  }
+
+  @Test
   void getHoldings_returns_holdings_for_account_with_buy_transactions() {
+    UserId ownerId = UserId.generate();
     FinancialAccount account =
         FinancialAccount.open(
             "Mon PEA",
             AccountType.PEA,
             new Money(new BigDecimal("10000"), Currency.getInstance("EUR")),
-            "Fortuneo");
+            "Fortuneo",
+            ownerId);
     Transaction buy =
         Transaction.of(
             TransactionId.generate(),
@@ -157,7 +194,7 @@ class FinancialAccountServiceTest {
 
     when(repository.findById(any())).thenReturn(Optional.of(account));
 
-    List<Holding> holdings = service.getHoldings(FinancialAccountId.generate());
+    List<Holding> holdings = service.getHoldings(account.id(), ownerId);
 
     assertThat(holdings).hasSize(1);
     assertThat(holdings.get(0).ticker().symbol()).isEqualTo("AAPL");
@@ -170,15 +207,20 @@ class FinancialAccountServiceTest {
   void getHoldings_throws_AccountNotFoundException_when_account_not_found() {
     when(repository.findById(any())).thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> service.getHoldings(FinancialAccountId.generate()))
+    assertThatThrownBy(() -> service.getHoldings(FinancialAccountId.generate(), UserId.generate()))
         .isInstanceOf(AccountNotFoundException.class);
   }
 
   @Test
   void getHoldings_returns_empty_list_when_account_has_no_ticker_transactions() {
+    UserId ownerId = UserId.generate();
     FinancialAccount account =
         FinancialAccount.open(
-            "Mon PEA", AccountType.PEA, new Money(new BigDecimal("5000"), EUR), "Fortuneo");
+            "Mon PEA",
+            AccountType.PEA,
+            new Money(new BigDecimal("5000"), EUR),
+            "Fortuneo",
+            ownerId);
     Transaction deposit =
         Transaction.of(
             TransactionId.generate(),
@@ -193,16 +235,21 @@ class FinancialAccountServiceTest {
     account.recordTransaction(deposit);
     when(repository.findById(any())).thenReturn(Optional.of(account));
 
-    List<Holding> holdings = service.getHoldings(FinancialAccountId.generate());
+    List<Holding> holdings = service.getHoldings(account.id(), ownerId);
 
     assertThat(holdings).isEmpty();
   }
 
   @Test
   void importCsv_imports_new_transactions() {
+    UserId ownerId = UserId.generate();
     FinancialAccount account =
         FinancialAccount.open(
-            "My PEA", AccountType.PEA, new Money(BigDecimal.valueOf(10000), EUR), "BoursoBank");
+            "My PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.valueOf(10000), EUR),
+            "BoursoBank",
+            ownerId);
     when(repository.findById(any())).thenReturn(Optional.of(account));
 
     Transaction newTx =
@@ -218,7 +265,7 @@ class FinancialAccountServiceTest {
             "Imported from Boursobank");
     CsvImportResult parsed = new CsvImportResult(1, 0, 0, List.of(), List.of(newTx));
 
-    CsvImportResult result = service.importCsv(FinancialAccountId.generate(), parsed);
+    CsvImportResult result = service.importCsv(account.id(), parsed, ownerId);
 
     assertThat(result.imported()).isEqualTo(1);
     assertThat(result.skipped()).isZero();
@@ -227,9 +274,14 @@ class FinancialAccountServiceTest {
 
   @Test
   void importCsv_skips_duplicate_transactions() {
+    UserId ownerId = UserId.generate();
     FinancialAccount account =
         FinancialAccount.open(
-            "My PEA", AccountType.PEA, new Money(BigDecimal.valueOf(10000), EUR), "BoursoBank");
+            "My PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.valueOf(10000), EUR),
+            "BoursoBank",
+            ownerId);
     Transaction existingDeposit =
         Transaction.of(
             TransactionId.generate(),
@@ -257,7 +309,7 @@ class FinancialAccountServiceTest {
             "Imported from Boursobank");
     CsvImportResult parsed = new CsvImportResult(1, 0, 0, List.of(), List.of(duplicateTx));
 
-    CsvImportResult result = service.importCsv(FinancialAccountId.generate(), parsed);
+    CsvImportResult result = service.importCsv(account.id(), parsed, ownerId);
 
     assertThat(result.imported()).isZero();
     assertThat(result.skipped()).isEqualTo(1);
@@ -269,15 +321,21 @@ class FinancialAccountServiceTest {
     when(repository.findById(any())).thenReturn(Optional.empty());
     CsvImportResult parsed = new CsvImportResult(0, 0, 0, List.of(), List.of());
 
-    assertThatThrownBy(() -> service.importCsv(FinancialAccountId.generate(), parsed))
+    assertThatThrownBy(
+            () -> service.importCsv(FinancialAccountId.generate(), parsed, UserId.generate()))
         .isInstanceOf(AccountNotFoundException.class);
   }
 
   @Test
   void importCsv_deduplicates_within_same_file() {
+    UserId ownerId = UserId.generate();
     FinancialAccount account =
         FinancialAccount.open(
-            "My PEA", AccountType.PEA, new Money(BigDecimal.valueOf(10000), EUR), "BoursoBank");
+            "My PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.valueOf(10000), EUR),
+            "BoursoBank",
+            ownerId);
     when(repository.findById(any())).thenReturn(Optional.of(account));
 
     Transaction tx1 =
@@ -304,7 +362,7 @@ class FinancialAccountServiceTest {
             "Imported from Boursobank");
     CsvImportResult parsed = new CsvImportResult(2, 0, 0, List.of(), List.of(tx1, tx2));
 
-    CsvImportResult result = service.importCsv(FinancialAccountId.generate(), parsed);
+    CsvImportResult result = service.importCsv(account.id(), parsed, ownerId);
 
     assertThat(result.imported()).isEqualTo(1);
     assertThat(result.skipped()).isEqualTo(1);
@@ -312,10 +370,10 @@ class FinancialAccountServiceTest {
 
   @Test
   void importCsv_sorts_transactions_by_date_before_applying() {
-    // Account starts empty — BUY before its DEPOSIT would fail without sorting
+    UserId ownerId = UserId.generate();
     FinancialAccount account =
         FinancialAccount.open(
-            "My PEA", AccountType.PEA, new Money(BigDecimal.ZERO, EUR), "BoursoBank");
+            "My PEA", AccountType.PEA, new Money(BigDecimal.ZERO, EUR), "BoursoBank", ownerId);
     when(repository.findById(any())).thenReturn(Optional.of(account));
 
     // Boursobank exports newest-first: BUY on day 2 comes before DEPOSIT on day 1
@@ -343,17 +401,17 @@ class FinancialAccountServiceTest {
             "Imported from Boursobank");
     CsvImportResult parsed = new CsvImportResult(2, 0, 0, List.of(), List.of(buyDay2, depositDay1));
 
-    CsvImportResult result = service.importCsv(FinancialAccountId.generate(), parsed);
+    CsvImportResult result = service.importCsv(account.id(), parsed, ownerId);
 
     assertThat(result.imported()).isEqualTo(2);
   }
 
   @Test
   void importCsv_sorts_same_day_deposit_before_buy() {
-    // Account starts empty — BUY before same-day DEPOSIT would fail without type priority
+    UserId ownerId = UserId.generate();
     FinancialAccount account =
         FinancialAccount.open(
-            "My PEA", AccountType.PEA, new Money(BigDecimal.ZERO, EUR), "BoursoBank");
+            "My PEA", AccountType.PEA, new Money(BigDecimal.ZERO, EUR), "BoursoBank", ownerId);
     when(repository.findById(any())).thenReturn(Optional.of(account));
 
     // Same day: BUY arrives first in parsed list (Boursobank newest-first within same day)
@@ -382,16 +440,21 @@ class FinancialAccountServiceTest {
     CsvImportResult parsed =
         new CsvImportResult(2, 0, 0, List.of(), List.of(sameDayBuy, sameDayDeposit));
 
-    CsvImportResult result = service.importCsv(FinancialAccountId.generate(), parsed);
+    CsvImportResult result = service.importCsv(account.id(), parsed, ownerId);
 
     assertThat(result.imported()).isEqualTo(2);
   }
 
   @Test
   void getHoldings_merges_multiple_buys_same_ticker_into_one_holding() {
+    UserId ownerId = UserId.generate();
     FinancialAccount account =
         FinancialAccount.open(
-            "Mon PEA", AccountType.PEA, new Money(new BigDecimal("10000"), EUR), "Fortuneo");
+            "Mon PEA",
+            AccountType.PEA,
+            new Money(new BigDecimal("10000"), EUR),
+            "Fortuneo",
+            ownerId);
     Transaction buy1 =
         Transaction.of(
             TransactionId.generate(),
@@ -418,7 +481,7 @@ class FinancialAccountServiceTest {
     account.recordTransaction(buy2);
     when(repository.findById(any())).thenReturn(Optional.of(account));
 
-    List<Holding> holdings = service.getHoldings(FinancialAccountId.generate());
+    List<Holding> holdings = service.getHoldings(account.id(), ownerId);
 
     assertThat(holdings).hasSize(1);
     assertThat(holdings.get(0).ticker().symbol()).isEqualTo("AAPL");

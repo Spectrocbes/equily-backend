@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -11,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.equily.identity.domain.UserId;
 import com.equily.portfolio.application.BrokerCsvParserPort;
 import com.equily.portfolio.application.FinancialAccountUseCase;
 import com.equily.portfolio.application.exception.CsvParsingException;
@@ -42,6 +44,8 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -55,23 +59,30 @@ class FinancialAccountControllerTest {
   @Autowired private MockMvc mockMvc;
 
   private FinancialAccount testAccount;
+  private UserId testUserId;
 
   @BeforeEach
   void setUp() {
+    testUserId = UserId.generate();
     testAccount =
         FinancialAccount.open(
             "My PEA",
             AccountType.PEA,
             new Money(BigDecimal.valueOf(1000), Currency.getInstance("EUR")),
-            "Fortuneo");
+            "Fortuneo",
+            testUserId);
+  }
+
+  private Authentication mockAuth() {
+    return new UsernamePasswordAuthenticationToken(testUserId, null, List.of());
   }
 
   @Test
   void getAllAccounts_returns200WithList() throws Exception {
-    when(useCase.getAllAccounts()).thenReturn(List.of(testAccount));
+    when(useCase.getAllAccounts(any())).thenReturn(List.of(testAccount));
 
     mockMvc
-        .perform(get("/api/v1/accounts"))
+        .perform(get("/api/v1/accounts").with(authentication(mockAuth())))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.length()").value(1));
   }
@@ -79,10 +90,11 @@ class FinancialAccountControllerTest {
   @Test
   void getAccountById_returns200WhenFound() throws Exception {
     FinancialAccountId id = testAccount.id();
-    when(useCase.getAccountById(id)).thenReturn(testAccount);
+    when(useCase.getAccountById(eq(id), any())).thenReturn(testAccount);
 
     mockMvc
-        .perform(get("/api/v1/accounts/{id}", id.value().toString()))
+        .perform(
+            get("/api/v1/accounts/{id}", id.value().toString()).with(authentication(mockAuth())))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(id.value().toString()));
   }
@@ -90,10 +102,11 @@ class FinancialAccountControllerTest {
   @Test
   void getAccountById_returns404WhenNotFound() throws Exception {
     FinancialAccountId id = FinancialAccountId.generate();
-    when(useCase.getAccountById(id)).thenThrow(new AccountNotFoundException(id));
+    when(useCase.getAccountById(eq(id), any())).thenThrow(new AccountNotFoundException(id));
 
     mockMvc
-        .perform(get("/api/v1/accounts/{id}", id.value().toString()))
+        .perform(
+            get("/api/v1/accounts/{id}", id.value().toString()).with(authentication(mockAuth())))
         .andExpect(status().isNotFound());
   }
 
@@ -105,6 +118,7 @@ class FinancialAccountControllerTest {
     mockMvc
         .perform(
             post("/api/v1/accounts")
+                .with(authentication(mockAuth()))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
@@ -117,9 +131,12 @@ class FinancialAccountControllerTest {
 
   @Test
   void recordTransaction_returns204() throws Exception {
+    when(useCase.getAccountById(any(), any())).thenReturn(testAccount);
+
     mockMvc
         .perform(
             post("/api/v1/accounts/{id}/transactions", testAccount.id().value().toString())
+                .with(authentication(mockAuth()))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
@@ -131,6 +148,7 @@ class FinancialAccountControllerTest {
 
   @Test
   void recordTransaction_returns422OnInsufficientFunds() throws Exception {
+    when(useCase.getAccountById(any(), any())).thenReturn(testAccount);
     doThrow(new InsufficientFundsException("insufficient funds"))
         .when(useCase)
         .recordTransaction(any());
@@ -138,6 +156,7 @@ class FinancialAccountControllerTest {
     mockMvc
         .perform(
             post("/api/v1/accounts/{id}/transactions", testAccount.id().value().toString())
+                .with(authentication(mockAuth()))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
@@ -154,7 +173,8 @@ class FinancialAccountControllerTest {
             "My PEA",
             AccountType.PEA,
             new Money(BigDecimal.valueOf(2000), Currency.getInstance("EUR")),
-            "Fortuneo");
+            "Fortuneo",
+            testUserId);
     Transaction buyTx =
         Transaction.of(
             TransactionId.generate(),
@@ -167,10 +187,12 @@ class FinancialAccountControllerTest {
             BigDecimal.ZERO,
             "DCA janvier");
     account.recordTransaction(buyTx);
-    when(useCase.getAccountById(any())).thenReturn(account);
+    when(useCase.getAccountById(any(), any())).thenReturn(account);
 
     mockMvc
-        .perform(get("/api/v1/accounts/{id}/transactions", account.id().value().toString()))
+        .perform(
+            get("/api/v1/accounts/{id}/transactions", account.id().value().toString())
+                .with(authentication(mockAuth())))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.length()").value(1))
         .andExpect(jsonPath("$[0].type").value("BUY"))
@@ -196,10 +218,12 @@ class FinancialAccountControllerTest {
             null,
             null);
     testAccount.recordTransaction(depositTx);
-    when(useCase.getAccountById(any())).thenReturn(testAccount);
+    when(useCase.getAccountById(any(), any())).thenReturn(testAccount);
 
     mockMvc
-        .perform(get("/api/v1/accounts/{id}/transactions", testAccount.id().value().toString()))
+        .perform(
+            get("/api/v1/accounts/{id}/transactions", testAccount.id().value().toString())
+                .with(authentication(mockAuth())))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.length()").value(1))
         .andExpect(jsonPath("$[0].type").value("DEPOSIT"))
@@ -209,9 +233,12 @@ class FinancialAccountControllerTest {
 
   @Test
   void recordTransaction_buy_with_ticker_and_price_returns_204() throws Exception {
+    when(useCase.getAccountById(any(), any())).thenReturn(testAccount);
+
     mockMvc
         .perform(
             post("/api/v1/accounts/{id}/transactions", testAccount.id().value().toString())
+                .with(authentication(mockAuth()))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
@@ -225,11 +252,13 @@ class FinancialAccountControllerTest {
 
   @Test
   void recordTransaction_throws_InvalidTransactionException_returns_400() throws Exception {
+    when(useCase.getAccountById(any(), any())).thenReturn(testAccount);
     doThrow(new InvalidTransactionException("bad tx")).when(useCase).recordTransaction(any());
 
     mockMvc
         .perform(
             post("/api/v1/accounts/{id}/transactions", testAccount.id().value().toString())
+                .with(authentication(mockAuth()))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
@@ -242,27 +271,33 @@ class FinancialAccountControllerTest {
 
   @Test
   void getAccountById_invalid_uuid_returns_400() throws Exception {
-    mockMvc.perform(get("/api/v1/accounts/not-a-valid-uuid")).andExpect(status().isBadRequest());
+    mockMvc
+        .perform(get("/api/v1/accounts/not-a-valid-uuid").with(authentication(mockAuth())))
+        .andExpect(status().isBadRequest());
   }
 
   @Test
   void getHoldings_returns_200_with_holdings_list() throws Exception {
     List<Holding> holdings = List.of();
-    when(useCase.getHoldings(any())).thenReturn(holdings);
+    when(useCase.getHoldings(any(), any())).thenReturn(holdings);
 
     mockMvc
-        .perform(get("/api/v1/accounts/{id}/holdings", UUID.randomUUID().toString()))
+        .perform(
+            get("/api/v1/accounts/{id}/holdings", UUID.randomUUID().toString())
+                .with(authentication(mockAuth())))
         .andExpect(status().isOk())
         .andExpect(content().json("[]"));
   }
 
   @Test
   void getHoldings_returns_404_when_account_not_found() throws Exception {
-    when(useCase.getHoldings(any()))
+    when(useCase.getHoldings(any(), any()))
         .thenThrow(new AccountNotFoundException(FinancialAccountId.generate()));
 
     mockMvc
-        .perform(get("/api/v1/accounts/{id}/holdings", UUID.randomUUID().toString()))
+        .perform(
+            get("/api/v1/accounts/{id}/holdings", UUID.randomUUID().toString())
+                .with(authentication(mockAuth())))
         .andExpect(status().isNotFound());
   }
 
@@ -277,10 +312,12 @@ class FinancialAccountControllerTest {
             new Money(new BigDecimal("150.00"), Currency.getInstance("EUR")),
             new Money(new BigDecimal("1500.00"), Currency.getInstance("EUR")),
             new Money(new BigDecimal("4.99"), Currency.getInstance("EUR")));
-    when(useCase.getHoldings(any())).thenReturn(List.of(holding));
+    when(useCase.getHoldings(any(), any())).thenReturn(List.of(holding));
 
     mockMvc
-        .perform(get("/api/v1/accounts/{id}/holdings", UUID.randomUUID().toString()))
+        .perform(
+            get("/api/v1/accounts/{id}/holdings", UUID.randomUUID().toString())
+                .with(authentication(mockAuth())))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.length()").value(1))
         .andExpect(jsonPath("$[0].ticker").value("AAPL"))
@@ -294,7 +331,7 @@ class FinancialAccountControllerTest {
   @Test
   void getHoldings_invalid_uuid_returns_400() throws Exception {
     mockMvc
-        .perform(get("/api/v1/accounts/not-a-valid-uuid/holdings"))
+        .perform(get("/api/v1/accounts/not-a-valid-uuid/holdings").with(authentication(mockAuth())))
         .andExpect(status().isBadRequest());
   }
 
@@ -303,7 +340,7 @@ class FinancialAccountControllerTest {
     CsvImportResult parseResult = new CsvImportResult(3, 0, 0, List.of(), List.of());
     CsvImportResult importResult = new CsvImportResult(3, 0, 0, List.of(), List.of());
     when(parserPort.parse(any(), eq("BOURSOBANK"), eq("OPERATIONS"))).thenReturn(parseResult);
-    when(useCase.importCsv(any(), any())).thenReturn(importResult);
+    when(useCase.importCsv(any(), any(), any())).thenReturn(importResult);
 
     mockMvc
         .perform(
@@ -312,7 +349,8 @@ class FinancialAccountControllerTest {
                     new MockMultipartFile(
                         "file", "ops.csv", "text/csv", "Date opération;...\n".getBytes()))
                 .param("broker", "BOURSOBANK")
-                .param("mode", "OPERATIONS"))
+                .param("mode", "OPERATIONS")
+                .with(authentication(mockAuth())))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.imported").value(3))
         .andExpect(jsonPath("$.skipped").value(0))
@@ -326,7 +364,8 @@ class FinancialAccountControllerTest {
             multipart("/api/v1/accounts/{id}/import/csv", UUID.randomUUID().toString())
                 .file(new MockMultipartFile("file", "", "text/csv", new byte[0]))
                 .param("broker", "BOURSOBANK")
-                .param("mode", "OPERATIONS"))
+                .param("mode", "OPERATIONS")
+                .with(authentication(mockAuth())))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.errors").value(1));
   }
@@ -341,7 +380,8 @@ class FinancialAccountControllerTest {
             multipart("/api/v1/accounts/{id}/import/csv", UUID.randomUUID().toString())
                 .file(new MockMultipartFile("file", "f.csv", "text/csv", "data".getBytes()))
                 .param("broker", "UNKNOWN")
-                .param("mode", "OPERATIONS"))
+                .param("mode", "OPERATIONS")
+                .with(authentication(mockAuth())))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.errors").value(1));
   }
@@ -356,7 +396,8 @@ class FinancialAccountControllerTest {
             multipart("/api/v1/accounts/{id}/import/csv", UUID.randomUUID().toString())
                 .file(new MockMultipartFile("file", "f.csv", "text/csv", "bad".getBytes()))
                 .param("broker", "BOURSOBANK")
-                .param("mode", "OPERATIONS"))
+                .param("mode", "OPERATIONS")
+                .with(authentication(mockAuth())))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.errors").value(1));
   }

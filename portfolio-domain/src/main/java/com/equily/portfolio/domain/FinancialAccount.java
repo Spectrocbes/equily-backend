@@ -1,5 +1,6 @@
 package com.equily.portfolio.domain;
 
+import com.equily.identity.domain.UserId;
 import com.equily.portfolio.domain.exception.InsufficientFundsException;
 import com.equily.portfolio.domain.exception.InvalidFinancialAccountException;
 import com.equily.shared.Money;
@@ -8,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -21,14 +23,21 @@ public final class FinancialAccount {
   private Money balance;
   private final List<Transaction> transactions;
   private final String broker;
+  private final UserId ownerId;
 
   private FinancialAccount(
-      FinancialAccountId id, String name, AccountType accountType, Money balance, String broker) {
+      FinancialAccountId id,
+      String name,
+      AccountType accountType,
+      Money balance,
+      String broker,
+      UserId ownerId) {
     this.id = id;
     this.name = name;
     this.accountType = accountType;
     this.balance = balance;
     this.broker = broker;
+    this.ownerId = ownerId;
     this.transactions = new ArrayList<>();
   }
 
@@ -46,14 +55,16 @@ public final class FinancialAccount {
       AccountType accountType,
       Money balance,
       List<Transaction> transactions,
-      String broker) {
-    FinancialAccount account = new FinancialAccount(id, name, accountType, balance, broker);
+      String broker,
+      UserId ownerId) {
+    FinancialAccount account =
+        new FinancialAccount(id, name, accountType, balance, broker, ownerId);
     account.transactions.addAll(transactions);
     return account;
   }
 
   public static FinancialAccount open(
-      String name, AccountType accountType, Money initialBalance, String broker) {
+      String name, AccountType accountType, Money initialBalance, String broker, UserId ownerId) {
     if (name == null || name.isBlank()) {
       throw new InvalidFinancialAccountException("name must not be null or blank");
     }
@@ -66,8 +77,9 @@ public final class FinancialAccount {
     if (broker == null || broker.isBlank()) {
       throw new InvalidFinancialAccountException("broker must not be null or blank");
     }
+    Objects.requireNonNull(ownerId, "ownerId must not be null");
     return new FinancialAccount(
-        FinancialAccountId.generate(), name, accountType, initialBalance, broker);
+        FinancialAccountId.generate(), name, accountType, initialBalance, broker, ownerId);
   }
 
   public void recordTransaction(Transaction t) {
@@ -135,5 +147,9 @@ public final class FinancialAccount {
 
   public String broker() {
     return broker;
+  }
+
+  public UserId ownerId() {
+    return ownerId;
   }
 }

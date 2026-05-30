@@ -1,5 +1,6 @@
 package com.equily.portfolio.infrastructure.persistence;
 
+import com.equily.identity.domain.UserId;
 import com.equily.portfolio.domain.FinancialAccount;
 import com.equily.portfolio.domain.FinancialAccountId;
 import com.equily.portfolio.domain.FinancialAccountRepository;
@@ -31,6 +32,13 @@ class FinancialAccountRepositoryAdapter implements FinancialAccountRepository {
   @Override
   public Optional<FinancialAccount> findById(FinancialAccountId id) {
     return jpaRepository.findById(id.value()).map(FinancialAccountMapper::toDomain);
+  }
+
+  @Override
+  public List<FinancialAccount> findAllByOwnerId(UserId ownerId) {
+    return jpaRepository.findAllByUserId(ownerId.value()).stream()
+        .map(FinancialAccountMapper::toDomain)
+        .toList();
   }
 
   @Override
