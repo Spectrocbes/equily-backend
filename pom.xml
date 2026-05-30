@@ -19,7 +19,7 @@
 
     <properties>
         <java.version>21</java.version>
-        <archunit.version>1.3.0</archunit.version>
+        <archunit.version>1.4.2</archunit.version>
         <sonar.organization>spectrocbes</sonar.organization>
         <sonar.projectKey>Spectrocbes_equily-backend</sonar.projectKey>
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
