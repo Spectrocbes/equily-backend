@@ -1,6 +1,7 @@
 package com.equily.portfolio.domain;
 
 import com.equily.identity.domain.UserId;
+import com.equily.portfolio.domain.account.AccountSubType;
 import com.equily.portfolio.domain.exception.InsufficientFundsException;
 import com.equily.portfolio.domain.exception.InvalidFinancialAccountException;
 import com.equily.shared.Money;
@@ -24,6 +25,7 @@ public final class FinancialAccount {
   private final List<Transaction> transactions;
   private final String broker;
   private final UserId ownerId;
+  private final AccountSubType subType;
 
   private FinancialAccount(
       FinancialAccountId id,
@@ -31,13 +33,15 @@ public final class FinancialAccount {
       AccountType accountType,
       Money balance,
       String broker,
-      UserId ownerId) {
+      UserId ownerId,
+      AccountSubType subType) {
     this.id = id;
     this.name = name;
     this.accountType = accountType;
     this.balance = balance;
     this.broker = broker;
     this.ownerId = ownerId;
+    this.subType = subType;
     this.transactions = new ArrayList<>();
   }
 
@@ -56,15 +60,21 @@ public final class FinancialAccount {
       Money balance,
       List<Transaction> transactions,
       String broker,
-      UserId ownerId) {
+      UserId ownerId,
+      AccountSubType subType) {
     FinancialAccount account =
-        new FinancialAccount(id, name, accountType, balance, broker, ownerId);
+        new FinancialAccount(id, name, accountType, balance, broker, ownerId, subType);
     account.transactions.addAll(transactions);
     return account;
   }
 
   public static FinancialAccount open(
-      String name, AccountType accountType, Money initialBalance, String broker, UserId ownerId) {
+      String name,
+      AccountType accountType,
+      Money initialBalance,
+      String broker,
+      UserId ownerId,
+      AccountSubType subType) {
     if (name == null || name.isBlank()) {
       throw new InvalidFinancialAccountException("name must not be null or blank");
     }
@@ -79,7 +89,7 @@ public final class FinancialAccount {
     }
     Objects.requireNonNull(ownerId, "ownerId must not be null");
     return new FinancialAccount(
-        FinancialAccountId.generate(), name, accountType, initialBalance, broker, ownerId);
+        FinancialAccountId.generate(), name, accountType, initialBalance, broker, ownerId, subType);
   }
 
   public void recordTransaction(Transaction t) {
@@ -151,5 +161,9 @@ public final class FinancialAccount {
 
   public UserId ownerId() {
     return ownerId;
+  }
+
+  public AccountSubType subType() {
+    return subType;
   }
 }

@@ -11,6 +11,7 @@ import com.equily.portfolio.domain.Ticker;
 import com.equily.portfolio.domain.Transaction;
 import com.equily.portfolio.domain.TransactionId;
 import com.equily.portfolio.domain.TransactionType;
+import com.equily.portfolio.domain.account.AccountBusinessRules;
 import com.equily.portfolio.domain.csv.CsvImportResult;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
 import com.equily.shared.Country;
@@ -53,7 +54,8 @@ class FinancialAccountService implements FinancialAccountUseCase {
             command.accountType(),
             command.initialBalance(),
             command.broker(),
-            command.ownerId());
+            command.ownerId(),
+            command.subType());
     repository.save(account);
     return account.id();
   }
@@ -64,6 +66,15 @@ class FinancialAccountService implements FinancialAccountUseCase {
         repository
             .findById(command.accountId())
             .orElseThrow(() -> new AccountNotFoundException(command.accountId()));
+
+    if (!account.ownerId().equals(command.userId())) {
+      throw new AccountNotFoundException(command.accountId());
+    }
+
+    if (command.type() == TransactionType.DEPOSIT && account.subType() != null) {
+      List<FinancialAccount> allUserAccounts = repository.findAllByOwnerId(account.ownerId());
+      AccountBusinessRules.validateDeposit(account, command.totalAmount(), allUserAccounts);
+    }
 
     Transaction transaction =
         Transaction.of(

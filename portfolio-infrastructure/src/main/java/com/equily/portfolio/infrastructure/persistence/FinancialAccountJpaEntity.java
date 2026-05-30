@@ -1,5 +1,6 @@
 package com.equily.portfolio.infrastructure.persistence;
 
+import com.equily.portfolio.domain.account.AccountSubType;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -33,6 +34,10 @@ class FinancialAccountJpaEntity implements Persistable<UUID> {
 
   @Column(name = "user_id", nullable = false)
   UUID userId;
+
+  @Column(name = "sub_type", length = 50)
+  @Enumerated(EnumType.STRING)
+  AccountSubType subType;
 
   @OneToMany(
       mappedBy = "account",

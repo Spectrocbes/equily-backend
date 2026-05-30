@@ -13,10 +13,14 @@ import com.equily.portfolio.domain.Holding;
 import com.equily.portfolio.domain.Ticker;
 import com.equily.portfolio.domain.Transaction;
 import com.equily.portfolio.domain.TransactionType;
+import com.equily.portfolio.domain.account.AccountBusinessRules;
+import com.equily.portfolio.domain.account.AccountSubType;
+import com.equily.portfolio.domain.account.DepositLimits;
 import com.equily.portfolio.domain.csv.CsvImportResult;
 import com.equily.shared.Money;
 import jakarta.validation.Valid;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.Currency;
 import java.util.List;
 import java.util.Map;
@@ -53,9 +57,10 @@ class FinancialAccountController {
   @GetMapping
   ResponseEntity<List<FinancialAccountResponse>> getAllAccounts(Authentication auth) {
     UserId userId = extractUserId(auth);
-    List<FinancialAccountResponse> accounts =
-        useCase.getAllAccounts(userId).stream().map(this::toAccountResponse).toList();
-    return ResponseEntity.ok(accounts);
+    List<FinancialAccount> accounts = useCase.getAllAccounts(userId);
+    List<FinancialAccountResponse> responses =
+        accounts.stream().map(a -> toAccountResponse(a, accounts)).toList();
+    return ResponseEntity.ok(responses);
   }
 
   @GetMapping("/{id}")
@@ -64,20 +69,24 @@ class FinancialAccountController {
     UserId userId = extractUserId(auth);
     FinancialAccount account =
         useCase.getAccountById(new FinancialAccountId(UUID.fromString(id)), userId);
-    return ResponseEntity.ok(toAccountResponse(account));
+    List<FinancialAccount> allUserAccounts = useCase.getAllAccounts(userId);
+    return ResponseEntity.ok(toAccountResponse(account, allUserAccounts));
   }
 
   @PostMapping
   ResponseEntity<Map<String, String>> createAccount(
       @RequestBody @Valid CreateAccountRequest request, Authentication auth) {
     UserId userId = extractUserId(auth);
+    AccountSubType subType =
+        request.subType() != null ? AccountSubType.valueOf(request.subType()) : null;
     CreateFinancialAccountCommand command =
         new CreateFinancialAccountCommand(
             request.name(),
             AccountType.valueOf(request.accountType()),
             new Money(request.initialBalance(), Currency.getInstance(request.currency())),
             request.broker(),
-            userId);
+            userId,
+            subType);
     FinancialAccountId id = useCase.createAccount(command);
     return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("id", id.value().toString()));
   }
@@ -98,6 +107,7 @@ class FinancialAccountController {
     RecordTransactionCommand command =
         new RecordTransactionCommand(
             accountId,
+            userId,
             TransactionType.valueOf(request.type()),
             ticker,
             request.quantity(),
@@ -174,15 +184,32 @@ class FinancialAccountController {
     }
   }
 
-  private FinancialAccountResponse toAccountResponse(FinancialAccount account) {
+  private FinancialAccountResponse toAccountResponse(
+      FinancialAccount account, List<FinancialAccount> allUserAccounts) {
+    AccountSubType subType = account.subType();
+    BigDecimal depositLimit =
+        subType != null ? DepositLimits.limitFor(subType).map(Money::amount).orElse(null) : null;
+    BigDecimal totalDeposits =
+        account.transactions().stream()
+            .filter(t -> t.type() == TransactionType.DEPOSIT)
+            .map(t -> t.totalAmount().amount())
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    BigDecimal remainingCapacity =
+        AccountBusinessRules.remainingCapacity(account, allUserAccounts)
+            .map(Money::amount)
+            .orElse(null);
     return new FinancialAccountResponse(
         account.id().value().toString(),
         account.name(),
         account.accountType().name(),
+        subType != null ? subType.name() : null,
         account.balance().amount(),
         account.balance().currency().getCurrencyCode(),
         account.transactions().size(),
-        account.broker());
+        account.broker(),
+        depositLimit,
+        totalDeposits,
+        remainingCapacity);
   }
 
   private TransactionResponse toTransactionResponse(Transaction tx) {

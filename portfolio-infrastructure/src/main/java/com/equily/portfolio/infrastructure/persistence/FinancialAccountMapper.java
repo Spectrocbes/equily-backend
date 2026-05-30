@@ -40,6 +40,7 @@ class FinancialAccountMapper {
     entity.balance = account.balance().amount();
     entity.broker = account.broker();
     entity.userId = account.ownerId().value();
+    entity.subType = account.subType();
 
     List<TransactionJpaEntity> txEntities =
         account.transactions().stream().map(t -> toJpaTransaction(t, entity)).toList();
@@ -62,7 +63,14 @@ class FinancialAccountMapper {
     // transactions. reconstruct() bypasses recordTransaction() so the persisted balance
     // is used directly without re-deriving it from the transaction log.
     return FinancialAccount.reconstruct(
-        id, entity.name, accountType, balance, transactions, entity.broker, ownerId);
+        id,
+        entity.name,
+        accountType,
+        balance,
+        transactions,
+        entity.broker,
+        ownerId,
+        entity.subType);
   }
 
   private static TransactionJpaEntity toJpaTransaction(

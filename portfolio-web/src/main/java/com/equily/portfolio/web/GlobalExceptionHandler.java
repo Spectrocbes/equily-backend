@@ -4,8 +4,10 @@ import com.equily.identity.domain.exception.InvalidCredentialsException;
 import com.equily.identity.domain.exception.UserAlreadyExistsException;
 import com.equily.portfolio.application.exception.CsvParsingException;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
+import com.equily.portfolio.domain.exception.DepositLimitExceededException;
 import com.equily.portfolio.domain.exception.InsufficientFundsException;
 import com.equily.portfolio.domain.exception.InvalidTransactionException;
+import java.math.BigDecimal;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -48,4 +50,25 @@ class GlobalExceptionHandler {
   ResponseEntity<String> handleInvalidCredentials(InvalidCredentialsException ex) {
     return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ex.getMessage());
   }
+
+  @ExceptionHandler(DepositLimitExceededException.class)
+  ResponseEntity<DepositLimitErrorResponse> handleDepositLimit(DepositLimitExceededException ex) {
+    return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+        .body(
+            new DepositLimitErrorResponse(
+                "DEPOSIT_LIMIT_EXCEEDED",
+                ex.subType().name(),
+                ex.limit().amount(),
+                ex.currentTotal().amount(),
+                ex.attempted().amount(),
+                ex.remaining().amount()));
+  }
+
+  record DepositLimitErrorResponse(
+      String code,
+      String subType,
+      BigDecimal limit,
+      BigDecimal currentTotal,
+      BigDecimal attempted,
+      BigDecimal remaining) {}
 }

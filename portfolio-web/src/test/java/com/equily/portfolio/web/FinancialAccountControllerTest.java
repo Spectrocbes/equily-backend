@@ -26,8 +26,10 @@ import com.equily.portfolio.domain.Ticker;
 import com.equily.portfolio.domain.Transaction;
 import com.equily.portfolio.domain.TransactionId;
 import com.equily.portfolio.domain.TransactionType;
+import com.equily.portfolio.domain.account.AccountSubType;
 import com.equily.portfolio.domain.csv.CsvImportResult;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
+import com.equily.portfolio.domain.exception.DepositLimitExceededException;
 import com.equily.portfolio.domain.exception.InsufficientFundsException;
 import com.equily.portfolio.domain.exception.InvalidTransactionException;
 import com.equily.shared.Country;
@@ -70,7 +72,8 @@ class FinancialAccountControllerTest {
             AccountType.PEA,
             new Money(BigDecimal.valueOf(1000), Currency.getInstance("EUR")),
             "Fortuneo",
-            testUserId);
+            testUserId,
+            null);
   }
 
   private Authentication mockAuth() {
@@ -174,7 +177,8 @@ class FinancialAccountControllerTest {
             AccountType.PEA,
             new Money(BigDecimal.valueOf(2000), Currency.getInstance("EUR")),
             "Fortuneo",
-            testUserId);
+            testUserId,
+            null);
     Transaction buyTx =
         Transaction.of(
             TransactionId.generate(),
@@ -400,5 +404,87 @@ class FinancialAccountControllerTest {
                 .with(authentication(mockAuth())))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.errors").value(1));
+  }
+
+  @Test
+  void recordTransaction_returns_422_when_deposit_limit_exceeded() throws Exception {
+    when(useCase.getAccountById(any(), any())).thenReturn(testAccount);
+    Money limit = new Money(new BigDecimal("22950"), Currency.getInstance("EUR"));
+    Money current = new Money(new BigDecimal("22000"), Currency.getInstance("EUR"));
+    Money attempted = new Money(new BigDecimal("1000"), Currency.getInstance("EUR"));
+    doThrow(new DepositLimitExceededException(AccountSubType.LIVRET_A, limit, current, attempted))
+        .when(useCase)
+        .recordTransaction(any());
+
+    mockMvc
+        .perform(
+            post("/api/v1/accounts/{id}/transactions", testAccount.id().value().toString())
+                .with(authentication(mockAuth()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"type": "DEPOSIT", "totalAmount": 1000,
+                     "totalCurrency": "EUR", "date": "2026-05-30", "fees": 0}
+                    """))
+        .andExpect(status().isUnprocessableEntity())
+        .andExpect(jsonPath("$.code").value("DEPOSIT_LIMIT_EXCEEDED"))
+        .andExpect(jsonPath("$.subType").value("LIVRET_A"))
+        .andExpect(jsonPath("$.remaining").value(950));
+  }
+
+  @Test
+  void getAccountById_returns_deposit_fields_for_account_with_subtype() throws Exception {
+    UserId userId = UserId.generate();
+    FinancialAccount livretA =
+        FinancialAccount.open(
+            "Livret A",
+            AccountType.SAVINGS_ACCOUNT,
+            new Money(BigDecimal.ZERO, Currency.getInstance("EUR")),
+            "La Banque Postale",
+            userId,
+            AccountSubType.LIVRET_A);
+    Transaction deposit =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("10000"), Currency.getInstance("EUR")),
+            LocalDate.of(2026, 1, 15),
+            null,
+            null);
+    livretA.recordTransaction(deposit);
+
+    FinancialAccountId id = livretA.id();
+    when(useCase.getAccountById(eq(id), any())).thenReturn(livretA);
+    when(useCase.getAllAccounts(any())).thenReturn(List.of(livretA));
+
+    mockMvc
+        .perform(
+            get("/api/v1/accounts/{id}", id.value().toString())
+                .with(
+                    authentication(
+                        new UsernamePasswordAuthenticationToken(userId, null, List.of()))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.subType").value("LIVRET_A"))
+        .andExpect(jsonPath("$.depositLimit").value(22950))
+        .andExpect(jsonPath("$.totalDeposits").value(10000))
+        .andExpect(jsonPath("$.remainingCapacity").value(12950));
+  }
+
+  @Test
+  void getAccountById_returns_null_deposit_fields_for_account_without_subtype() throws Exception {
+    FinancialAccountId id = testAccount.id();
+    when(useCase.getAccountById(eq(id), any())).thenReturn(testAccount);
+    when(useCase.getAllAccounts(any())).thenReturn(List.of(testAccount));
+
+    mockMvc
+        .perform(
+            get("/api/v1/accounts/{id}", id.value().toString()).with(authentication(mockAuth())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.subType").doesNotExist())
+        .andExpect(jsonPath("$.depositLimit").doesNotExist())
+        .andExpect(jsonPath("$.remainingCapacity").doesNotExist());
   }
 }
