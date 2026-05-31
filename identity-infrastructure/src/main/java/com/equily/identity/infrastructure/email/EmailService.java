@@ -47,21 +47,21 @@ public class EmailService {
 
     String html =
         """
-            <div style="font-family: Inter, sans-serif; max-width: 480px; margin: 0 auto;">
-              <h2 style="color: #6366f1;">%s, %s</h2>
-              <p>%s</p>
-              <a href="%s"
-                 style="display: inline-block; background: #6366f1; color: white;
-                        padding: 12px 24px; border-radius: 8px;
-                        text-decoration: none; font-weight: 600; margin: 16px 0;">
-                %s
-              </a>
-              <p style="color: #94a3b8; font-size: 14px;">
-                %s
-                %s
-              </p>
-            </div>
-            """
+        <div style="font-family: Inter, sans-serif; max-width: 480px; margin: 0 auto;">
+          <h2 style="color: #6366f1;">%s, %s</h2>
+          <p>%s</p>
+          <a href="%s"
+             style="display: inline-block; background: #6366f1; color: white;
+                    padding: 12px 24px; border-radius: 8px;
+                    text-decoration: none; font-weight: 600; margin: 16px 0;">
+            %s
+          </a>
+          <p style="color: #94a3b8; font-size: 14px;">
+            %s
+            %s
+          </p>
+        </div>
+        """
             .formatted(title, displayName, intro, link, buttonText, expirationText, ignoreText);
 
     sendEmail(toEmail, subject, html);
