@@ -20,7 +20,11 @@ public class EmailService {
       @Value("${email.resend.api-key}") String apiKey,
       @Value("${email.from-address}") String fromAddress,
       @Value("${email.app-base-url}") String appBaseUrl) {
-    this.resend = new Resend(apiKey);
+    this(new Resend(apiKey), fromAddress, appBaseUrl);
+  }
+
+  EmailService(Resend resend, String fromAddress, String appBaseUrl) {
+    this.resend = resend;
     this.fromAddress = fromAddress;
     this.appBaseUrl = appBaseUrl;
   }

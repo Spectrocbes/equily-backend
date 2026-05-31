@@ -186,6 +186,21 @@ class AuthControllerTest {
   }
 
   @Test
+  void resendVerification_returns_200() throws Exception {
+    doNothing().when(authService).resendVerificationEmail(any());
+
+    mockMvc
+        .perform(
+            post("/auth/resend-verification")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"email":"alice@example.com"}
+                    """))
+        .andExpect(status().isOk());
+  }
+
+  @Test
   void verifyEmail_returns_200_for_valid_token() throws Exception {
     doNothing().when(authService).verifyEmail("valid-token");
 

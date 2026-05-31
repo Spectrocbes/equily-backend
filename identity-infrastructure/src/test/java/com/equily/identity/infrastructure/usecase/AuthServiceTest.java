@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -180,5 +181,28 @@ class AuthServiceTest {
     authService.resetPassword("some-token", "newpassword");
 
     verify(passwordResetService).resetPassword("some-token", "newpassword");
+  }
+
+  @Test
+  void resendVerificationEmail_sends_email_when_user_not_verified() {
+    User user = unverifiedUser();
+    when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(user));
+    when(emailVerificationService.createVerificationToken(user.id())).thenReturn("raw-token");
+
+    authService.resendVerificationEmail("alice@example.com");
+
+    verify(emailVerificationService).createVerificationToken(user.id());
+    verify(emailService).sendVerificationEmail(anyString(), anyString(), anyString());
+  }
+
+  @Test
+  void resendVerificationEmail_does_nothing_when_already_verified() {
+    User user = verifiedUser();
+    when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(user));
+
+    authService.resendVerificationEmail("alice@example.com");
+
+    verify(emailVerificationService, never()).createVerificationToken(any());
+    verify(emailService, never()).sendVerificationEmail(any(), any(), any());
   }
 }

@@ -2,12 +2,8 @@ package com.equily.identity.infrastructure.persistence;
 
 import com.equily.identity.domain.UserId;
 import com.equily.identity.domain.exception.InvalidTokenException;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.HexFormat;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,10 +25,8 @@ public class EmailVerificationService {
   public String createVerificationToken(UserId userId) {
     tokenRepo.deleteAllByUserId(userId.value());
 
-    String rawToken =
-        UUID.randomUUID().toString().replace("-", "")
-            + UUID.randomUUID().toString().replace("-", "");
-    String hash = sha256(rawToken);
+    String rawToken = TokenHashUtils.generateRawToken();
+    String hash = TokenHashUtils.sha256(rawToken);
 
     EmailVerificationTokenJpaEntity entity = new EmailVerificationTokenJpaEntity();
     entity.setId(UUID.randomUUID());
@@ -46,7 +40,7 @@ public class EmailVerificationService {
   }
 
   public UserId verifyEmail(String rawToken) {
-    String hash = sha256(rawToken);
+    String hash = TokenHashUtils.sha256(rawToken);
     EmailVerificationTokenJpaEntity entity =
         tokenRepo
             .findByTokenHashAndUsedAtIsNull(hash)
@@ -69,15 +63,5 @@ public class EmailVerificationService {
             });
 
     return new UserId(entity.getUserId());
-  }
-
-  private String sha256(String input) {
-    try {
-      MessageDigest md = MessageDigest.getInstance("SHA-256");
-      byte[] hash = md.digest(input.getBytes(StandardCharsets.UTF_8));
-      return HexFormat.of().formatHex(hash);
-    } catch (NoSuchAlgorithmException e) {
-      throw new RuntimeException(e);
-    }
   }
 }
