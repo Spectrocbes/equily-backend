@@ -10,8 +10,12 @@ import static org.mockito.Mockito.when;
 import com.equily.identity.domain.User;
 import com.equily.identity.domain.UserId;
 import com.equily.identity.domain.UserRepository;
+import com.equily.identity.domain.exception.EmailNotVerifiedException;
 import com.equily.identity.domain.exception.InvalidCredentialsException;
 import com.equily.identity.domain.exception.UserAlreadyExistsException;
+import com.equily.identity.infrastructure.email.EmailService;
+import com.equily.identity.infrastructure.persistence.EmailVerificationService;
+import com.equily.identity.infrastructure.persistence.PasswordResetService;
 import com.equily.identity.infrastructure.persistence.RefreshTokenService;
 import com.equily.identity.infrastructure.security.JwtService;
 import java.time.Instant;
@@ -30,11 +34,19 @@ class AuthServiceTest {
   @Mock JwtService jwtService;
   @Mock RefreshTokenService refreshTokenService;
   @Mock PasswordEncoder passwordEncoder;
+  @Mock EmailVerificationService emailVerificationService;
+  @Mock EmailService emailService;
+  @Mock PasswordResetService passwordResetService;
   @InjectMocks AuthService authService;
 
-  private User testUser() {
+  private User verifiedUser() {
     return User.reconstruct(
-        UserId.generate(), "alice@example.com", "hashed", "Alice", Instant.now());
+        UserId.generate(), "alice@example.com", "hashed", "Alice", true, Instant.now());
+  }
+
+  private User unverifiedUser() {
+    return User.reconstruct(
+        UserId.generate(), "alice@example.com", "hashed", "Alice", false, Instant.now());
   }
 
   @Test
@@ -43,10 +55,13 @@ class AuthServiceTest {
     when(passwordEncoder.encode("password")).thenReturn("hashed");
     when(jwtService.generateAccessToken(any())).thenReturn("access-token");
     when(refreshTokenService.createRefreshToken(any())).thenReturn("refresh-token");
+    when(emailVerificationService.createVerificationToken(any())).thenReturn("raw-token");
 
     AuthTokenPair result = authService.register("alice@example.com", "password", "Alice");
 
     verify(userRepository).save(any());
+    verify(emailVerificationService).createVerificationToken(any());
+    verify(emailService).sendVerificationEmail(anyString(), anyString(), anyString());
     assertThat(result.accessToken()).isEqualTo("access-token");
     assertThat(result.refreshToken()).isEqualTo("refresh-token");
   }
@@ -60,8 +75,8 @@ class AuthServiceTest {
   }
 
   @Test
-  void login_returns_token_pair_for_valid_credentials() {
-    User user = testUser();
+  void login_returns_token_pair_for_verified_user() {
+    User user = verifiedUser();
     when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(user));
     when(passwordEncoder.matches("password", "hashed")).thenReturn(true);
     when(jwtService.generateAccessToken(user)).thenReturn("access-token");
@@ -74,8 +89,18 @@ class AuthServiceTest {
   }
 
   @Test
+  void login_throws_EmailNotVerifiedException_when_email_not_verified() {
+    User user = unverifiedUser();
+    when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(user));
+    when(passwordEncoder.matches("password", "hashed")).thenReturn(true);
+
+    assertThatThrownBy(() -> authService.login("alice@example.com", "password"))
+        .isInstanceOf(EmailNotVerifiedException.class);
+  }
+
+  @Test
   void login_throws_for_wrong_password() {
-    User user = testUser();
+    User user = verifiedUser();
     when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(user));
     when(passwordEncoder.matches(anyString(), anyString())).thenReturn(false);
 
@@ -94,7 +119,7 @@ class AuthServiceTest {
   @Test
   void refresh_returns_new_token_pair_when_valid() {
     UserId userId = UserId.generate();
-    User user = testUser();
+    User user = verifiedUser();
 
     when(refreshTokenService.rotateRefreshToken(any(), any())).thenReturn(Optional.of(userId));
     when(userRepository.findById(userId)).thenReturn(Optional.of(user));
@@ -122,5 +147,38 @@ class AuthServiceTest {
     authService.logout(userId);
 
     verify(refreshTokenService).revokeAllForUser(userId);
+  }
+
+  @Test
+  void verifyEmail_delegates_to_emailVerificationService() {
+    authService.verifyEmail("some-token");
+
+    verify(emailVerificationService).verifyEmail("some-token");
+  }
+
+  @Test
+  void requestPasswordReset_sends_email_when_user_exists() {
+    User user = verifiedUser();
+    when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(user));
+    when(passwordResetService.createResetToken(user.id())).thenReturn("reset-token");
+
+    authService.requestPasswordReset("alice@example.com");
+
+    verify(passwordResetService).createResetToken(user.id());
+    verify(emailService).sendPasswordResetEmail(anyString(), anyString(), anyString());
+  }
+
+  @Test
+  void requestPasswordReset_silently_succeeds_when_user_not_found() {
+    when(userRepository.findByEmail("nobody@example.com")).thenReturn(Optional.empty());
+
+    authService.requestPasswordReset("nobody@example.com");
+  }
+
+  @Test
+  void resetPassword_delegates_to_passwordResetService() {
+    authService.resetPassword("some-token", "newpassword");
+
+    verify(passwordResetService).resetPassword("some-token", "newpassword");
   }
 }

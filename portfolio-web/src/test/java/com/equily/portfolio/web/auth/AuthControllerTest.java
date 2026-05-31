@@ -2,6 +2,7 @@ package com.equily.portfolio.web.auth;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -12,7 +13,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.equily.identity.domain.User;
 import com.equily.identity.domain.UserId;
 import com.equily.identity.domain.UserRepository;
+import com.equily.identity.domain.exception.EmailNotVerifiedException;
 import com.equily.identity.domain.exception.InvalidCredentialsException;
+import com.equily.identity.domain.exception.InvalidTokenException;
 import com.equily.identity.domain.exception.UserAlreadyExistsException;
 import com.equily.identity.infrastructure.usecase.AuthService;
 import com.equily.identity.infrastructure.usecase.AuthTokenPair;
@@ -41,7 +44,7 @@ class AuthControllerTest {
 
   private User testUser() {
     return User.reconstruct(
-        UserId.generate(), "alice@example.com", "hashed", "Alice", Instant.now());
+        UserId.generate(), "alice@example.com", "hashed", "Alice", true, Instant.now());
   }
 
   @Test
@@ -117,6 +120,21 @@ class AuthControllerTest {
   }
 
   @Test
+  void login_returns_403_when_email_not_verified() throws Exception {
+    when(authService.login(any(), any())).thenThrow(new EmailNotVerifiedException());
+
+    mockMvc
+        .perform(
+            post("/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"email":"alice@example.com","password":"password1"}
+                    """))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
   void refresh_returns_200_with_new_tokens() throws Exception {
     when(authService.refresh("old-refresh-token"))
         .thenReturn(new AuthTokenPair("new-access-token", "new-refresh-token"));
@@ -152,7 +170,7 @@ class AuthControllerTest {
   @Test
   void getMe_returns_200_with_user_info() throws Exception {
     UserId userId = UserId.generate();
-    User user = User.reconstruct(userId, "me@test.com", "hash", "Me User", Instant.now());
+    User user = User.reconstruct(userId, "me@test.com", "hash", "Me User", true, Instant.now());
     when(userRepository.findById(userId)).thenReturn(Optional.of(user));
 
     mockMvc
@@ -165,5 +183,84 @@ class AuthControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.email").value("me@test.com"))
         .andExpect(jsonPath("$.displayName").value("Me User"));
+  }
+
+  @Test
+  void verifyEmail_returns_200_for_valid_token() throws Exception {
+    doNothing().when(authService).verifyEmail("valid-token");
+
+    mockMvc
+        .perform(
+            post("/auth/verify-email")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"token":"valid-token"}
+                    """))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  void verifyEmail_returns_400_for_invalid_token() throws Exception {
+    doThrow(new InvalidTokenException("Invalid or already used verification token"))
+        .when(authService)
+        .verifyEmail("bad-token");
+
+    mockMvc
+        .perform(
+            post("/auth/verify-email")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"token":"bad-token"}
+                    """))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  void forgotPassword_always_returns_200() throws Exception {
+    doNothing().when(authService).requestPasswordReset(any());
+
+    mockMvc
+        .perform(
+            post("/auth/forgot-password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"email":"alice@example.com"}
+                    """))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  void resetPassword_returns_200_for_valid_token() throws Exception {
+    doNothing().when(authService).resetPassword(any(), any());
+
+    mockMvc
+        .perform(
+            post("/auth/reset-password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"token":"valid-token","newPassword":"newpass123"}
+                    """))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  void resetPassword_returns_400_for_invalid_token() throws Exception {
+    doThrow(new InvalidTokenException("Invalid or already used reset token"))
+        .when(authService)
+        .resetPassword(any(), any());
+
+    mockMvc
+        .perform(
+            post("/auth/reset-password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"token":"bad-token","newPassword":"newpass123"}
+                    """))
+        .andExpect(status().isBadRequest());
   }
 }

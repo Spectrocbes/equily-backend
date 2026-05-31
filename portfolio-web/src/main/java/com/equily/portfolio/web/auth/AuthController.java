@@ -67,4 +67,28 @@ public class AuthController {
     User user = userRepository.findById(userId).orElseThrow();
     return ResponseEntity.ok(new AuthResponse(null, null, user.email(), user.displayName()));
   }
+
+  @PostMapping("/verify-email")
+  ResponseEntity<Void> verifyEmail(@RequestBody @Valid VerifyEmailRequest request) {
+    authService.verifyEmail(request.token());
+    return ResponseEntity.ok().build();
+  }
+
+  @PostMapping("/resend-verification")
+  ResponseEntity<Void> resendVerification(@RequestBody @Valid ResendVerificationRequest request) {
+    authService.resendVerificationEmail(request.email());
+    return ResponseEntity.ok().build();
+  }
+
+  @PostMapping("/forgot-password")
+  ResponseEntity<Void> forgotPassword(@RequestBody @Valid ForgotPasswordRequest request) {
+    authService.requestPasswordReset(request.email());
+    return ResponseEntity.ok().build();
+  }
+
+  @PostMapping("/reset-password")
+  ResponseEntity<Void> resetPassword(@RequestBody @Valid ResetPasswordRequest request) {
+    authService.resetPassword(request.token(), request.newPassword());
+    return ResponseEntity.ok().build();
+  }
 }

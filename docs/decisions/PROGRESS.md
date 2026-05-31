@@ -228,6 +228,29 @@
   currentTotal, attempted, remaining)
 - All 9 modules green, BUILD SUCCESS
 
+## 2026-05-31 — Phase 5.5b: Email verification + password reset
+
+- Flyway V17: `email_verified BOOLEAN NOT NULL DEFAULT FALSE` on `identity.users` + `email_verification_tokens` table
+  (token_hash VARCHAR(64), expires_at, used_at); existing users back-filled to verified
+- Flyway V18: `password_reset_tokens` table — same structure as email verification tokens
+- `User` domain: `emailVerified` field added; `register()` sets it `false`; `reconstruct()` gains 6th parameter;
+  `withEmailVerified()` and `withNewPassword()` wither methods added (immutable domain object)
+- `EmailNotVerifiedException` → 403, `InvalidTokenException` → 400 — both in `identity-domain/exception`
+- `EmailService` in `identity-infrastructure/email`: Resend SDK (`resend-java 3.1.0`); fire-and-forget (`sendEmail`
+  catches all exceptions, logs, never re-throws); HTML templates for verification and password reset emails
+- `EmailVerificationService` + `PasswordResetService` in `identity-infrastructure/persistence`: SHA-256 token hashing
+  (64-char hex), 24h / 1h TTL, single-use enforcement via `used_at`; old tokens deleted on new request;
+  same `@DataJpaTest` + Testcontainers pattern as `RefreshTokenService`
+- `AuthService`: `login()` throws `EmailNotVerifiedException` when `emailVerified = false`; `register()` creates
+  verification token and sends email; 4 new methods: `verifyEmail`, `resendVerificationEmail`,
+  `requestPasswordReset` (always succeeds — security), `resetPassword`
+- 4 new `AuthController` endpoints: `POST /auth/verify-email`, `/resend-verification`, `/forgot-password`,
+  `/reset-password`; 4 new request DTOs in `portfolio-web/auth`
+- `TestJwtConfig` (bootstrap tests): added `@Bean @Primary EmailService emailService()` returning a Mockito mock —
+  prevents real Resend API calls in CI; `local` profile provides a placeholder API key so bean construction succeeds
+- `UserJpaEntity`: `email_verified` column + `setEmailVerified(boolean)` + `setPasswordHash(String)` setters
+- 213 tests, 0 failures, all 9 modules green, Spotless clean
+
 ## Architecture Decisions
 
 - Lombok is forbidden everywhere. Java 21 records replace POJOs; explicit methods replace generated ones.

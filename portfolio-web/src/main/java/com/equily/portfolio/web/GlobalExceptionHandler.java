@@ -1,6 +1,8 @@
 package com.equily.portfolio.web;
 
+import com.equily.identity.domain.exception.EmailNotVerifiedException;
 import com.equily.identity.domain.exception.InvalidCredentialsException;
+import com.equily.identity.domain.exception.InvalidTokenException;
 import com.equily.identity.domain.exception.UserAlreadyExistsException;
 import com.equily.portfolio.application.exception.CsvParsingException;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
@@ -49,6 +51,16 @@ class GlobalExceptionHandler {
   @ExceptionHandler(InvalidCredentialsException.class)
   ResponseEntity<String> handleInvalidCredentials(InvalidCredentialsException ex) {
     return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ex.getMessage());
+  }
+
+  @ExceptionHandler(EmailNotVerifiedException.class)
+  ResponseEntity<String> handleEmailNotVerified(EmailNotVerifiedException ex) {
+    return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ex.getMessage());
+  }
+
+  @ExceptionHandler(InvalidTokenException.class)
+  ResponseEntity<String> handleInvalidToken(InvalidTokenException ex) {
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
   }
 
   @ExceptionHandler(DepositLimitExceededException.class)
