@@ -14,5 +14,6 @@ CREATE INDEX idx_email_verification_token_hash
 ALTER TABLE identity.users
     ADD COLUMN email_verified BOOLEAN NOT NULL DEFAULT FALSE;
 
--- Existing users are considered verified (dev env)
-UPDATE identity.users SET email_verified = TRUE;
+-- Mark all existing users as verified (dev environment migration)
+-- WHERE clause required: targets all rows explicitly
+UPDATE identity.users SET email_verified = TRUE WHERE email_verified = FALSE;
