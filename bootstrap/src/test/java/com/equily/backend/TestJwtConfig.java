@@ -1,5 +1,8 @@
 package com.equily.backend;
 
+import static org.mockito.Mockito.mock;
+
+import com.equily.identity.infrastructure.email.EmailService;
 import com.equily.identity.infrastructure.security.JwtService;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -17,5 +20,11 @@ public class TestJwtConfig {
     generator.initialize(2048);
     KeyPair keyPair = generator.generateKeyPair();
     return new JwtService(keyPair.getPrivate(), keyPair.getPublic());
+  }
+
+  @Bean
+  @Primary
+  public EmailService emailService() {
+    return mock(EmailService.class);
   }
 }

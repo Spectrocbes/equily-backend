@@ -26,6 +26,9 @@ class UserJpaEntity implements Persistable<UUID> {
   @Column(name = "display_name", nullable = false, length = 100)
   String displayName;
 
+  @Column(name = "email_verified", nullable = false)
+  boolean emailVerified;
+
   @Column(name = "created_at", nullable = false)
   Instant createdAt;
 
@@ -33,11 +36,18 @@ class UserJpaEntity implements Persistable<UUID> {
 
   protected UserJpaEntity() {}
 
-  UserJpaEntity(UUID id, String email, String passwordHash, String displayName, Instant createdAt) {
+  UserJpaEntity(
+      UUID id,
+      String email,
+      String passwordHash,
+      String displayName,
+      boolean emailVerified,
+      Instant createdAt) {
     this.id = id;
     this.email = email;
     this.passwordHash = passwordHash;
     this.displayName = displayName;
+    this.emailVerified = emailVerified;
     this.createdAt = createdAt;
   }
 
@@ -69,8 +79,20 @@ class UserJpaEntity implements Persistable<UUID> {
     return passwordHash;
   }
 
+  void setPasswordHash(String passwordHash) {
+    this.passwordHash = passwordHash;
+  }
+
   String getDisplayName() {
     return displayName;
+  }
+
+  boolean isEmailVerified() {
+    return emailVerified;
+  }
+
+  void setEmailVerified(boolean emailVerified) {
+    this.emailVerified = emailVerified;
   }
 
   Instant getCreatedAt() {

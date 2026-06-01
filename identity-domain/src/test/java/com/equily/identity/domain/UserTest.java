@@ -20,6 +20,13 @@ class UserTest {
   }
 
   @Test
+  void register_sets_emailVerified_false() {
+    User user = User.register("alice@example.com", "hash", "Alice");
+
+    assertThat(user.emailVerified()).isFalse();
+  }
+
+  @Test
   void register_throws_on_null_email() {
     assertThatThrownBy(() -> User.register(null, "hash", "Alice"))
         .isInstanceOf(NullPointerException.class)
@@ -38,12 +45,35 @@ class UserTest {
     UserId id = UserId.generate();
     Instant createdAt = Instant.parse("2026-01-01T00:00:00Z");
 
-    User user = User.reconstruct(id, "alice@example.com", "stored-hash", "Alice", createdAt);
+    User user = User.reconstruct(id, "alice@example.com", "stored-hash", "Alice", true, createdAt);
 
     assertThat(user.id()).isEqualTo(id);
     assertThat(user.email()).isEqualTo("alice@example.com");
     assertThat(user.passwordHash()).isEqualTo("stored-hash");
     assertThat(user.displayName()).isEqualTo("Alice");
+    assertThat(user.emailVerified()).isTrue();
     assertThat(user.createdAt()).isEqualTo(createdAt);
+  }
+
+  @Test
+  void withEmailVerified_returns_new_user_with_emailVerified_true() {
+    User user = User.register("alice@example.com", "hash", "Alice");
+
+    User verified = user.withEmailVerified();
+
+    assertThat(verified.emailVerified()).isTrue();
+    assertThat(verified.email()).isEqualTo("alice@example.com");
+    assertThat(verified.id()).isEqualTo(user.id());
+  }
+
+  @Test
+  void withNewPassword_returns_new_user_with_updated_hash() {
+    User user = User.register("alice@example.com", "oldhash", "Alice");
+
+    User updated = user.withNewPassword("newhash");
+
+    assertThat(updated.passwordHash()).isEqualTo("newhash");
+    assertThat(updated.email()).isEqualTo("alice@example.com");
+    assertThat(updated.id()).isEqualTo(user.id());
   }
 }

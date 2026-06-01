@@ -45,7 +45,7 @@ class RefreshTokenServiceTest {
   void setUp() {
     UUID id = UUID.randomUUID();
     UserJpaEntity user =
-        new UserJpaEntity(id, "token-user@test.com", "hash", "Token User", Instant.now());
+        new UserJpaEntity(id, "token-user@test.com", "hash", "Token User", true, Instant.now());
     userJpaRepository.save(user);
     savedUserId = new UserId(id);
   }

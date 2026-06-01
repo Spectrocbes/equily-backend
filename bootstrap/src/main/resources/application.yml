@@ -17,6 +17,12 @@ spring:
     schemas: portfolio
     default-schema: portfolio
 
+email:
+  resend:
+    api-key: ${RESEND_API_KEY}
+  from-address: ${EMAIL_FROM_ADDRESS:noreply@equily.app}
+  app-base-url: ${APP_BASE_URL:http://localhost:4200}
+
 ---
 spring:
   config:

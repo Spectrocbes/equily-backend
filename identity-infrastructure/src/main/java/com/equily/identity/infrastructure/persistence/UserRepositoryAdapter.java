@@ -41,7 +41,12 @@ class UserRepositoryAdapter implements UserRepository {
 
   private UserJpaEntity toJpa(User user) {
     return new UserJpaEntity(
-        user.id().value(), user.email(), user.passwordHash(), user.displayName(), user.createdAt());
+        user.id().value(),
+        user.email(),
+        user.passwordHash(),
+        user.displayName(),
+        user.emailVerified(),
+        user.createdAt());
   }
 
   private User toDomain(UserJpaEntity entity) {
@@ -50,6 +55,7 @@ class UserRepositoryAdapter implements UserRepository {
         entity.getEmail(),
         entity.getPasswordHash(),
         entity.getDisplayName(),
+        entity.isEmailVerified(),
         entity.getCreatedAt());
   }
 }

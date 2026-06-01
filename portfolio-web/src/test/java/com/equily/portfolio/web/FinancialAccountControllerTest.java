@@ -391,6 +391,24 @@ class FinancialAccountControllerTest {
   }
 
   @Test
+  void importCsv_returns_400_when_use_case_throws_csv_parsing_exception() throws Exception {
+    CsvImportResult parseResult = new CsvImportResult(0, 0, 0, List.of(), List.of());
+    when(parserPort.parse(any(), any(), any())).thenReturn(parseResult);
+    when(useCase.importCsv(any(), any(), any()))
+        .thenThrow(new CsvParsingException("Use case parse failure"));
+
+    mockMvc
+        .perform(
+            multipart("/api/v1/accounts/{id}/import/csv", UUID.randomUUID().toString())
+                .file(new MockMultipartFile("file", "f.csv", "text/csv", "bad".getBytes()))
+                .param("broker", "BOURSOBANK")
+                .param("mode", "OPERATIONS")
+                .with(authentication(mockAuth())))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errors").value(1));
+  }
+
+  @Test
   void importCsv_returns_400_on_csv_parsing_exception() throws Exception {
     when(parserPort.parse(any(), any(), any()))
         .thenThrow(new CsvParsingException("Failed to parse"));
