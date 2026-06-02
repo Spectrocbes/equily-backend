@@ -111,6 +111,10 @@ public class AuthService {
             });
   }
 
+  public void validateResetToken(String token) {
+    passwordResetService.validateToken(token);
+  }
+
   public void resetPassword(String token, String newPassword) {
     passwordResetService.resetPassword(token, newPassword);
   }

@@ -31,6 +31,7 @@ import com.equily.portfolio.domain.csv.CsvImportResult;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
 import com.equily.portfolio.domain.exception.DepositLimitExceededException;
 import com.equily.portfolio.domain.exception.InsufficientFundsException;
+import com.equily.portfolio.domain.exception.InvalidHoldingException;
 import com.equily.portfolio.domain.exception.InvalidTransactionException;
 import com.equily.shared.Country;
 import com.equily.shared.Money;
@@ -252,6 +253,27 @@ class FinancialAccountControllerTest {
                      "fees": 4.99}
                     """))
         .andExpect(status().isNoContent());
+  }
+
+  @Test
+  void recordTransaction_returns_422_on_invalid_holding() throws Exception {
+    doThrow(new InvalidHoldingException("sell of 6 AAPL exceeds held quantity 5"))
+        .when(useCase)
+        .recordTransaction(any());
+
+    mockMvc
+        .perform(
+            post("/api/v1/accounts/{id}/transactions", testAccount.id().value().toString())
+                .with(authentication(mockAuth()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"type": "SELL", "ticker": "AAPL", "quantity": 6,
+                     "pricePerUnit": 110.00, "priceCurrency": "EUR",
+                     "totalAmount": 660.00, "totalCurrency": "EUR", "date": "2026-05-24", "fees": 0}
+                    """))
+        .andExpect(status().isUnprocessableEntity())
+        .andExpect(content().string("sell of 6 AAPL exceeds held quantity 5"));
   }
 
   @Test

@@ -44,6 +44,18 @@ public class PasswordResetService {
     return rawToken;
   }
 
+  @Transactional(readOnly = true)
+  public void validateToken(String rawToken) {
+    String hash = TokenHashUtils.sha256(rawToken);
+    PasswordResetTokenJpaEntity entity =
+        tokenRepo
+            .findByTokenHashAndUsedAtIsNull(hash)
+            .orElseThrow(() -> new InvalidTokenException("Invalid or already used reset token"));
+    if (entity.getExpiresAt().isBefore(Instant.now())) {
+      throw new InvalidTokenException("Reset token has expired");
+    }
+  }
+
   public void resetPassword(String rawToken, String newPassword) {
     String hash = TokenHashUtils.sha256(rawToken);
     PasswordResetTokenJpaEntity entity =

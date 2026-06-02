@@ -8,6 +8,7 @@ import com.equily.portfolio.application.exception.CsvParsingException;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
 import com.equily.portfolio.domain.exception.DepositLimitExceededException;
 import com.equily.portfolio.domain.exception.InsufficientFundsException;
+import com.equily.portfolio.domain.exception.InvalidHoldingException;
 import com.equily.portfolio.domain.exception.InvalidTransactionException;
 import java.math.BigDecimal;
 import org.springframework.http.HttpStatus;
@@ -25,6 +26,11 @@ class GlobalExceptionHandler {
 
   @ExceptionHandler(InsufficientFundsException.class)
   ResponseEntity<String> handleInsufficientFunds(InsufficientFundsException ex) {
+    return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(ex.getMessage());
+  }
+
+  @ExceptionHandler(InvalidHoldingException.class)
+  ResponseEntity<String> handleInvalidHolding(InvalidHoldingException ex) {
     return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(ex.getMessage());
   }
 

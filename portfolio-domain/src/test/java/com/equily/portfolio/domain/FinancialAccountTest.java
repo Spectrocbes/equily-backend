@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.equily.identity.domain.UserId;
 import com.equily.portfolio.domain.exception.InsufficientFundsException;
 import com.equily.portfolio.domain.exception.InvalidFinancialAccountException;
+import com.equily.portfolio.domain.exception.InvalidHoldingException;
 import com.equily.shared.Country;
 import com.equily.shared.Money;
 import java.math.BigDecimal;
@@ -225,6 +226,29 @@ class FinancialAccountTest {
     assertThat(holdings).hasSize(1);
     assertThat(holdings.get(0).ticker()).isEqualTo(AAPL);
     assertThat(holdings.get(0).quantity()).isEqualByComparingTo(new BigDecimal("10"));
+  }
+
+  @Test
+  void sell_exceeding_quantity_throws_InvalidHoldingException() {
+    FinancialAccount account = accountWith("2000.00");
+    account.recordTransaction(buy("5", "100.00"));
+
+    assertThatThrownBy(() -> account.recordTransaction(sell("6", "110.00")))
+        .isInstanceOf(InvalidHoldingException.class)
+        .hasMessageContaining("AAPL");
+  }
+
+  @Test
+  void sell_exceeding_quantity_is_not_persisted_to_transaction_list() {
+    FinancialAccount account = accountWith("2000.00");
+    account.recordTransaction(buy("5", "100.00"));
+
+    try {
+      account.recordTransaction(sell("6", "110.00"));
+    } catch (InvalidHoldingException ignored) {
+    }
+
+    assertThat(account.transactions()).hasSize(1);
   }
 
   @Test
