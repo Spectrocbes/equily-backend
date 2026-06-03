@@ -4,6 +4,7 @@ import com.equily.identity.domain.UserId;
 import com.equily.portfolio.domain.AccountType;
 import com.equily.portfolio.domain.account.AccountSubType;
 import com.equily.shared.Money;
+import java.time.LocalDate;
 
 public record CreateFinancialAccountCommand(
     String name,
@@ -11,4 +12,5 @@ public record CreateFinancialAccountCommand(
     Money initialBalance,
     String broker,
     UserId ownerId,
-    AccountSubType subType) {}
+    AccountSubType subType,
+    LocalDate openedAt) {}

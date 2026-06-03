@@ -3,6 +3,7 @@ package com.equily.portfolio.web;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 public record CreateAccountRequest(
     @NotBlank String name,
@@ -10,4 +11,5 @@ public record CreateAccountRequest(
     @NotNull BigDecimal initialBalance,
     @NotBlank String currency,
     @NotBlank String broker,
-    String subType) {}
+    String subType,
+    LocalDate openedAt) {}

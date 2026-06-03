@@ -268,6 +268,27 @@
   — no account-type restriction in controller or domain
 - BUILD SUCCESS, 9/9 modules green
 
+## 2026-06-03 — Session A: savings deposit rules fix + openedAt field
+
+- Flyway V19: `opened_at DATE` column added to `portfolio.financial_account`; backfilled from `created_at`,
+  then `NOT NULL` enforced. Used `DATE` (not `TIMESTAMPTZ`) so Hibernate `LocalDate` mapping passes `ddl-auto: validate`.
+- `FinancialAccount`: `openedAt LocalDate` field added; required in both `open()` (new 7th parameter) and
+  `reconstruct()` (new 9th parameter); `Objects.requireNonNull` guard on both.
+- `AccountBusinessRules`: savings accounts (Livret A, LDDS, LDD, LEP, Livret Jeune) now use **current balance**
+  for deposit limit calculation — withdrawals correctly free up deposit capacity up to the legal cap; interest
+  credited as DIVIDEND can push balance above cap and correctly blocks further deposits. PEA / PEA-PME still use
+  cumulative deposits (no change).
+- All layers updated end-to-end: `CreateFinancialAccountCommand`, `CreateAccountRequest` (nullable `openedAt`,
+  defaults to `LocalDate.now()` in controller), `FinancialAccountResponse` (new `openedAt` field),
+  `FinancialAccountJpaEntity`, `FinancialAccountMapper`, `FinancialAccountController`, `FinancialAccountService`.
+- `CrossLayerArchitectureTest` ArchUnit rule updated for new `reconstruct()` signature (`LocalDate` parameter added).
+- 7 new tests: `validateDeposit_livretA_withdrawal_frees_up_capacity`,
+  `validateDeposit_livretA_uses_current_balance_not_cumulative_deposits`,
+  `validateDeposit_livretA_interest_above_cap_blocks_further_deposits`,
+  `validateDeposit_pea_uses_cumulative_deposits_not_balance`,
+  `remainingCapacity_livretA_reflects_withdrawal`, `open_preserves_openedAt`, `open_with_null_openedAt_throws`.
+- 256 tests, 0 failures (was 213), 9/9 modules green, Spotless clean.
+
 ## Architecture Decisions
 
 - Lombok is forbidden everywhere. Java 21 records replace POJOs; explicit methods replace generated ones.

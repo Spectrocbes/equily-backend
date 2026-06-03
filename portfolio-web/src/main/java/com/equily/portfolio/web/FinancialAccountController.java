@@ -21,6 +21,7 @@ import com.equily.shared.Money;
 import jakarta.validation.Valid;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Currency;
 import java.util.List;
 import java.util.Map;
@@ -79,6 +80,7 @@ class FinancialAccountController {
     UserId userId = extractUserId(auth);
     AccountSubType subType =
         request.subType() != null ? AccountSubType.valueOf(request.subType()) : null;
+    LocalDate openedAt = request.openedAt() != null ? request.openedAt() : LocalDate.now();
     CreateFinancialAccountCommand command =
         new CreateFinancialAccountCommand(
             request.name(),
@@ -86,7 +88,8 @@ class FinancialAccountController {
             new Money(request.initialBalance(), Currency.getInstance(request.currency())),
             request.broker(),
             userId,
-            subType);
+            subType,
+            openedAt);
     FinancialAccountId id = useCase.createAccount(command);
     return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("id", id.value().toString()));
   }
@@ -209,7 +212,8 @@ class FinancialAccountController {
         account.broker(),
         depositLimit,
         totalDeposits,
-        remainingCapacity);
+        remainingCapacity,
+        account.openedAt());
   }
 
   private TransactionResponse toTransactionResponse(Transaction tx) {

@@ -3,6 +3,7 @@ package com.equily.portfolio.infrastructure.persistence;
 import com.equily.portfolio.domain.account.AccountSubType;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -38,6 +39,9 @@ class FinancialAccountJpaEntity implements Persistable<UUID> {
   @Column(name = "sub_type", length = 50)
   @Enumerated(EnumType.STRING)
   AccountSubType subType;
+
+  @Column(name = "opened_at", nullable = false)
+  LocalDate openedAt;
 
   @OneToMany(
       mappedBy = "account",

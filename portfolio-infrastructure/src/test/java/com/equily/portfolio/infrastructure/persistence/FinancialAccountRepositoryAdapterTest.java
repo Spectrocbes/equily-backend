@@ -89,7 +89,8 @@ class FinancialAccountRepositoryAdapterTest {
             new Money(BigDecimal.ZERO, EUR),
             "Fortuneo",
             testUserId,
-            null);
+            null,
+            LocalDate.of(2024, 1, 1));
 
     Transaction deposit =
         Transaction.of(
@@ -143,7 +144,8 @@ class FinancialAccountRepositoryAdapterTest {
             new Money(new BigDecimal("500.00"), EUR),
             "Fortuneo",
             testUserId,
-            null);
+            null,
+            LocalDate.of(2024, 1, 1));
     FinancialAccount crypto =
         FinancialAccount.open(
             "Crypto Wallet",
@@ -151,7 +153,8 @@ class FinancialAccountRepositoryAdapterTest {
             new Money(new BigDecimal("200.00"), EUR),
             "Fortuneo",
             testUserId,
-            null);
+            null,
+            LocalDate.of(2024, 1, 1));
 
     adapter.save(pea);
     adapter.save(crypto);
@@ -175,7 +178,8 @@ class FinancialAccountRepositoryAdapterTest {
             new Money(new BigDecimal("500.00"), EUR),
             "Fortuneo",
             testUserId,
-            null);
+            null,
+            LocalDate.of(2024, 1, 1));
     FinancialAccount acc2 =
         FinancialAccount.open(
             "User2 PEA",
@@ -183,7 +187,8 @@ class FinancialAccountRepositoryAdapterTest {
             new Money(new BigDecimal("200.00"), EUR),
             "Fortuneo",
             user2,
-            null);
+            null,
+            LocalDate.of(2024, 1, 1));
 
     adapter.save(acc1);
     adapter.save(acc2);
@@ -206,7 +211,8 @@ class FinancialAccountRepositoryAdapterTest {
             new Money(new BigDecimal("500.00"), EUR),
             "Fortuneo",
             testUserId,
-            null);
+            null,
+            LocalDate.of(2024, 1, 1));
 
     adapter.save(account);
     testEntityManager.flush();
@@ -227,7 +233,8 @@ class FinancialAccountRepositoryAdapterTest {
             new Money(new BigDecimal("2000.00"), EUR),
             "Fortuneo",
             testUserId,
-            null);
+            null,
+            LocalDate.of(2024, 1, 1));
 
     Transaction deposit =
         Transaction.of(
