@@ -1,9 +1,12 @@
 package com.equily.identity.infrastructure.usecase;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -13,7 +16,9 @@ import com.equily.identity.domain.UserId;
 import com.equily.identity.domain.UserRepository;
 import com.equily.identity.domain.exception.EmailNotVerifiedException;
 import com.equily.identity.domain.exception.InvalidCredentialsException;
+import com.equily.identity.domain.exception.InvalidTokenException;
 import com.equily.identity.domain.exception.UserAlreadyExistsException;
+import com.equily.identity.domain.exception.UserNotFoundException;
 import com.equily.identity.infrastructure.email.EmailService;
 import com.equily.identity.infrastructure.persistence.EmailVerificationService;
 import com.equily.identity.infrastructure.persistence.PasswordResetService;
@@ -174,6 +179,31 @@ class AuthServiceTest {
     when(userRepository.findByEmail("nobody@example.com")).thenReturn(Optional.empty());
 
     authService.requestPasswordReset("nobody@example.com");
+  }
+
+  @Test
+  void validateResetToken_delegates_to_passwordResetService() {
+    doNothing().when(passwordResetService).validateToken("token123");
+
+    assertThatNoException().isThrownBy(() -> authService.validateResetToken("token123"));
+
+    verify(passwordResetService).validateToken("token123");
+  }
+
+  @Test
+  void validateResetToken_propagates_exception() {
+    doThrow(new InvalidTokenException("expired")).when(passwordResetService).validateToken(any());
+
+    assertThatThrownBy(() -> authService.validateResetToken("bad"))
+        .isInstanceOf(InvalidTokenException.class);
+  }
+
+  @Test
+  void resendVerificationEmail_throws_when_user_not_found() {
+    when(userRepository.findByEmail("nobody@example.com")).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> authService.resendVerificationEmail("nobody@example.com"))
+        .isInstanceOf(UserNotFoundException.class);
   }
 
   @Test

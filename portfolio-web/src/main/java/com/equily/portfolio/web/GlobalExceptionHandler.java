@@ -8,15 +8,32 @@ import com.equily.portfolio.application.exception.CsvParsingException;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
 import com.equily.portfolio.domain.exception.DepositLimitExceededException;
 import com.equily.portfolio.domain.exception.InsufficientFundsException;
+import com.equily.portfolio.domain.exception.InvalidHoldingException;
 import com.equily.portfolio.domain.exception.InvalidTransactionException;
 import java.math.BigDecimal;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 class GlobalExceptionHandler {
+
+  @ExceptionHandler(MethodArgumentNotValidException.class)
+  ResponseEntity<Map<String, String>> handleValidation(MethodArgumentNotValidException ex) {
+    Map<String, String> errors =
+        ex.getBindingResult().getFieldErrors().stream()
+            .collect(
+                Collectors.toMap(
+                    FieldError::getField,
+                    fe -> fe.getDefaultMessage() != null ? fe.getDefaultMessage() : "Invalid value",
+                    (first, second) -> first));
+    return ResponseEntity.badRequest().body(errors);
+  }
 
   @ExceptionHandler(AccountNotFoundException.class)
   ResponseEntity<String> handleNotFound(AccountNotFoundException ex) {
@@ -25,6 +42,11 @@ class GlobalExceptionHandler {
 
   @ExceptionHandler(InsufficientFundsException.class)
   ResponseEntity<String> handleInsufficientFunds(InsufficientFundsException ex) {
+    return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(ex.getMessage());
+  }
+
+  @ExceptionHandler(InvalidHoldingException.class)
+  ResponseEntity<String> handleInvalidHolding(InvalidHoldingException ex) {
     return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(ex.getMessage());
   }
 

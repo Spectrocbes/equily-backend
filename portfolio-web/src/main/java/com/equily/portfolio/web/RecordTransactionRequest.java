@@ -1,5 +1,7 @@
 package com.equily.portfolio.web;
 
+import com.equily.portfolio.web.validation.ValidTransactionDate;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
@@ -13,6 +15,6 @@ public record RecordTransactionRequest(
     String priceCurrency,
     @NotNull BigDecimal totalAmount,
     @NotBlank String totalCurrency,
-    @NotNull LocalDate date,
-    BigDecimal fees,
+    @NotNull @ValidTransactionDate LocalDate date,
+    @DecimalMin(value = "0.0", message = "Brokerage fees cannot be negative") BigDecimal fees,
     String description) {}

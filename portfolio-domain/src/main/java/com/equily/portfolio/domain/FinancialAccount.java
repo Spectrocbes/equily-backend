@@ -4,6 +4,7 @@ import com.equily.identity.domain.UserId;
 import com.equily.portfolio.domain.account.AccountSubType;
 import com.equily.portfolio.domain.exception.InsufficientFundsException;
 import com.equily.portfolio.domain.exception.InvalidFinancialAccountException;
+import com.equily.portfolio.domain.exception.InvalidHoldingException;
 import com.equily.shared.Money;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -94,25 +95,42 @@ public final class FinancialAccount {
 
   public void recordTransaction(Transaction t) {
     switch (t.type()) {
-      case DEPOSIT, DIVIDEND, SELL -> balance = balance.add(t.totalAmount());
+      case DEPOSIT, DIVIDEND -> balance = balance.add(t.totalAmount());
+      case SELL -> {
+        if (t.ticker() != null && t.quantity() != null) {
+          BigDecimal heldQty = computeNetQuantity(t.ticker());
+          if (t.quantity().compareTo(heldQty) > 0) {
+            throw new InvalidHoldingException(t.ticker().symbol(), t.quantity(), heldQty);
+          }
+        }
+        balance = balance.add(t.totalAmount());
+      }
       case WITHDRAWAL -> {
         Money newBalance = balance.subtract(t.totalAmount());
         if (newBalance.amount().compareTo(BigDecimal.ZERO) < 0) {
-          throw new InsufficientFundsException(
-              "withdrawal of " + t.totalAmount() + " exceeds balance " + balance);
+          throw new InsufficientFundsException(t.totalAmount(), balance);
         }
         balance = newBalance;
       }
       case BUY -> {
         Money newBalance = balance.subtract(t.totalAmount());
         if (newBalance.amount().compareTo(BigDecimal.ZERO) < 0) {
-          throw new InsufficientFundsException(
-              "buy of " + t.totalAmount() + " exceeds balance " + balance);
+          throw new InsufficientFundsException(t.totalAmount(), balance);
         }
         balance = newBalance;
       }
     }
     transactions.add(t);
+  }
+
+  private BigDecimal computeNetQuantity(Ticker ticker) {
+    BigDecimal qty = BigDecimal.ZERO;
+    for (Transaction t : transactions) {
+      if (!ticker.equals(t.ticker())) continue;
+      if (t.type() == TransactionType.BUY) qty = qty.add(t.quantity());
+      else if (t.type() == TransactionType.SELL) qty = qty.subtract(t.quantity());
+    }
+    return qty;
   }
 
   // TODO: AssetInfo will be injected from MarketDataContext once that bounded context exists.

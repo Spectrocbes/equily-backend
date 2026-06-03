@@ -56,8 +56,11 @@ public class AuthController {
 
   @PostMapping("/logout")
   ResponseEntity<Void> logout(Authentication authentication) {
-    UserId userId = (UserId) authentication.getPrincipal();
-    authService.logout(userId);
+    // Logout must always succeed — even if the JWT is expired or absent.
+    // AnonymousAuthenticationToken (principal = "anonymousUser") must NOT be cast to UserId.
+    if (authentication != null && authentication.getPrincipal() instanceof UserId userId) {
+      authService.logout(userId);
+    }
     return ResponseEntity.noContent().build();
   }
 
@@ -83,6 +86,12 @@ public class AuthController {
   @PostMapping("/forgot-password")
   ResponseEntity<Void> forgotPassword(@RequestBody @Valid ForgotPasswordRequest request) {
     authService.requestPasswordReset(request.email());
+    return ResponseEntity.ok().build();
+  }
+
+  @PostMapping("/validate-reset-token")
+  ResponseEntity<Void> validateResetToken(@RequestBody @Valid ValidateResetTokenRequest request) {
+    authService.validateResetToken(request.token());
     return ResponseEntity.ok().build();
   }
 

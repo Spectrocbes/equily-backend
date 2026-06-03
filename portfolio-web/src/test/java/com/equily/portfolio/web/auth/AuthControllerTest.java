@@ -168,6 +168,11 @@ class AuthControllerTest {
   }
 
   @Test
+  void logout_returns_204_when_authentication_is_null() throws Exception {
+    mockMvc.perform(post("/auth/logout")).andExpect(status().isNoContent());
+  }
+
+  @Test
   void getMe_returns_200_with_user_info() throws Exception {
     UserId userId = UserId.generate();
     User user = User.reconstruct(userId, "me@test.com", "hash", "Me User", true, Instant.now());
@@ -245,6 +250,38 @@ class AuthControllerTest {
                     {"email":"alice@example.com"}
                     """))
         .andExpect(status().isOk());
+  }
+
+  @Test
+  void validateResetToken_returns_200_for_valid_token() throws Exception {
+    doNothing().when(authService).validateResetToken("valid-token");
+
+    mockMvc
+        .perform(
+            post("/auth/validate-reset-token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"token":"valid-token"}
+                    """))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  void validateResetToken_returns_400_for_invalid_token() throws Exception {
+    doThrow(new InvalidTokenException("Invalid or already used reset token"))
+        .when(authService)
+        .validateResetToken("bad-token");
+
+    mockMvc
+        .perform(
+            post("/auth/validate-reset-token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"token":"bad-token"}
+                    """))
+        .andExpect(status().isBadRequest());
   }
 
   @Test

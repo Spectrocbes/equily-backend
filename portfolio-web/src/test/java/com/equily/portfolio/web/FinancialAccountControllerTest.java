@@ -31,6 +31,7 @@ import com.equily.portfolio.domain.csv.CsvImportResult;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
 import com.equily.portfolio.domain.exception.DepositLimitExceededException;
 import com.equily.portfolio.domain.exception.InsufficientFundsException;
+import com.equily.portfolio.domain.exception.InvalidHoldingException;
 import com.equily.portfolio.domain.exception.InvalidTransactionException;
 import com.equily.shared.Country;
 import com.equily.shared.Money;
@@ -133,6 +134,26 @@ class FinancialAccountControllerTest {
   }
 
   @Test
+  void createAccount_with_subType_returns_201() throws Exception {
+    FinancialAccountId newId = FinancialAccountId.generate();
+    when(useCase.createAccount(any())).thenReturn(newId);
+
+    mockMvc
+        .perform(
+            post("/api/v1/accounts")
+                .with(authentication(mockAuth()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"name": "Mon Livret A", "accountType": "SAVINGS_ACCOUNT",
+                     "subType": "LIVRET_A", "broker": "BNP",
+                     "initialBalance": 0, "currency": "EUR"}
+                    """))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.id").exists());
+  }
+
+  @Test
   void recordTransaction_returns204() throws Exception {
     when(useCase.getAccountById(any(), any())).thenReturn(testAccount);
 
@@ -152,7 +173,10 @@ class FinancialAccountControllerTest {
   @Test
   void recordTransaction_returns422OnInsufficientFunds() throws Exception {
     when(useCase.getAccountById(any(), any())).thenReturn(testAccount);
-    doThrow(new InsufficientFundsException("insufficient funds"))
+    doThrow(
+            new InsufficientFundsException(
+                new Money(BigDecimal.valueOf(999999), Currency.getInstance("EUR")),
+                new Money(BigDecimal.valueOf(1000), Currency.getInstance("EUR"))))
         .when(useCase)
         .recordTransaction(any());
 
@@ -251,6 +275,64 @@ class FinancialAccountControllerTest {
                      "totalAmount": 1500.00, "totalCurrency": "EUR", "date": "2026-01-15",
                      "fees": 4.99}
                     """))
+        .andExpect(status().isNoContent());
+  }
+
+  @Test
+  void recordTransaction_returns_422_on_invalid_holding() throws Exception {
+    doThrow(new InvalidHoldingException("AAPL", new BigDecimal("6"), new BigDecimal("5")))
+        .when(useCase)
+        .recordTransaction(any());
+
+    mockMvc
+        .perform(
+            post("/api/v1/accounts/{id}/transactions", testAccount.id().value().toString())
+                .with(authentication(mockAuth()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+{"type": "SELL", "ticker": "AAPL", "quantity": 6,
+ "pricePerUnit": 110.00, "priceCurrency": "EUR",
+ "totalAmount": 660.00, "totalCurrency": "EUR", "date": "2026-05-24", "fees": 0}
+"""))
+        .andExpect(status().isUnprocessableEntity())
+        .andExpect(content().string("Cannot sell 6 AAPL — you only hold 5"));
+  }
+
+  @Test
+  void recordTransaction_rejects_date_year_999999() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/accounts/{id}/transactions", testAccount.id().value().toString())
+                .with(authentication(mockAuth()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"type": "DEPOSIT", "totalAmount": 100,
+                     "totalCurrency": "EUR", "date": "9999-12-31", "fees": 0}
+                    """))
+        .andExpect(status().isBadRequest())
+        .andExpect(
+            jsonPath("$.date").value("Transaction date must be between 1900-01-01 and tomorrow"));
+  }
+
+  @Test
+  void recordTransaction_accepts_date_tomorrow() throws Exception {
+    when(useCase.getAccountById(any(), any())).thenReturn(testAccount);
+    String tomorrow = LocalDate.now().plusDays(1).toString();
+
+    mockMvc
+        .perform(
+            post("/api/v1/accounts/{id}/transactions", testAccount.id().value().toString())
+                .with(authentication(mockAuth()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    String.format(
+                        """
+                        {"type": "DEPOSIT", "totalAmount": 100,
+                         "totalCurrency": "EUR", "date": "%s", "fees": 0}
+                        """,
+                        tomorrow)))
         .andExpect(status().isNoContent());
   }
 
