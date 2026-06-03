@@ -100,13 +100,7 @@ public final class FinancialAccount {
         if (t.ticker() != null && t.quantity() != null) {
           BigDecimal heldQty = computeNetQuantity(t.ticker());
           if (t.quantity().compareTo(heldQty) > 0) {
-            throw new InvalidHoldingException(
-                "sell of "
-                    + t.quantity()
-                    + " "
-                    + t.ticker().symbol()
-                    + " exceeds held quantity "
-                    + heldQty);
+            throw new InvalidHoldingException(t.ticker().symbol(), t.quantity(), heldQty);
           }
         }
         balance = balance.add(t.totalAmount());
@@ -114,16 +108,14 @@ public final class FinancialAccount {
       case WITHDRAWAL -> {
         Money newBalance = balance.subtract(t.totalAmount());
         if (newBalance.amount().compareTo(BigDecimal.ZERO) < 0) {
-          throw new InsufficientFundsException(
-              "withdrawal of " + t.totalAmount() + " exceeds balance " + balance);
+          throw new InsufficientFundsException(t.totalAmount(), balance);
         }
         balance = newBalance;
       }
       case BUY -> {
         Money newBalance = balance.subtract(t.totalAmount());
         if (newBalance.amount().compareTo(BigDecimal.ZERO) < 0) {
-          throw new InsufficientFundsException(
-              "buy of " + t.totalAmount() + " exceeds balance " + balance);
+          throw new InsufficientFundsException(t.totalAmount(), balance);
         }
         balance = newBalance;
       }

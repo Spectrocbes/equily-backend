@@ -229,6 +229,24 @@ class FinancialAccountTest {
   }
 
   @Test
+  void insufficientFundsException_message_format() {
+    Money available = new Money(new BigDecimal("100.00"), EUR);
+    Money attempted = new Money(new BigDecimal("200.00"), EUR);
+    InsufficientFundsException ex = new InsufficientFundsException(attempted, available);
+    assertThat(ex.getMessage())
+        .contains("Insufficient funds")
+        .contains("available")
+        .contains("required");
+  }
+
+  @Test
+  void invalidHoldingException_message_format() {
+    InvalidHoldingException ex =
+        new InvalidHoldingException("AAPL", new BigDecimal("6"), new BigDecimal("5"));
+    assertThat(ex.getMessage()).isEqualTo("Cannot sell 6 AAPL — you only hold 5");
+  }
+
+  @Test
   void sell_exceeding_quantity_throws_InvalidHoldingException() {
     FinancialAccount account = accountWith("2000.00");
     account.recordTransaction(buy("5", "100.00"));

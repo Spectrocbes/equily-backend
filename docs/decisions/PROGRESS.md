@@ -251,6 +251,23 @@
 - `UserJpaEntity`: `email_verified` column + `setEmailVerified(boolean)` + `setPasswordHash(String)` setters
 - 213 tests, 0 failures, all 9 modules green, Spotless clean
 
+## 2026-06-03 — Bug fixes from functional testing session
+
+- CRITICAL: SELL quantity validated eagerly in `recordTransaction()` before persisting — `InvalidHoldingException`
+  thrown with professional message format (`Cannot sell {qty} {ticker} — you only hold {held}`)
+- `InvalidHoldingException` → 422 Unprocessable Entity (was missing handler); `InsufficientFundsException` →
+  professional message format (`Insufficient funds — available: {symbol} {amount}, required: {symbol} {amount}`)
+- Fees validation annotation message updated: `"Brokerage fees cannot be negative"` (was generic)
+- `@ValidTransactionDate` custom constraint: rejects dates before `1900-01-01` and after tomorrow (+1 day timezone
+  tolerance); `TransactionDateValidator` + `ValidTransactionDate` annotation in `portfolio-web/validation`
+- `logout()` uses `instanceof UserId` pattern match — handles `null` principal and anonymous authentication tokens
+  without `ClassCastException`
+- `POST /auth/validate-reset-token` endpoint added + `PasswordResetService.validateToken()` — allows frontend to
+  check token validity before showing the reset-password form
+- Cash/Savings accounts: transactions accessible for all account types via `GET /api/v1/accounts/{id}/transactions`
+  — no account-type restriction in controller or domain
+- BUILD SUCCESS, 9/9 modules green
+
 ## Architecture Decisions
 
 - Lombok is forbidden everywhere. Java 21 records replace POJOs; explicit methods replace generated ones.

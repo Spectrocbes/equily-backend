@@ -52,8 +52,7 @@ public record Holding(
         BigDecimal qty = t.quantity().setScale(QUANTITY_SCALE, RoundingMode.HALF_EVEN);
         totalQty = totalQty.subtract(qty);
         if (totalQty.compareTo(BigDecimal.ZERO) < 0) {
-          throw new InvalidHoldingException(
-              "sell quantity exceeds held quantity for ticker " + ticker.symbol());
+          throw new InvalidHoldingException(ticker.symbol(), qty, totalQty.add(qty));
         }
         // French fiscal rule: SELL reduces quantity but does not change averageCostPrice.
         // fees on SELL reduce proceeds — handled at tax time, not tracked here.
