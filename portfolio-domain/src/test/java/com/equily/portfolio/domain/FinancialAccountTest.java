@@ -25,13 +25,19 @@ class FinancialAccountTest {
       new AssetMetadata("Apple Inc.", "US0378331005", new Country("US"));
 
   private FinancialAccount accountWith(String balance) {
-    return FinancialAccount.open(
-        "Mon PEA",
-        AccountType.PEA,
-        new Money(new BigDecimal(balance), EUR),
-        "Fortuneo",
-        UserId.generate(),
-        null);
+    FinancialAccount account =
+        FinancialAccount.open(
+            "Mon PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            UserId.generate(),
+            null);
+    BigDecimal amount = new BigDecimal(balance);
+    if (amount.compareTo(BigDecimal.ZERO) > 0) {
+      account.recordTransaction(deposit(balance));
+    }
+    return account;
   }
 
   private Transaction deposit(String amount) {
@@ -272,7 +278,7 @@ class FinancialAccountTest {
     } catch (InvalidHoldingException ignored) {
     }
 
-    assertThat(account.transactions()).hasSize(1);
+    assertThat(account.transactions()).hasSize(2); // deposit (from helper) + 1 successful buy
   }
 
   @Test

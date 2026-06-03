@@ -89,8 +89,10 @@ public final class FinancialAccount {
       throw new InvalidFinancialAccountException("broker must not be null or blank");
     }
     Objects.requireNonNull(ownerId, "ownerId must not be null");
+    // Account always starts at zero — initial balance is recorded as a DEPOSIT transaction
+    Money zero = new Money(BigDecimal.ZERO, initialBalance.currency());
     return new FinancialAccount(
-        FinancialAccountId.generate(), name, accountType, initialBalance, broker, ownerId, subType);
+        FinancialAccountId.generate(), name, accountType, zero, broker, ownerId, subType);
   }
 
   public void recordTransaction(Transaction t) {

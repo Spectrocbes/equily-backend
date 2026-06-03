@@ -55,6 +55,10 @@ public record Money(BigDecimal amount, Currency currency) {
     return Objects.hash(amount.stripTrailingZeros(), currency);
   }
 
+  public static Money zero(Currency currency) {
+    return new Money(BigDecimal.ZERO, currency);
+  }
+
   @Override
   public String toString() {
     return amount.setScale(2, RoundingMode.HALF_EVEN).toPlainString()

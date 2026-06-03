@@ -57,6 +57,23 @@ class FinancialAccountService implements FinancialAccountUseCase {
             command.ownerId(),
             command.subType());
     repository.save(account);
+
+    if (command.initialBalance().amount().compareTo(BigDecimal.ZERO) > 0) {
+      Transaction initialDeposit =
+          Transaction.of(
+              TransactionId.generate(),
+              TransactionType.DEPOSIT,
+              null,
+              null,
+              null,
+              command.initialBalance(),
+              LocalDate.now(),
+              BigDecimal.ZERO,
+              "Initial deposit");
+      account.recordTransaction(initialDeposit);
+      repository.save(account);
+    }
+
     return account.id();
   }
 

@@ -3,6 +3,7 @@ package com.equily.portfolio.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -57,7 +58,7 @@ class FinancialAccountServiceTest {
         new CreateFinancialAccountCommand(
             "My PEA",
             AccountType.PEA,
-            new Money(BigDecimal.valueOf(1000), EUR),
+            new Money(BigDecimal.ZERO, EUR),
             "Fortuneo",
             UserId.generate(),
             null);
@@ -65,7 +66,36 @@ class FinancialAccountServiceTest {
     FinancialAccountId result = service.createAccount(command);
 
     assertThat(result).isNotNull();
-    verify(repository).save(any(FinancialAccount.class));
+    verify(repository, times(1)).save(any(FinancialAccount.class));
+  }
+
+  @Test
+  void createAccount_with_initial_balance_creates_deposit_transaction() {
+    Money initialBalance = new Money(new BigDecimal("1000"), Currency.getInstance("EUR"));
+    CreateFinancialAccountCommand command =
+        new CreateFinancialAccountCommand(
+            "Mon Livret A",
+            AccountType.SAVINGS_ACCOUNT,
+            initialBalance,
+            "BNP",
+            UserId.generate(),
+            AccountSubType.LIVRET_A);
+
+    service.createAccount(command);
+
+    verify(repository, times(2)).save(any(FinancialAccount.class));
+  }
+
+  @Test
+  void createAccount_with_zero_balance_saves_once() {
+    Money zero = new Money(BigDecimal.ZERO, Currency.getInstance("EUR"));
+    CreateFinancialAccountCommand command =
+        new CreateFinancialAccountCommand(
+            "Mon CTO", AccountType.COMPTE_TITRES, zero, "Fortuneo", UserId.generate(), null);
+
+    service.createAccount(command);
+
+    verify(repository, times(1)).save(any(FinancialAccount.class));
   }
 
   @Test
@@ -255,10 +285,21 @@ class FinancialAccountServiceTest {
         FinancialAccount.open(
             "Mon PEA",
             AccountType.PEA,
-            new Money(new BigDecimal("10000"), Currency.getInstance("EUR")),
+            new Money(BigDecimal.ZERO, Currency.getInstance("EUR")),
             "Fortuneo",
             ownerId,
             null);
+    account.recordTransaction(
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("10000"), Currency.getInstance("EUR")),
+            LocalDate.now(),
+            BigDecimal.ZERO,
+            null));
     Transaction buy =
         Transaction.of(
             TransactionId.generate(),
@@ -544,12 +585,18 @@ class FinancialAccountServiceTest {
     UserId ownerId = UserId.generate();
     FinancialAccount account =
         FinancialAccount.open(
-            "Mon PEA",
-            AccountType.PEA,
+            "Mon PEA", AccountType.PEA, new Money(BigDecimal.ZERO, EUR), "Fortuneo", ownerId, null);
+    account.recordTransaction(
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
             new Money(new BigDecimal("10000"), EUR),
-            "Fortuneo",
-            ownerId,
-            null);
+            LocalDate.of(2026, 4, 1),
+            BigDecimal.ZERO,
+            null));
     Transaction buy1 =
         Transaction.of(
             TransactionId.generate(),
