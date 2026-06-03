@@ -247,6 +247,12 @@ class FinancialAccountTest {
   }
 
   @Test
+  void invalidHoldingException_single_arg_constructor_preserves_message() {
+    InvalidHoldingException ex = new InvalidHoldingException("custom error message");
+    assertThat(ex.getMessage()).isEqualTo("custom error message");
+  }
+
+  @Test
   void sell_exceeding_quantity_throws_InvalidHoldingException() {
     FinancialAccount account = accountWith("2000.00");
     account.recordTransaction(buy("5", "100.00"));

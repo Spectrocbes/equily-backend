@@ -134,6 +134,26 @@ class FinancialAccountControllerTest {
   }
 
   @Test
+  void createAccount_with_subType_returns_201() throws Exception {
+    FinancialAccountId newId = FinancialAccountId.generate();
+    when(useCase.createAccount(any())).thenReturn(newId);
+
+    mockMvc
+        .perform(
+            post("/api/v1/accounts")
+                .with(authentication(mockAuth()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"name": "Mon Livret A", "accountType": "SAVINGS_ACCOUNT",
+                     "subType": "LIVRET_A", "broker": "BNP",
+                     "initialBalance": 0, "currency": "EUR"}
+                    """))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.id").exists());
+  }
+
+  @Test
   void recordTransaction_returns204() throws Exception {
     when(useCase.getAccountById(any(), any())).thenReturn(testAccount);
 

@@ -1,6 +1,7 @@
 package com.equily.identity.infrastructure.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
@@ -97,6 +98,33 @@ class PasswordResetServiceTest {
 
     assertThatThrownBy(() -> passwordResetService.resetPassword(rawToken, "newpassword"))
         .isInstanceOf(InvalidTokenException.class);
+  }
+
+  @Test
+  void validateToken_succeeds_for_valid_unused_unexpired_token() {
+    String rawToken = passwordResetService.createResetToken(savedUserId);
+    assertThatNoException().isThrownBy(() -> passwordResetService.validateToken(rawToken));
+  }
+
+  @Test
+  void validateToken_throws_for_unknown_token() {
+    assertThatThrownBy(() -> passwordResetService.validateToken("unknown-token"))
+        .isInstanceOf(InvalidTokenException.class)
+        .hasMessageContaining("Invalid or already used");
+  }
+
+  @Test
+  void validateToken_throws_for_expired_token() {
+    String rawToken = passwordResetService.createResetToken(savedUserId);
+    String hash = sha256(rawToken);
+    PasswordResetTokenJpaEntity entity =
+        tokenJpaRepository.findByTokenHashAndUsedAtIsNull(hash).orElseThrow();
+    entity.setExpiresAt(Instant.now().minus(Duration.ofHours(2)));
+    tokenJpaRepository.save(entity);
+
+    assertThatThrownBy(() -> passwordResetService.validateToken(rawToken))
+        .isInstanceOf(InvalidTokenException.class)
+        .hasMessageContaining("expired");
   }
 
   private String sha256(String input) {
