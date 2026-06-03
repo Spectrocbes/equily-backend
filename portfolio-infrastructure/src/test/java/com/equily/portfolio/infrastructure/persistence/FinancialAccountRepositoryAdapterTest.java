@@ -86,10 +86,23 @@ class FinancialAccountRepositoryAdapterTest {
         FinancialAccount.open(
             "PEA Account",
             AccountType.PEA,
-            new Money(new BigDecimal("1000.00"), EUR),
+            new Money(BigDecimal.ZERO, EUR),
             "Fortuneo",
             testUserId,
             null);
+
+    Transaction deposit =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("1000.00"), EUR),
+            LocalDate.of(2024, 1, 1),
+            BigDecimal.ZERO,
+            null);
+    account.recordTransaction(deposit);
 
     Transaction buy =
         Transaction.of(
@@ -114,9 +127,10 @@ class FinancialAccountRepositoryAdapterTest {
     assertThat(found.get().name()).isEqualTo("PEA Account");
     assertThat(found.get().accountType()).isEqualTo(AccountType.PEA);
     assertThat(found.get().balance()).isEqualTo(new Money(new BigDecimal("700.00"), EUR));
-    assertThat(found.get().transactions()).hasSize(1);
-    assertThat(found.get().transactions().get(0).type()).isEqualTo(TransactionType.BUY);
-    assertThat(found.get().transactions().get(0).ticker()).isEqualTo(new Ticker("AAPL"));
+    assertThat(found.get().transactions()).hasSize(2);
+    assertThat(found.get().transactions().get(0).type()).isEqualTo(TransactionType.DEPOSIT);
+    assertThat(found.get().transactions().get(1).type()).isEqualTo(TransactionType.BUY);
+    assertThat(found.get().transactions().get(1).ticker()).isEqualTo(new Ticker("AAPL"));
     assertThat(found.get().ownerId()).isEqualTo(testUserId);
   }
 

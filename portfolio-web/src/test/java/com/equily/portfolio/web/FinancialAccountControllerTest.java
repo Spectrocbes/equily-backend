@@ -199,10 +199,21 @@ class FinancialAccountControllerTest {
         FinancialAccount.open(
             "My PEA",
             AccountType.PEA,
-            new Money(BigDecimal.valueOf(2000), Currency.getInstance("EUR")),
+            new Money(BigDecimal.ZERO, Currency.getInstance("EUR")),
             "Fortuneo",
             testUserId,
             null);
+    account.recordTransaction(
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(BigDecimal.valueOf(2000), Currency.getInstance("EUR")),
+            LocalDate.of(2026, 1, 1),
+            BigDecimal.ZERO,
+            null));
     Transaction buyTx =
         Transaction.of(
             TransactionId.generate(),
@@ -222,14 +233,14 @@ class FinancialAccountControllerTest {
             get("/api/v1/accounts/{id}/transactions", account.id().value().toString())
                 .with(authentication(mockAuth())))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.length()").value(1))
-        .andExpect(jsonPath("$[0].type").value("BUY"))
-        .andExpect(jsonPath("$[0].ticker").value("AAPL"))
-        .andExpect(jsonPath("$[0].quantity").value(10))
-        .andExpect(jsonPath("$[0].pricePerUnit").value(150))
-        .andExpect(jsonPath("$[0].totalAmount").value(1500))
-        .andExpect(jsonPath("$[0].fees").value(0))
-        .andExpect(jsonPath("$[0].description").value("DCA janvier"));
+        .andExpect(jsonPath("$.length()").value(2))
+        .andExpect(jsonPath("$[1].type").value("BUY"))
+        .andExpect(jsonPath("$[1].ticker").value("AAPL"))
+        .andExpect(jsonPath("$[1].quantity").value(10))
+        .andExpect(jsonPath("$[1].pricePerUnit").value(150))
+        .andExpect(jsonPath("$[1].totalAmount").value(1500))
+        .andExpect(jsonPath("$[1].fees").value(0))
+        .andExpect(jsonPath("$[1].description").value("DCA janvier"));
   }
 
   @Test
