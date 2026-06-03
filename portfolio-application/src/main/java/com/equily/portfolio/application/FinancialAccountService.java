@@ -55,7 +55,8 @@ class FinancialAccountService implements FinancialAccountUseCase {
             command.initialBalance(),
             command.broker(),
             command.ownerId(),
-            command.subType());
+            command.subType(),
+            command.openedAt());
     repository.save(account);
 
     if (command.initialBalance().amount().compareTo(BigDecimal.ZERO) > 0) {

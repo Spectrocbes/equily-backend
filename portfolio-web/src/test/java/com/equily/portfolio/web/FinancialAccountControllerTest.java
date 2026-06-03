@@ -74,7 +74,8 @@ class FinancialAccountControllerTest {
             new Money(BigDecimal.valueOf(1000), Currency.getInstance("EUR")),
             "Fortuneo",
             testUserId,
-            null);
+            null,
+            LocalDate.of(2024, 1, 1));
   }
 
   private Authentication mockAuth() {
@@ -202,7 +203,8 @@ class FinancialAccountControllerTest {
             new Money(BigDecimal.ZERO, Currency.getInstance("EUR")),
             "Fortuneo",
             testUserId,
-            null);
+            null,
+            LocalDate.of(2024, 1, 1));
     account.recordTransaction(
         Transaction.of(
             TransactionId.generate(),
@@ -553,7 +555,8 @@ class FinancialAccountControllerTest {
             new Money(BigDecimal.ZERO, Currency.getInstance("EUR")),
             "La Banque Postale",
             userId,
-            AccountSubType.LIVRET_A);
+            AccountSubType.LIVRET_A,
+            LocalDate.of(2020, 3, 1));
     Transaction deposit =
         Transaction.of(
             TransactionId.generate(),

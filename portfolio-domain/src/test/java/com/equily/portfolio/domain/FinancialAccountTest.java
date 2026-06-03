@@ -32,7 +32,8 @@ class FinancialAccountTest {
             new Money(BigDecimal.ZERO, EUR),
             "Fortuneo",
             UserId.generate(),
-            null);
+            null,
+            TODAY);
     BigDecimal amount = new BigDecimal(balance);
     if (amount.compareTo(BigDecimal.ZERO) > 0) {
       account.recordTransaction(deposit(balance));
@@ -105,7 +106,8 @@ class FinancialAccountTest {
             new Money(BigDecimal.ZERO, EUR),
             "Fortuneo",
             UserId.generate(),
-            null);
+            null,
+            TODAY);
     assertThat(account.broker()).isEqualTo("Fortuneo");
   }
 
@@ -114,8 +116,29 @@ class FinancialAccountTest {
     UserId ownerId = UserId.generate();
     FinancialAccount account =
         FinancialAccount.open(
-            "Mon PEA", AccountType.PEA, new Money(BigDecimal.ZERO, EUR), "Fortuneo", ownerId, null);
+            "Mon PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            ownerId,
+            null,
+            TODAY);
     assertThat(account.ownerId()).isEqualTo(ownerId);
+  }
+
+  @Test
+  void open_preserves_openedAt() {
+    LocalDate openedAt = LocalDate.of(2020, 1, 15);
+    FinancialAccount account =
+        FinancialAccount.open(
+            "Mon PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            UserId.generate(),
+            null,
+            openedAt);
+    assertThat(account.openedAt()).isEqualTo(openedAt);
   }
 
   @Test
@@ -127,6 +150,22 @@ class FinancialAccountTest {
                     AccountType.PEA,
                     new Money(BigDecimal.ZERO, EUR),
                     "Fortuneo",
+                    null,
+                    null,
+                    TODAY))
+        .isInstanceOf(NullPointerException.class);
+  }
+
+  @Test
+  void open_with_null_openedAt_throws() {
+    assertThatThrownBy(
+            () ->
+                FinancialAccount.open(
+                    "Mon PEA",
+                    AccountType.PEA,
+                    new Money(BigDecimal.ZERO, EUR),
+                    "Fortuneo",
+                    UserId.generate(),
                     null,
                     null))
         .isInstanceOf(NullPointerException.class);
@@ -142,7 +181,8 @@ class FinancialAccountTest {
                     new Money(BigDecimal.ZERO, EUR),
                     null,
                     UserId.generate(),
-                    null))
+                    null,
+                    TODAY))
         .isInstanceOf(InvalidFinancialAccountException.class);
   }
 
@@ -156,7 +196,8 @@ class FinancialAccountTest {
                     new Money(BigDecimal.ZERO, EUR),
                     "  ",
                     UserId.generate(),
-                    null))
+                    null,
+                    TODAY))
         .isInstanceOf(InvalidFinancialAccountException.class);
   }
 
@@ -170,7 +211,8 @@ class FinancialAccountTest {
                     new Money(BigDecimal.ZERO, EUR),
                     null,
                     UserId.generate(),
-                    null))
+                    null,
+                    TODAY))
         .isInstanceOf(InvalidFinancialAccountException.class);
   }
 
@@ -184,7 +226,8 @@ class FinancialAccountTest {
                     new Money(BigDecimal.ZERO, EUR),
                     null,
                     UserId.generate(),
-                    null))
+                    null,
+                    TODAY))
         .isInstanceOf(InvalidFinancialAccountException.class);
   }
 
@@ -193,7 +236,7 @@ class FinancialAccountTest {
     assertThatThrownBy(
             () ->
                 FinancialAccount.open(
-                    "Mon PEA", AccountType.PEA, null, null, UserId.generate(), null))
+                    "Mon PEA", AccountType.PEA, null, null, UserId.generate(), null, TODAY))
         .isInstanceOf(InvalidFinancialAccountException.class);
   }
 

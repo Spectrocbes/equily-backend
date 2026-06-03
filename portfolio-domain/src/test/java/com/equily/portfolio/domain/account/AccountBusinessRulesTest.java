@@ -30,7 +30,8 @@ class AccountBusinessRulesTest {
         new Money(BigDecimal.ZERO, EUR),
         "Test Bank",
         UserId.generate(),
-        subType);
+        subType,
+        TODAY);
   }
 
   private FinancialAccount openPeaAccount(AccountSubType subType) {
@@ -40,13 +41,40 @@ class AccountBusinessRulesTest {
         new Money(new BigDecimal("5000"), EUR),
         "Fortuneo",
         UserId.generate(),
-        subType);
+        subType,
+        TODAY);
   }
 
   private Transaction deposit(String amount) {
     return Transaction.of(
         TransactionId.generate(),
         TransactionType.DEPOSIT,
+        null,
+        null,
+        null,
+        new Money(new BigDecimal(amount), EUR),
+        TODAY,
+        null,
+        null);
+  }
+
+  private Transaction withdrawal(String amount) {
+    return Transaction.of(
+        TransactionId.generate(),
+        TransactionType.WITHDRAWAL,
+        null,
+        null,
+        null,
+        new Money(new BigDecimal(amount), EUR),
+        TODAY,
+        null,
+        null);
+  }
+
+  private Transaction dividend(String amount) {
+    return Transaction.of(
+        TransactionId.generate(),
+        TransactionType.DIVIDEND,
         null,
         null,
         null,
@@ -65,7 +93,8 @@ class AccountBusinessRulesTest {
             new Money(BigDecimal.ZERO, EUR),
             "Fortuneo",
             UserId.generate(),
-            null);
+            null,
+            TODAY);
     // Must not throw
     AccountBusinessRules.validateDeposit(
         account, new Money(new BigDecimal("999999"), EUR), List.of(account));
@@ -125,7 +154,8 @@ class AccountBusinessRulesTest {
             new Money(new BigDecimal("5000"), EUR),
             "Fortuneo",
             userId,
-            AccountSubType.PEA);
+            AccountSubType.PEA,
+            TODAY);
     peaAccount.recordTransaction(deposit("150000"));
 
     FinancialAccount peaPmeAccount =
@@ -135,7 +165,8 @@ class AccountBusinessRulesTest {
             new Money(new BigDecimal("5000"), EUR),
             "Fortuneo",
             userId,
-            AccountSubType.PEA_PME);
+            AccountSubType.PEA_PME,
+            TODAY);
     peaPmeAccount.recordTransaction(deposit("70000"));
 
     List<FinancialAccount> allAccounts = List.of(peaAccount, peaPmeAccount);
@@ -179,7 +210,8 @@ class AccountBusinessRulesTest {
             new Money(BigDecimal.ZERO, EUR),
             "Fortuneo",
             UserId.generate(),
-            null);
+            null,
+            TODAY);
 
     Optional<Money> remaining = AccountBusinessRules.remainingCapacity(account, List.of(account));
 
@@ -217,11 +249,83 @@ class AccountBusinessRulesTest {
             new Money(BigDecimal.ZERO, EUR),
             "Fortuneo",
             UserId.generate(),
-            null);
+            null,
+            TODAY);
 
     boolean approaching = AccountBusinessRules.isApproachingLimit(account, List.of(account));
 
     assertThat(approaching).isFalse();
+  }
+
+  @Test
+  void validateDeposit_livretA_withdrawal_frees_up_capacity() {
+    // Deposit 22950 (fills limit), then withdraw 1000 → balance = 21950.
+    // Old cumulative-sum logic would see sumDeposits = 22950 and block any new deposit.
+    // New balance-based logic: 21950 + 1000 = 22950 = limit → must not throw.
+    FinancialAccount account = openAccount(AccountSubType.LIVRET_A);
+    account.recordTransaction(deposit("22950"));
+    account.recordTransaction(withdrawal("1000")); // balance now 21950
+
+    AccountBusinessRules.validateDeposit(
+        account, new Money(new BigDecimal("1000"), EUR), List.of(account));
+  }
+
+  @Test
+  void validateDeposit_livretA_uses_current_balance_not_cumulative_deposits() {
+    // Deposit 22900, then withdraw 900 → balance = 22000.
+    // Old logic: sumDeposits = 22900, 22900 + 500 = 23400 > 22950 → would block (wrong).
+    // New logic: balance = 22000, 22000 + 500 = 22500 < 22950 → must not throw.
+    FinancialAccount account = openAccount(AccountSubType.LIVRET_A);
+    account.recordTransaction(deposit("22900"));
+    account.recordTransaction(withdrawal("900")); // balance now 22000
+
+    AccountBusinessRules.validateDeposit(
+        account, new Money(new BigDecimal("500"), EUR), List.of(account));
+  }
+
+  @Test
+  void validateDeposit_livretA_interest_above_cap_blocks_further_deposits() {
+    // Deposit 22000, then credit 1000 interest (DIVIDEND) → balance = 23000 > 22950.
+    // Old logic: sumDeposits = 22000, 22000 + 500 = 22500 < 22950 → would allow (wrong).
+    // New logic: balance = 23000, 23000 + 500 > 22950 → must throw.
+    FinancialAccount account = openAccount(AccountSubType.LIVRET_A);
+    account.recordTransaction(deposit("22000"));
+    account.recordTransaction(dividend("1000")); // balance now 23000
+
+    assertThatThrownBy(
+            () ->
+                AccountBusinessRules.validateDeposit(
+                    account, new Money(new BigDecimal("500"), EUR), List.of(account)))
+        .isInstanceOf(DepositLimitExceededException.class);
+  }
+
+  @Test
+  void validateDeposit_pea_uses_cumulative_deposits_not_balance() {
+    // PEA: deposit 140000 then withdraw 60000 → balance = 80000.
+    // Balance-based would allow 15000 more (80000 + 15000 = 95000 < 150000).
+    // Cumulative-sum correctly blocks: 140000 + 15000 = 155000 > 150000 → must throw.
+    FinancialAccount peaAccount = openPeaAccount(AccountSubType.PEA);
+    peaAccount.recordTransaction(deposit("140000"));
+    peaAccount.recordTransaction(withdrawal("60000")); // balance now 80000
+
+    assertThatThrownBy(
+            () ->
+                AccountBusinessRules.validateDeposit(
+                    peaAccount, new Money(new BigDecimal("15000"), EUR), List.of(peaAccount)))
+        .isInstanceOf(DepositLimitExceededException.class)
+        .hasMessageContaining("PEA");
+  }
+
+  @Test
+  void remainingCapacity_livretA_reflects_withdrawal() {
+    FinancialAccount account = openAccount(AccountSubType.LIVRET_A);
+    account.recordTransaction(deposit("22950"));
+    account.recordTransaction(withdrawal("1000")); // balance now 21950
+
+    Optional<Money> remaining = AccountBusinessRules.remainingCapacity(account, List.of(account));
+
+    assertThat(remaining).isPresent();
+    assertThat(remaining.get().amount()).isEqualByComparingTo(new BigDecimal("1000"));
   }
 
   @Test

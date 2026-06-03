@@ -41,6 +41,7 @@ class FinancialAccountMapper {
     entity.broker = account.broker();
     entity.userId = account.ownerId().value();
     entity.subType = account.subType();
+    entity.openedAt = account.openedAt();
 
     List<TransactionJpaEntity> txEntities =
         account.transactions().stream().map(t -> toJpaTransaction(t, entity)).toList();
@@ -70,7 +71,8 @@ class FinancialAccountMapper {
         transactions,
         entity.broker,
         ownerId,
-        entity.subType);
+        entity.subType,
+        entity.openedAt);
   }
 
   private static TransactionJpaEntity toJpaTransaction(

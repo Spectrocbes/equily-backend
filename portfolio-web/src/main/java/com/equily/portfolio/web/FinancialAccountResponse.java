@@ -1,6 +1,7 @@
 package com.equily.portfolio.web;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 public record FinancialAccountResponse(
     String id,
@@ -13,4 +14,5 @@ public record FinancialAccountResponse(
     String broker,
     BigDecimal depositLimit,
     BigDecimal totalDeposits,
-    BigDecimal remainingCapacity) {}
+    BigDecimal remainingCapacity,
+    LocalDate openedAt) {}

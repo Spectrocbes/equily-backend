@@ -42,6 +42,8 @@ class FinancialAccountServiceTest {
 
   private static final Currency EUR = Currency.getInstance("EUR");
 
+  private static final LocalDate OPENED_AT = LocalDate.of(2024, 1, 1);
+
   private static FinancialAccount openAccount(String name, String balance) {
     return FinancialAccount.open(
         name,
@@ -49,7 +51,8 @@ class FinancialAccountServiceTest {
         new Money(BigDecimal.valueOf(Double.parseDouble(balance)), EUR),
         "Fortuneo",
         UserId.generate(),
-        null);
+        null,
+        OPENED_AT);
   }
 
   @Test
@@ -61,7 +64,8 @@ class FinancialAccountServiceTest {
             new Money(BigDecimal.ZERO, EUR),
             "Fortuneo",
             UserId.generate(),
-            null);
+            null,
+            OPENED_AT);
 
     FinancialAccountId result = service.createAccount(command);
 
@@ -79,7 +83,8 @@ class FinancialAccountServiceTest {
             initialBalance,
             "BNP",
             UserId.generate(),
-            AccountSubType.LIVRET_A);
+            AccountSubType.LIVRET_A,
+            OPENED_AT);
 
     service.createAccount(command);
 
@@ -91,7 +96,13 @@ class FinancialAccountServiceTest {
     Money zero = new Money(BigDecimal.ZERO, Currency.getInstance("EUR"));
     CreateFinancialAccountCommand command =
         new CreateFinancialAccountCommand(
-            "Mon CTO", AccountType.COMPTE_TITRES, zero, "Fortuneo", UserId.generate(), null);
+            "Mon CTO",
+            AccountType.COMPTE_TITRES,
+            zero,
+            "Fortuneo",
+            UserId.generate(),
+            null,
+            OPENED_AT);
 
     service.createAccount(command);
 
@@ -155,7 +166,8 @@ class FinancialAccountServiceTest {
             new Money(BigDecimal.ZERO, EUR),
             "Test Bank",
             ownerId,
-            AccountSubType.LIVRET_A);
+            AccountSubType.LIVRET_A,
+            OPENED_AT);
     // Add deposits totaling 22000 EUR
     Transaction existingDeposit =
         Transaction.of(
@@ -221,7 +233,8 @@ class FinancialAccountServiceTest {
             new Money(BigDecimal.valueOf(1000), EUR),
             "Fortuneo",
             ownerId,
-            null);
+            null,
+            OPENED_AT);
     when(repository.findAllByOwnerId(ownerId)).thenReturn(List.of(account));
 
     List<FinancialAccount> result = service.getAllAccounts(ownerId);
@@ -240,7 +253,8 @@ class FinancialAccountServiceTest {
             new Money(BigDecimal.valueOf(1000), EUR),
             "Fortuneo",
             ownerId,
-            null);
+            null,
+            OPENED_AT);
     FinancialAccountId id = account.id();
     when(repository.findById(id)).thenReturn(Optional.of(account));
 
@@ -271,7 +285,8 @@ class FinancialAccountServiceTest {
             new Money(BigDecimal.valueOf(1000), EUR),
             "Fortuneo",
             owner,
-            null);
+            null,
+            OPENED_AT);
     when(repository.findById(account.id())).thenReturn(Optional.of(account));
 
     assertThatThrownBy(() -> service.getAccountById(account.id(), otherUser))
@@ -288,7 +303,8 @@ class FinancialAccountServiceTest {
             new Money(BigDecimal.ZERO, Currency.getInstance("EUR")),
             "Fortuneo",
             ownerId,
-            null);
+            null,
+            OPENED_AT);
     account.recordTransaction(
         Transaction.of(
             TransactionId.generate(),
@@ -342,7 +358,8 @@ class FinancialAccountServiceTest {
             new Money(new BigDecimal("5000"), EUR),
             "Fortuneo",
             ownerId,
-            null);
+            null,
+            OPENED_AT);
     Transaction deposit =
         Transaction.of(
             TransactionId.generate(),
@@ -372,7 +389,8 @@ class FinancialAccountServiceTest {
             new Money(BigDecimal.valueOf(10000), EUR),
             "BoursoBank",
             ownerId,
-            null);
+            null,
+            OPENED_AT);
     when(repository.findById(any())).thenReturn(Optional.of(account));
 
     Transaction newTx =
@@ -405,7 +423,8 @@ class FinancialAccountServiceTest {
             new Money(BigDecimal.valueOf(10000), EUR),
             "BoursoBank",
             ownerId,
-            null);
+            null,
+            OPENED_AT);
     Transaction existingDeposit =
         Transaction.of(
             TransactionId.generate(),
@@ -460,7 +479,8 @@ class FinancialAccountServiceTest {
             new Money(BigDecimal.valueOf(10000), EUR),
             "BoursoBank",
             ownerId,
-            null);
+            null,
+            OPENED_AT);
     when(repository.findById(any())).thenReturn(Optional.of(account));
 
     Transaction tx1 =
@@ -503,7 +523,8 @@ class FinancialAccountServiceTest {
             new Money(BigDecimal.ZERO, EUR),
             "BoursoBank",
             ownerId,
-            null);
+            null,
+            OPENED_AT);
     when(repository.findById(any())).thenReturn(Optional.of(account));
 
     // Boursobank exports newest-first: BUY on day 2 comes before DEPOSIT on day 1
@@ -546,7 +567,8 @@ class FinancialAccountServiceTest {
             new Money(BigDecimal.ZERO, EUR),
             "BoursoBank",
             ownerId,
-            null);
+            null,
+            OPENED_AT);
     when(repository.findById(any())).thenReturn(Optional.of(account));
 
     // Same day: BUY arrives first in parsed list (Boursobank newest-first within same day)
@@ -585,7 +607,13 @@ class FinancialAccountServiceTest {
     UserId ownerId = UserId.generate();
     FinancialAccount account =
         FinancialAccount.open(
-            "Mon PEA", AccountType.PEA, new Money(BigDecimal.ZERO, EUR), "Fortuneo", ownerId, null);
+            "Mon PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            ownerId,
+            null,
+            OPENED_AT);
     account.recordTransaction(
         Transaction.of(
             TransactionId.generate(),

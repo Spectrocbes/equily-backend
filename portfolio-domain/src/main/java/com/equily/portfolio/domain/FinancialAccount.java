@@ -7,6 +7,7 @@ import com.equily.portfolio.domain.exception.InvalidFinancialAccountException;
 import com.equily.portfolio.domain.exception.InvalidHoldingException;
 import com.equily.shared.Money;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -27,6 +28,7 @@ public final class FinancialAccount {
   private final String broker;
   private final UserId ownerId;
   private final AccountSubType subType;
+  private final LocalDate openedAt;
 
   private FinancialAccount(
       FinancialAccountId id,
@@ -35,7 +37,8 @@ public final class FinancialAccount {
       Money balance,
       String broker,
       UserId ownerId,
-      AccountSubType subType) {
+      AccountSubType subType,
+      LocalDate openedAt) {
     this.id = id;
     this.name = name;
     this.accountType = accountType;
@@ -43,6 +46,7 @@ public final class FinancialAccount {
     this.broker = broker;
     this.ownerId = ownerId;
     this.subType = subType;
+    this.openedAt = openedAt;
     this.transactions = new ArrayList<>();
   }
 
@@ -62,9 +66,10 @@ public final class FinancialAccount {
       List<Transaction> transactions,
       String broker,
       UserId ownerId,
-      AccountSubType subType) {
+      AccountSubType subType,
+      LocalDate openedAt) {
     FinancialAccount account =
-        new FinancialAccount(id, name, accountType, balance, broker, ownerId, subType);
+        new FinancialAccount(id, name, accountType, balance, broker, ownerId, subType, openedAt);
     account.transactions.addAll(transactions);
     return account;
   }
@@ -75,7 +80,8 @@ public final class FinancialAccount {
       Money initialBalance,
       String broker,
       UserId ownerId,
-      AccountSubType subType) {
+      AccountSubType subType,
+      LocalDate openedAt) {
     if (name == null || name.isBlank()) {
       throw new InvalidFinancialAccountException("name must not be null or blank");
     }
@@ -89,10 +95,11 @@ public final class FinancialAccount {
       throw new InvalidFinancialAccountException("broker must not be null or blank");
     }
     Objects.requireNonNull(ownerId, "ownerId must not be null");
+    Objects.requireNonNull(openedAt, "openedAt must not be null");
     // Account always starts at zero — initial balance is recorded as a DEPOSIT transaction
     Money zero = new Money(BigDecimal.ZERO, initialBalance.currency());
     return new FinancialAccount(
-        FinancialAccountId.generate(), name, accountType, zero, broker, ownerId, subType);
+        FinancialAccountId.generate(), name, accountType, zero, broker, ownerId, subType, openedAt);
   }
 
   public void recordTransaction(Transaction t) {
@@ -185,5 +192,9 @@ public final class FinancialAccount {
 
   public AccountSubType subType() {
     return subType;
+  }
+
+  public LocalDate openedAt() {
+    return openedAt;
   }
 }

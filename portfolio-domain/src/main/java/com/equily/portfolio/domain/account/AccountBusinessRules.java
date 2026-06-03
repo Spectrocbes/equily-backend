@@ -92,13 +92,23 @@ public final class AccountBusinessRules {
   }
 
   /**
-   * Computes total deposits for the given account, applying the combined PEA+PEA-PME rule when
-   * applicable.
+   * Computes the deposit capacity used for limit calculation.
+   *
+   * <p>Savings accounts (Livret A, LDDS, LDD, LEP, Livret Jeune): capacity used = current balance →
+   * withdrawals free up space up to the legal cap; interest can push balance above cap (allowed).
+   *
+   * <p>Investment accounts (PEA, PEA-PME): capacity used = cumulative deposits → withdrawals do not
+   * free up space (pre-5-year rule; Phase B will handle post-5-year withdrawals).
    */
   private static Money computeDepositTotal(
       FinancialAccount account, List<FinancialAccount> allUserAccounts, AccountSubType subType) {
 
-    // PEA-PME uses combined PEA+PEA-PME deposits against the 225k combined limit
+    // Savings: use current balance as the deposit ceiling
+    if (isSavingsType(subType)) {
+      return account.balance();
+    }
+
+    // PEA-PME uses combined PEA+PEA-PME cumulative deposits against the 225k combined limit
     if (subType == AccountSubType.PEA_PME) {
       return allUserAccounts.stream()
           .filter(a -> a.subType() == AccountSubType.PEA || a.subType() == AccountSubType.PEA_PME)
@@ -109,6 +119,14 @@ public final class AccountBusinessRules {
     }
 
     return sumDeposits(account);
+  }
+
+  private static boolean isSavingsType(AccountSubType subType) {
+    return subType == AccountSubType.LIVRET_A
+        || subType == AccountSubType.LDDS
+        || subType == AccountSubType.LDD
+        || subType == AccountSubType.LEP
+        || subType == AccountSubType.LIVRET_JEUNE;
   }
 
   private static Money sumDeposits(FinancialAccount account) {
