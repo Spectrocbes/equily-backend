@@ -43,4 +43,11 @@ public interface FinancialAccountUseCase {
    * the account does not exist or is not owned by the requesting user.
    */
   CsvImportResult importCsv(FinancialAccountId accountId, CsvImportResult parsed, UserId ownerId);
+
+  /**
+   * Updates an existing transaction's mutable fields. Type and ticker cannot be changed. Throws
+   * AccountNotFoundException if the account does not exist or is not owned by the requesting user.
+   * Throws TransactionNotFoundException if no transaction with the given id exists.
+   */
+  void updateTransaction(UpdateTransactionCommand command);
 }

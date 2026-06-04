@@ -8,6 +8,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -33,6 +34,7 @@ import com.equily.portfolio.domain.exception.DepositLimitExceededException;
 import com.equily.portfolio.domain.exception.InsufficientFundsException;
 import com.equily.portfolio.domain.exception.InvalidHoldingException;
 import com.equily.portfolio.domain.exception.InvalidTransactionException;
+import com.equily.portfolio.domain.exception.TransactionNotFoundException;
 import com.equily.shared.Country;
 import com.equily.shared.Money;
 import java.math.BigDecimal;
@@ -585,6 +587,89 @@ class FinancialAccountControllerTest {
         .andExpect(jsonPath("$.depositLimit").value(22950))
         .andExpect(jsonPath("$.totalDeposits").value(10000))
         .andExpect(jsonPath("$.remainingCapacity").value(12950));
+  }
+
+  @Test
+  void updateTransaction_returns_204() throws Exception {
+    UUID txId = UUID.randomUUID();
+
+    mockMvc
+        .perform(
+            put(
+                    "/api/v1/accounts/{id}/transactions/{txId}",
+                    testAccount.id().value().toString(),
+                    txId.toString())
+                .with(authentication(mockAuth()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"totalAmount": 500, "date": "2026-05-24", "fees": 0}
+                    """))
+        .andExpect(status().isNoContent());
+  }
+
+  @Test
+  void updateTransaction_returns_404_when_transaction_not_found() throws Exception {
+    UUID txId = UUID.randomUUID();
+    doThrow(new TransactionNotFoundException(new TransactionId(txId)))
+        .when(useCase)
+        .updateTransaction(any());
+
+    mockMvc
+        .perform(
+            put(
+                    "/api/v1/accounts/{id}/transactions/{txId}",
+                    testAccount.id().value().toString(),
+                    txId.toString())
+                .with(authentication(mockAuth()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"totalAmount": 500, "date": "2026-05-24", "fees": 0}
+                    """))
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
+  void getPeaSummary_returns_pea_data() throws Exception {
+    UserId userId = UserId.generate();
+    FinancialAccount pea =
+        FinancialAccount.open(
+            "Mon PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, Currency.getInstance("EUR")),
+            "Fortuneo",
+            userId,
+            AccountSubType.PEA,
+            LocalDate.of(2020, 1, 1));
+    Transaction deposit =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("50000"), Currency.getInstance("EUR")),
+            LocalDate.of(2020, 6, 1),
+            BigDecimal.ZERO,
+            null);
+    pea.recordTransaction(deposit);
+    when(useCase.getAllAccounts(any())).thenReturn(List.of(pea));
+
+    mockMvc
+        .perform(
+            get("/api/v1/accounts/summary/pea")
+                .with(
+                    authentication(
+                        new UsernamePasswordAuthenticationToken(userId, null, List.of()))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.hasPea").value(true))
+        .andExpect(jsonPath("$.hasPeaPme").value(false))
+        .andExpect(jsonPath("$.peaDeposits").value(50000))
+        .andExpect(jsonPath("$.peaLimit").value(150000))
+        .andExpect(jsonPath("$.peaRemaining").value(100000))
+        .andExpect(jsonPath("$.combinedLimit").value(225000))
+        .andExpect(jsonPath("$.peaAccountId").value(pea.id().value().toString()));
   }
 
   @Test

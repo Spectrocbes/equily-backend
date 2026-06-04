@@ -5,6 +5,7 @@ import com.equily.portfolio.application.BrokerCsvParserPort;
 import com.equily.portfolio.application.CreateFinancialAccountCommand;
 import com.equily.portfolio.application.FinancialAccountUseCase;
 import com.equily.portfolio.application.RecordTransactionCommand;
+import com.equily.portfolio.application.UpdateTransactionCommand;
 import com.equily.portfolio.application.exception.CsvParsingException;
 import com.equily.portfolio.domain.AccountType;
 import com.equily.portfolio.domain.FinancialAccount;
@@ -12,7 +13,9 @@ import com.equily.portfolio.domain.FinancialAccountId;
 import com.equily.portfolio.domain.Holding;
 import com.equily.portfolio.domain.Ticker;
 import com.equily.portfolio.domain.Transaction;
+import com.equily.portfolio.domain.TransactionId;
 import com.equily.portfolio.domain.TransactionType;
+import com.equily.portfolio.domain.UpdatedTransactionValues;
 import com.equily.portfolio.domain.account.AccountBusinessRules;
 import com.equily.portfolio.domain.account.AccountSubType;
 import com.equily.portfolio.domain.account.DepositLimits;
@@ -33,6 +36,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -143,6 +147,70 @@ class FinancialAccountController {
     return ResponseEntity.ok(response);
   }
 
+  @PutMapping("/{accountId}/transactions/{transactionId}")
+  ResponseEntity<Void> updateTransaction(
+      @PathVariable String accountId,
+      @PathVariable String transactionId,
+      @RequestBody @Valid UpdateTransactionRequest request,
+      Authentication authentication) {
+
+    UserId userId = extractUserId(authentication);
+
+    UpdateTransactionCommand command =
+        new UpdateTransactionCommand(
+            new FinancialAccountId(UUID.fromString(accountId)),
+            new TransactionId(UUID.fromString(transactionId)),
+            userId,
+            new UpdatedTransactionValues(
+                request.quantity(),
+                request.pricePerUnit() != null
+                    ? new Money(request.pricePerUnit(), Currency.getInstance("EUR"))
+                    : null,
+                new Money(request.totalAmount(), Currency.getInstance("EUR")),
+                request.date(),
+                request.fees(),
+                request.description()));
+
+    useCase.updateTransaction(command);
+    return ResponseEntity.noContent().build();
+  }
+
+  @GetMapping("/summary/pea")
+  ResponseEntity<PeaSummaryResponse> getPeaSummary(Authentication authentication) {
+    UserId userId = extractUserId(authentication);
+    List<FinancialAccount> accounts = useCase.getAllAccounts(userId);
+
+    FinancialAccount pea =
+        accounts.stream().filter(a -> a.subType() == AccountSubType.PEA).findFirst().orElse(null);
+
+    FinancialAccount peaPme =
+        accounts.stream()
+            .filter(a -> a.subType() == AccountSubType.PEA_PME)
+            .findFirst()
+            .orElse(null);
+
+    BigDecimal peaDep = pea != null ? sumDeposits(pea) : BigDecimal.ZERO;
+    BigDecimal peaPmeDep = peaPme != null ? sumDeposits(peaPme) : BigDecimal.ZERO;
+    BigDecimal combined = peaDep.add(peaPmeDep);
+
+    BigDecimal peaLimit = new BigDecimal("150000");
+    BigDecimal combinedLimit = new BigDecimal("225000");
+
+    return ResponseEntity.ok(
+        new PeaSummaryResponse(
+            pea != null,
+            peaPme != null,
+            peaDep,
+            peaPmeDep,
+            combined,
+            combinedLimit,
+            combinedLimit.subtract(combined).max(BigDecimal.ZERO),
+            peaLimit,
+            peaLimit.subtract(peaDep).max(BigDecimal.ZERO),
+            pea != null ? pea.id().value().toString() : null,
+            peaPme != null ? peaPme.id().value().toString() : null));
+  }
+
   @GetMapping("/{id}/transactions")
   ResponseEntity<List<TransactionResponse>> getTransactions(
       @PathVariable String id, Authentication auth) {
@@ -185,6 +253,13 @@ class FinancialAccountController {
       return ResponseEntity.internalServerError()
           .body(new CsvImportResponse(0, 0, 1, List.of("Failed to read file: " + e.getMessage())));
     }
+  }
+
+  private BigDecimal sumDeposits(FinancialAccount account) {
+    return account.transactions().stream()
+        .filter(t -> t.type() == TransactionType.DEPOSIT)
+        .map(t -> t.totalAmount().amount())
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
   }
 
   private FinancialAccountResponse toAccountResponse(

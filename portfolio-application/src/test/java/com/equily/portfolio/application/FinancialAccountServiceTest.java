@@ -17,6 +17,7 @@ import com.equily.portfolio.domain.Ticker;
 import com.equily.portfolio.domain.Transaction;
 import com.equily.portfolio.domain.TransactionId;
 import com.equily.portfolio.domain.TransactionType;
+import com.equily.portfolio.domain.UpdatedTransactionValues;
 import com.equily.portfolio.domain.account.AccountSubType;
 import com.equily.portfolio.domain.csv.CsvImportResult;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
@@ -600,6 +601,69 @@ class FinancialAccountServiceTest {
     CsvImportResult result = service.importCsv(account.id(), parsed, ownerId);
 
     assertThat(result.imported()).isEqualTo(2);
+  }
+
+  @Test
+  void updateTransaction_delegates_to_domain_and_saves() {
+    UserId ownerId = UserId.generate();
+    FinancialAccount account =
+        FinancialAccount.open(
+            "My PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            ownerId,
+            null,
+            OPENED_AT);
+    Transaction deposit =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("1000"), EUR),
+            LocalDate.of(2026, 1, 1),
+            BigDecimal.ZERO,
+            null);
+    account.recordTransaction(deposit);
+    when(repository.findById(account.id())).thenReturn(Optional.of(account));
+
+    UpdatedTransactionValues values =
+        new UpdatedTransactionValues(
+            null,
+            null,
+            new Money(new BigDecimal("2000"), EUR),
+            LocalDate.of(2026, 1, 1),
+            BigDecimal.ZERO,
+            "Updated");
+    UpdateTransactionCommand command =
+        new UpdateTransactionCommand(account.id(), deposit.id(), ownerId, values);
+
+    service.updateTransaction(command);
+
+    verify(repository).save(account);
+  }
+
+  @Test
+  void updateTransaction_throws_AccountNotFound_on_ownership_mismatch() {
+    FinancialAccount account = openAccount("My PEA", "10000");
+    when(repository.findById(account.id())).thenReturn(Optional.of(account));
+
+    UpdatedTransactionValues values =
+        new UpdatedTransactionValues(
+            null,
+            null,
+            new Money(new BigDecimal("500"), EUR),
+            LocalDate.of(2026, 1, 1),
+            BigDecimal.ZERO,
+            null);
+    UpdateTransactionCommand command =
+        new UpdateTransactionCommand(
+            account.id(), TransactionId.generate(), UserId.generate(), values);
+
+    assertThatThrownBy(() -> service.updateTransaction(command))
+        .isInstanceOf(AccountNotFoundException.class);
   }
 
   @Test

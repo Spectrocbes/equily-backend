@@ -1,7 +1,9 @@
 package com.equily.portfolio.infrastructure.csv;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.equily.portfolio.application.exception.CsvParsingException;
 import com.equily.portfolio.domain.TransactionType;
 import com.equily.portfolio.domain.csv.CsvImportResult;
 import java.io.ByteArrayInputStream;
@@ -87,9 +89,21 @@ class BoursobankOperationParserTest {
         Date opération;Date valeur;Opération;Valeur;Code ISIN;Montant;Quantité;Cours
         29/01/2026;29/01/2026;OPERATION INCONNUE;;;100;0;0,00 €
         """;
-    CsvImportResult result = parser.parse(csv(content));
-    assertThat(result.imported()).isZero();
-    assertThat(result.skipped()).isEqualTo(1);
+    // all rows skipped with no errors → throws because no valid transactions found
+    assertThatThrownBy(() -> parser.parse(csv(content))).isInstanceOf(CsvParsingException.class);
+  }
+
+  @Test
+  void parse_throws_when_file_has_no_valid_transactions() {
+    String content =
+        """
+        Date opération;Date valeur;Opération;Valeur;Code ISIN;Montant;Quantité;Cours
+        29/01/2026;29/01/2026;OPERATION INCONNUE;;;100;0;0,00 €
+        29/01/2026;29/01/2026;AUTRE INCONNUE;;;200;0;0,00 €
+        """;
+    assertThatThrownBy(() -> parser.parse(csv(content)))
+        .isInstanceOf(CsvParsingException.class)
+        .hasMessageContaining("No valid transactions found");
   }
 
   @Test

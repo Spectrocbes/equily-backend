@@ -37,6 +37,7 @@ class FinancialAccountService implements FinancialAccountUseCase {
           TransactionType.DEPOSIT, 1,
           TransactionType.WITHDRAWAL, 2,
           TransactionType.DIVIDEND, 3,
+          TransactionType.INTEREST, 3,
           TransactionType.BUY, 4,
           TransactionType.SELL, 5);
 
@@ -184,6 +185,22 @@ class FinancialAccountService implements FinancialAccountUseCase {
 
     return new CsvImportResult(
         toImport.size(), skipped, parsed.errors(), parsed.errorDetails(), toImport);
+  }
+
+  @Override
+  @Transactional
+  public void updateTransaction(UpdateTransactionCommand command) {
+    FinancialAccount account =
+        repository
+            .findById(command.accountId())
+            .orElseThrow(() -> new AccountNotFoundException(command.accountId()));
+
+    if (!account.ownerId().equals(command.userId())) {
+      throw new AccountNotFoundException(command.accountId());
+    }
+
+    account.updateTransaction(command.transactionId(), command.values());
+    repository.save(account);
   }
 
   private String duplicateKey(LocalDate date, Ticker ticker, BigDecimal amount) {

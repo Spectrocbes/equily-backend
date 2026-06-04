@@ -74,6 +74,32 @@ class BoursobankPositionParser extends AbstractBoursobankParser {
       throw new CsvParsingException("Failed to read positions CSV", e);
     }
 
+    if (transactions.isEmpty() && errorDetails.isEmpty()) {
+      throw new CsvParsingException(
+          "No valid transactions found in file. The file may be empty or contain only headers.");
+    }
+
+    if (!transactions.isEmpty()) {
+      BigDecimal totalAmount =
+          transactions.stream()
+              .map(t -> t.totalAmount().amount())
+              .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+      Transaction initialDeposit =
+          Transaction.of(
+              TransactionId.generate(),
+              TransactionType.DEPOSIT,
+              null,
+              null,
+              null,
+              new Money(totalAmount, Currency.getInstance("EUR")),
+              transactions.get(0).date(),
+              BigDecimal.ZERO,
+              "Initial import — positions snapshot");
+
+      transactions.add(0, initialDeposit);
+    }
+
     return new CsvImportResult(
         transactions.size(), skipped, errorDetails.size(), errorDetails, transactions);
   }

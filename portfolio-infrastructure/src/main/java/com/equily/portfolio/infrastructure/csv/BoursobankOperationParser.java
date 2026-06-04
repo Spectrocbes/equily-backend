@@ -69,6 +69,11 @@ class BoursobankOperationParser extends AbstractBoursobankParser {
       throw new CsvParsingException("Failed to read CSV file", e);
     }
 
+    if (transactions.isEmpty() && errorDetails.isEmpty()) {
+      throw new CsvParsingException(
+          "No valid transactions found in file. The file may be empty or contain only headers.");
+    }
+
     return new CsvImportResult(
         transactions.size(), skipped, errorDetails.size(), errorDetails, transactions);
   }

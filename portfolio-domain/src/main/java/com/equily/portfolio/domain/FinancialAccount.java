@@ -5,11 +5,13 @@ import com.equily.portfolio.domain.account.AccountSubType;
 import com.equily.portfolio.domain.exception.InsufficientFundsException;
 import com.equily.portfolio.domain.exception.InvalidFinancialAccountException;
 import com.equily.portfolio.domain.exception.InvalidHoldingException;
+import com.equily.portfolio.domain.exception.TransactionNotFoundException;
 import com.equily.shared.Money;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -20,11 +22,20 @@ public final class FinancialAccount {
 
   public record AssetInfo(AssetType assetType, AssetMetadata metadata) {}
 
+  private static final Map<TransactionType, Integer> TYPE_PRIORITY =
+      Map.of(
+          TransactionType.DEPOSIT, 1,
+          TransactionType.WITHDRAWAL, 2,
+          TransactionType.DIVIDEND, 3,
+          TransactionType.INTEREST, 3,
+          TransactionType.BUY, 4,
+          TransactionType.SELL, 5);
+
   private final FinancialAccountId id;
   private final String name;
   private final AccountType accountType;
   private Money balance;
-  private final List<Transaction> transactions;
+  private List<Transaction> transactions;
   private final String broker;
   private final UserId ownerId;
   private final AccountSubType subType;
@@ -104,7 +115,7 @@ public final class FinancialAccount {
 
   public void recordTransaction(Transaction t) {
     switch (t.type()) {
-      case DEPOSIT, DIVIDEND -> balance = balance.add(t.totalAmount());
+      case DEPOSIT, DIVIDEND, INTEREST -> balance = balance.add(t.totalAmount());
       case SELL -> {
         if (t.ticker() != null && t.quantity() != null) {
           BigDecimal heldQty = computeNetQuantity(t.ticker());
@@ -196,5 +207,70 @@ public final class FinancialAccount {
 
   public LocalDate openedAt() {
     return openedAt;
+  }
+
+  public void updateTransaction(TransactionId id, UpdatedTransactionValues values) {
+    Transaction existing =
+        transactions.stream()
+            .filter(t -> t.id().equals(id))
+            .findFirst()
+            .orElseThrow(() -> new TransactionNotFoundException(id));
+
+    Transaction updated =
+        Transaction.of(
+            existing.id(),
+            existing.type(),
+            existing.ticker(),
+            values.quantity(),
+            values.pricePerUnit(),
+            values.totalAmount(),
+            values.date(),
+            values.fees(),
+            values.description());
+
+    List<Transaction> newList =
+        transactions.stream()
+            .map(t -> t.id().equals(id) ? updated : t)
+            .collect(Collectors.toCollection(ArrayList::new));
+
+    validateChronology(newList);
+
+    this.transactions = newList;
+    this.balance = computeBalanceFrom(newList);
+  }
+
+  private void validateChronology(List<Transaction> txList) {
+    List<Transaction> sorted =
+        txList.stream()
+            .sorted(
+                Comparator.comparing(Transaction::date)
+                    .thenComparingInt(t -> TYPE_PRIORITY.getOrDefault(t.type(), 99)))
+            .toList();
+
+    Money running = new Money(BigDecimal.ZERO, this.balance.currency());
+    for (Transaction tx : sorted) {
+      running = applyToBalance(running, tx);
+      if (running.amount().compareTo(BigDecimal.ZERO) < 0) {
+        throw new InsufficientFundsException(tx.totalAmount(), running.add(tx.totalAmount()));
+      }
+    }
+  }
+
+  private Money computeBalanceFrom(List<Transaction> txList) {
+    Money zero = new Money(BigDecimal.ZERO, this.balance.currency());
+    return txList.stream()
+        .reduce(
+            zero,
+            (bal, tx) -> applyToBalance(bal, tx),
+            (a, b) -> {
+              throw new UnsupportedOperationException();
+            });
+  }
+
+  private Money applyToBalance(Money bal, Transaction tx) {
+    return switch (tx.type()) {
+      case DEPOSIT, DIVIDEND, INTEREST, SELL -> bal.add(tx.totalAmount());
+      case WITHDRAWAL, BUY -> bal.subtract(tx.totalAmount());
+    };
   }
 }
