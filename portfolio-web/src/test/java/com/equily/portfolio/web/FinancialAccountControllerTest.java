@@ -673,6 +673,74 @@ class FinancialAccountControllerTest {
   }
 
   @Test
+  void toAccountResponse_returns_portfolioValue_for_pea_account() throws Exception {
+    FinancialAccount pea =
+        FinancialAccount.open(
+            "My PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, Currency.getInstance("EUR")),
+            "Fortuneo",
+            testUserId,
+            null,
+            LocalDate.of(2024, 1, 1));
+    pea.recordTransaction(
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("1000"), Currency.getInstance("EUR")),
+            LocalDate.of(2024, 1, 10),
+            BigDecimal.ZERO,
+            null));
+    pea.recordTransaction(
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.BUY,
+            new Ticker("AAPL"),
+            new BigDecimal("10"),
+            new Money(new BigDecimal("100"), Currency.getInstance("EUR")),
+            new Money(new BigDecimal("1000"), Currency.getInstance("EUR")),
+            LocalDate.of(2024, 2, 1),
+            BigDecimal.ZERO,
+            null));
+
+    FinancialAccountId id = pea.id();
+    when(useCase.getAccountById(eq(id), any())).thenReturn(pea);
+    when(useCase.getAllAccounts(any())).thenReturn(List.of(pea));
+
+    mockMvc
+        .perform(
+            get("/api/v1/accounts/{id}", id.value().toString()).with(authentication(mockAuth())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.portfolioValue").value(1000.00));
+  }
+
+  @Test
+  void toAccountResponse_returns_null_portfolioValue_for_savings_account() throws Exception {
+    FinancialAccount savings =
+        FinancialAccount.open(
+            "Livret A",
+            AccountType.SAVINGS_ACCOUNT,
+            new Money(BigDecimal.ZERO, Currency.getInstance("EUR")),
+            "Boursobank",
+            testUserId,
+            null,
+            LocalDate.of(2024, 1, 1));
+
+    FinancialAccountId id = savings.id();
+    when(useCase.getAccountById(eq(id), any())).thenReturn(savings);
+    when(useCase.getAllAccounts(any())).thenReturn(List.of(savings));
+
+    mockMvc
+        .perform(
+            get("/api/v1/accounts/{id}", id.value().toString()).with(authentication(mockAuth())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.portfolioValue").doesNotExist());
+  }
+
+  @Test
   void getAccountById_returns_null_deposit_fields_for_account_without_subtype() throws Exception {
     FinancialAccountId id = testAccount.id();
     when(useCase.getAccountById(eq(id), any())).thenReturn(testAccount);

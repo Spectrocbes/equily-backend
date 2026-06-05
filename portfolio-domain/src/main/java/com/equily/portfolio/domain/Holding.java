@@ -7,6 +7,7 @@ import java.math.RoundingMode;
 import java.util.Currency;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 public record Holding(
     Ticker ticker,
@@ -75,5 +76,21 @@ public record Holding(
     return Optional.of(
         new Holding(
             ticker, assetType, metadata, totalQty, averageCostPrice, totalInvested, totalFeesPaid));
+  }
+
+  public static List<Holding> computeFrom(List<Transaction> transactions) {
+    if (transactions == null || transactions.isEmpty()) return List.of();
+    return transactions.stream()
+        .filter(
+            t ->
+                t.ticker() != null
+                    && (t.type() == TransactionType.BUY || t.type() == TransactionType.SELL))
+        .collect(Collectors.groupingBy(t -> t.ticker().symbol()))
+        .values()
+        .stream()
+        .map(group -> computeFrom(group, null, null))
+        .filter(Optional::isPresent)
+        .map(Optional::get)
+        .toList();
   }
 }

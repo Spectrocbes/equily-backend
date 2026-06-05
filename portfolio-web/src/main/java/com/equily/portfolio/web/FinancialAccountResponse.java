@@ -15,4 +15,5 @@ public record FinancialAccountResponse(
     BigDecimal depositLimit,
     BigDecimal totalDeposits,
     BigDecimal remainingCapacity,
-    LocalDate openedAt) {}
+    LocalDate openedAt,
+    BigDecimal portfolioValue) {}

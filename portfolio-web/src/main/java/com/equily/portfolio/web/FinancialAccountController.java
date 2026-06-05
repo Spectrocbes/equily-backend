@@ -24,10 +24,12 @@ import com.equily.shared.Money;
 import jakarta.validation.Valid;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.Currency;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -46,6 +48,15 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/api/v1/accounts")
 class FinancialAccountController {
+
+  private static final Set<AccountType> INVESTMENT_TYPES =
+      Set.of(
+          AccountType.PEA,
+          AccountType.PEA_PME,
+          AccountType.COMPTE_TITRES,
+          AccountType.PER,
+          AccountType.ASSURANCE_VIE,
+          AccountType.CRYPTO_WALLET);
 
   private final FinancialAccountUseCase useCase;
   private final BrokerCsvParserPort parserPort;
@@ -288,7 +299,21 @@ class FinancialAccountController {
         depositLimit,
         totalDeposits,
         remainingCapacity,
-        account.openedAt());
+        account.openedAt(),
+        computePortfolioValue(account));
+  }
+
+  private BigDecimal computePortfolioValue(FinancialAccount account) {
+    if (!INVESTMENT_TYPES.contains(account.accountType())) return null;
+    List<Holding> holdings = Holding.computeFrom(account.transactions());
+    return holdings.stream()
+        .map(
+            h ->
+                h.averageCostPrice()
+                    .amount()
+                    .multiply(h.quantity())
+                    .setScale(2, RoundingMode.HALF_EVEN))
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
   }
 
   private TransactionResponse toTransactionResponse(Transaction tx) {
