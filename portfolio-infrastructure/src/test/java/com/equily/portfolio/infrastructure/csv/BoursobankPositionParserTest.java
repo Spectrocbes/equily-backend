@@ -107,6 +107,21 @@ AMUNDI NASDAQ-100;FR0010342592;1;1100,00;2042,00;0,56;2042,00;932;36,7;29/01/202
   }
 
   @Test
+  void empty_trailing_rows_are_not_counted_as_skipped() {
+    String content =
+        """
+name;isin;quantity;buyingPrice;lastPrice;intradayVariation;amount;amountVariation;variation;lastMovementDate;compensation
+AMUNDI NASDAQ;FR0010342592;1;1100,00;2042,00;0,56;2042,00;932;36,7;29/01/2026;
+;;;;;;;;;;
+;;;;;;;;;;
+""";
+    CsvImportResult result = parser.parse(csv(content));
+    assertThat(result.skipped()).isZero();
+    assertThat(result.imported()).isEqualTo(2); // 1 position + 1 auto-deposit
+    assertThat(result.errors()).isZero();
+  }
+
+  @Test
   void parse_deposit_amount_equals_sum_of_positions() {
     String content =
         """

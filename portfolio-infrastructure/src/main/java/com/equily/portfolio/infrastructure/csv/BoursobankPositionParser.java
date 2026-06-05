@@ -35,13 +35,11 @@ class BoursobankPositionParser extends AbstractBoursobankParser {
     try (CSVParser parser = buildParser(inputStream)) {
       for (CSVRecord record : parser) {
         if (isEmptyRow(record)) {
-          skipped++;
           continue;
         }
         try {
           String isin = record.get("isin").trim();
           if (isin.isBlank()) {
-            skipped++;
             continue;
           }
 
