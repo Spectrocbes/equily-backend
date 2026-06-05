@@ -1,5 +1,6 @@
 package com.equily.identity.infrastructure.security;
 
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -26,6 +27,12 @@ public class SecurityConfig {
   public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
     http.csrf(AbstractHttpConfigurer::disable) // NOSONAR — stateless JWT API, CSRF not applicable
         .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        .exceptionHandling(
+            e ->
+                e.authenticationEntryPoint(
+                    (request, response, ex) ->
+                        response.sendError(
+                            HttpServletResponse.SC_UNAUTHORIZED, "Authentication required")))
         .authorizeHttpRequests(
             auth -> auth.requestMatchers("/auth/**").permitAll().anyRequest().authenticated())
         .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);

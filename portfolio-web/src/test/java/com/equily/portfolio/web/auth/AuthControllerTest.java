@@ -1,5 +1,6 @@
 package com.equily.portfolio.web.auth;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
@@ -7,6 +8,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -314,5 +316,24 @@ class AuthControllerTest {
                     {"token":"bad-token","newPassword":"newpass123"}
                     """))
         .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  void refresh_returns_401_with_specific_message_for_revoked_token() throws Exception {
+    when(authService.refresh(any()))
+        .thenThrow(new InvalidCredentialsException("Invalid or expired refresh token"));
+
+    mockMvc
+        .perform(
+            post("/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"revoked-token\"}"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(content().string(containsString("Invalid or expired refresh token")));
+  }
+
+  @Test
+  void unauthenticated_request_returns_401_not_403() throws Exception {
+    mockMvc.perform(get("/api/v1/accounts")).andExpect(status().isUnauthorized());
   }
 }
