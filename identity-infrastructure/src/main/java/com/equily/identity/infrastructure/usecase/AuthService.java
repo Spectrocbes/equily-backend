@@ -77,7 +77,9 @@ public class AuthService {
     Optional<UserId> userIdOpt =
         refreshTokenService.rotateRefreshToken(rawRefreshToken, newRawToken);
 
-    UserId userId = userIdOpt.orElseThrow(InvalidCredentialsException::new);
+    UserId userId =
+        userIdOpt.orElseThrow(
+            () -> new InvalidCredentialsException("Invalid or expired refresh token"));
 
     User user = userRepository.findById(userId).orElseThrow(InvalidCredentialsException::new);
 
