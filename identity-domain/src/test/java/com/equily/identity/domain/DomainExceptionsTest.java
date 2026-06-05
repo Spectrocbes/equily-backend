@@ -21,6 +21,12 @@ class DomainExceptionsTest {
   }
 
   @Test
+  void InvalidCredentialsException_string_constructor_uses_provided_message() {
+    assertThat(new InvalidCredentialsException("Invalid or expired refresh token").getMessage())
+        .isEqualTo("Invalid or expired refresh token");
+  }
+
+  @Test
   void UserNotFoundException_message_contains_identifier() {
     assertThat(new UserNotFoundException("test@test.com").getMessage()).contains("test@test.com");
   }

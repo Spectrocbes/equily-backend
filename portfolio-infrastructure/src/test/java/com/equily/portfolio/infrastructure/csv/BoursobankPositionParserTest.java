@@ -7,6 +7,7 @@ import com.equily.portfolio.application.exception.CsvParsingException;
 import com.equily.portfolio.domain.TransactionType;
 import com.equily.portfolio.domain.csv.CsvImportResult;
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -119,6 +120,33 @@ AMUNDI NASDAQ;FR0010342592;1;1100,00;2042,00;0,56;2042,00;932;36,7;29/01/2026;
     assertThat(result.skipped()).isZero();
     assertThat(result.imported()).isEqualTo(2); // 1 position + 1 auto-deposit
     assertThat(result.errors()).isZero();
+  }
+
+  @Test
+  void parse_records_error_when_row_has_invalid_amount() {
+    String content =
+        """
+name;isin;quantity;buyingPrice;lastPrice;intradayVariation;amount;amountVariation;variation;lastMovementDate;compensation
+INVALID;FR0010342592;1;NOT_A_NUMBER;2042,00;0,56;2042,00;932;36,7;29/01/2026;
+""";
+    CsvImportResult result = parser.parse(csv(content));
+    assertThat(result.errors()).isEqualTo(1);
+    assertThat(result.errorDetails()).isNotEmpty();
+    assertThat(result.imported()).isZero();
+  }
+
+  @Test
+  void parse_throws_CsvParsingException_on_broken_input_stream() {
+    InputStream broken =
+        new InputStream() {
+          @Override
+          public int read() throws IOException {
+            throw new IOException("simulated stream failure");
+          }
+        };
+    assertThatThrownBy(() -> parser.parse(broken))
+        .isInstanceOf(CsvParsingException.class)
+        .hasMessageContaining("Failed to read positions CSV");
   }
 
   @Test
