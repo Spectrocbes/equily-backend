@@ -10,6 +10,7 @@ import com.equily.portfolio.domain.exception.DepositLimitExceededException;
 import com.equily.portfolio.domain.exception.InsufficientFundsException;
 import com.equily.portfolio.domain.exception.InvalidHoldingException;
 import com.equily.portfolio.domain.exception.InvalidTransactionException;
+import com.equily.portfolio.domain.exception.TransactionNotFoundException;
 import java.math.BigDecimal;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -37,6 +38,11 @@ class GlobalExceptionHandler {
 
   @ExceptionHandler(AccountNotFoundException.class)
   ResponseEntity<String> handleNotFound(AccountNotFoundException ex) {
+    return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
+  }
+
+  @ExceptionHandler(TransactionNotFoundException.class)
+  ResponseEntity<String> handleTransactionNotFound(TransactionNotFoundException ex) {
     return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
   }
 

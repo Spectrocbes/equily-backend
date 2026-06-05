@@ -7,6 +7,7 @@ import com.equily.identity.domain.UserId;
 import com.equily.portfolio.domain.exception.InsufficientFundsException;
 import com.equily.portfolio.domain.exception.InvalidFinancialAccountException;
 import com.equily.portfolio.domain.exception.InvalidHoldingException;
+import com.equily.portfolio.domain.exception.TransactionNotFoundException;
 import com.equily.shared.Country;
 import com.equily.shared.Money;
 import java.math.BigDecimal;
@@ -322,6 +323,94 @@ class FinancialAccountTest {
     }
 
     assertThat(account.transactions()).hasSize(2); // deposit (from helper) + 1 successful buy
+  }
+
+  @Test
+  void recordTransaction_INTEREST_increases_balance() {
+    FinancialAccount account = accountWith("500.00");
+    Transaction interest =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.INTEREST,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("10.00"), EUR),
+            TODAY,
+            BigDecimal.ZERO,
+            "Monthly interest");
+    account.recordTransaction(interest);
+    assertThat(account.balance()).isEqualTo(new Money(new BigDecimal("510.00"), EUR));
+  }
+
+  @Test
+  void recordTransaction_INTEREST_does_not_affect_deposit_limit() {
+    FinancialAccount account = accountWith("1000.00");
+    Transaction interest =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.INTEREST,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("50.00"), EUR),
+            TODAY,
+            BigDecimal.ZERO,
+            null);
+    account.recordTransaction(interest);
+
+    BigDecimal depositTotal =
+        account.transactions().stream()
+            .filter(t -> t.type() == TransactionType.DEPOSIT)
+            .map(t -> t.totalAmount().amount())
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    // only the 1000 from accountWith counts — INTEREST does not count as a deposit
+    assertThat(depositTotal).isEqualByComparingTo(new BigDecimal("1000.00"));
+    assertThat(account.balance().amount()).isEqualByComparingTo(new BigDecimal("1050.00"));
+  }
+
+  @Test
+  void updateTransaction_updates_amount_and_recalculates_balance() {
+    FinancialAccount account = accountWith("1000.00");
+    Transaction second = deposit("500.00");
+    account.recordTransaction(second);
+    // balance = 1000 + 500 = 1500
+
+    UpdatedTransactionValues values =
+        new UpdatedTransactionValues(
+            null, null, new Money(new BigDecimal("200.00"), EUR), TODAY, BigDecimal.ZERO, null);
+    account.updateTransaction(second.id(), values);
+
+    // balance recomputed: 1000 + 200 = 1200
+    assertThat(account.balance()).isEqualTo(new Money(new BigDecimal("1200.00"), EUR));
+    assertThat(account.transactions()).hasSize(2);
+  }
+
+  @Test
+  void updateTransaction_throws_when_transaction_not_found() {
+    FinancialAccount account = accountWith("1000.00");
+    UpdatedTransactionValues values =
+        new UpdatedTransactionValues(
+            null, null, new Money(new BigDecimal("500.00"), EUR), TODAY, BigDecimal.ZERO, null);
+
+    assertThatThrownBy(() -> account.updateTransaction(TransactionId.generate(), values))
+        .isInstanceOf(TransactionNotFoundException.class);
+  }
+
+  @Test
+  void updateTransaction_throws_when_edit_creates_negative_balance() {
+    FinancialAccount account = accountWith("1000.00");
+    Transaction second = deposit("500.00");
+    account.recordTransaction(second);
+    account.recordTransaction(withdrawal("1200.00")); // balance = 1000 + 500 - 1200 = 300
+
+    // reducing second deposit to 100 → replay: 1000 + 100 - 1200 = -100 → throws
+    UpdatedTransactionValues values =
+        new UpdatedTransactionValues(
+            null, null, new Money(new BigDecimal("100.00"), EUR), TODAY, BigDecimal.ZERO, null);
+
+    assertThatThrownBy(() -> account.updateTransaction(second.id(), values))
+        .isInstanceOf(InsufficientFundsException.class);
   }
 
   @Test

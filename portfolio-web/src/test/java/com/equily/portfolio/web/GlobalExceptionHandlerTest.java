@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 import com.equily.portfolio.application.exception.CsvParsingException;
+import com.equily.portfolio.domain.TransactionId;
+import com.equily.portfolio.domain.exception.TransactionNotFoundException;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.MethodParameter;
@@ -16,6 +18,14 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 class GlobalExceptionHandlerTest {
 
   private final GlobalExceptionHandler handler = new GlobalExceptionHandler();
+
+  @Test
+  void handleTransactionNotFound_returns_404_with_message() {
+    TransactionNotFoundException ex = new TransactionNotFoundException(TransactionId.generate());
+    ResponseEntity<String> response = handler.handleTransactionNotFound(ex);
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    assertThat(response.getBody()).contains("Transaction not found");
+  }
 
   @Test
   void handleCsvParsing_returns_400_with_message() {

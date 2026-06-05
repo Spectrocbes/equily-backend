@@ -289,6 +289,45 @@
   `remainingCapacity_livretA_reflects_withdrawal`, `open_preserves_openedAt`, `open_with_null_openedAt_throws`.
 - 256 tests, 0 failures (was 213), 9/9 modules green, Spotless clean.
 
+## 2026-06-04 — INTEREST type, transaction edit, PEA summary, CSV fixes
+
+- `TransactionType.INTEREST`: new enum value for interest credited by bank on savings accounts (Livret A,
+  LDDS, LEP, Livret Jeune). Behaves like DIVIDEND for balance calculation. Does NOT count toward deposit
+  limit calculations (limits are based on cumulative DEPOSIT transactions only).
+- `updateTransaction(TransactionId, UpdatedTransactionValues)` on `FinancialAccount`: replaces the
+  transaction in-place, replays full chronology in date+type-priority order, throws
+  `InsufficientFundsException` if any intermediate balance goes negative. Type and ticker are immutable.
+- `TransactionNotFoundException` in `portfolio-domain/exception` — maps to 404 in `GlobalExceptionHandler`.
+- `UpdatedTransactionValues` record in `portfolio-domain`: immutable value object carrying editable fields
+  (quantity, pricePerUnit, totalAmount, date, fees, description).
+- `PUT /api/v1/accounts/{accountId}/transactions/{transactionId}`: edit transaction endpoint — 204 on
+  success, 404 if transaction not found, ownership-checked via JWT principal.
+- `GET /api/v1/accounts/summary/pea`: returns combined PEA + PEA-PME deposit summary (`PeaSummaryResponse`
+  DTO): hasPea, hasPeaPme, peaDeposits, peaPmeDeposits, combinedDeposits, limits, remaining capacities,
+  account IDs.
+- CSV parsers: both `BoursobankOperationParser` and `BoursobankPositionParser` now throw
+  `CsvParsingException("No valid transactions found in file…")` when the parsed result is empty with no
+  errors — prevents silent no-ops on wrong/empty files.
+- `BoursobankPositionParser`: prepends a synthetic `DEPOSIT` transaction equal to the sum of all parsed
+  position totals, dated to the first position's date, with description "Initial import — positions
+  snapshot". This ensures the account has sufficient balance before BUY positions are applied.
+- `FinancialAccountService.TYPE_PRIORITY` updated: INTEREST gets priority 3 (same as DIVIDEND).
+- ~270 tests, 0 failures, 9/9 modules green, Spotless clean.
+
+## 2026-06-05 — portfolioValue added to FinancialAccountResponse
+
+- `Holding.computeFrom(List<Transaction>)` overload added: filters BUY/SELL transactions, groups by ticker
+  symbol, delegates to the existing per-ticker overload, returns `List<Holding>`.
+- `INVESTMENT_TYPES` constant in `FinancialAccountController`: `Set.of(PEA, PEA_PME, COMPTE_TITRES, PER,
+  ASSURANCE_VIE, CRYPTO_WALLET)`.
+- `computePortfolioValue(FinancialAccount)` private method: returns `null` for non-investment accounts;
+  computes Σ (averageCostPrice × quantity) for investment accounts with BUY history.
+- `FinancialAccountResponse`: `BigDecimal portfolioValue` field added (13th field; `null` for
+  SAVINGS_ACCOUNT, CASH_ACCOUNT, REAL_ESTATE).
+- 2 new controller tests: `toAccountResponse_returns_portfolioValue_for_pea_account`,
+  `toAccountResponse_returns_null_portfolioValue_for_savings_account`.
+- BUILD SUCCESS, 9/9 modules green.
+
 ## Architecture Decisions
 
 - Lombok is forbidden everywhere. Java 21 records replace POJOs; explicit methods replace generated ones.
