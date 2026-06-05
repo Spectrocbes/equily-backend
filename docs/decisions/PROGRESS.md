@@ -314,6 +314,20 @@
 - `FinancialAccountService.TYPE_PRIORITY` updated: INTEREST gets priority 3 (same as DIVIDEND).
 - ~270 tests, 0 failures, 9/9 modules green, Spotless clean.
 
+## 2026-06-05 — portfolioValue added to FinancialAccountResponse
+
+- `Holding.computeFrom(List<Transaction>)` overload added: filters BUY/SELL transactions, groups by ticker
+  symbol, delegates to the existing per-ticker overload, returns `List<Holding>`.
+- `INVESTMENT_TYPES` constant in `FinancialAccountController`: `Set.of(PEA, PEA_PME, COMPTE_TITRES, PER,
+  ASSURANCE_VIE, CRYPTO_WALLET)`.
+- `computePortfolioValue(FinancialAccount)` private method: returns `null` for non-investment accounts;
+  computes Σ (averageCostPrice × quantity) for investment accounts with BUY history.
+- `FinancialAccountResponse`: `BigDecimal portfolioValue` field added (13th field; `null` for
+  SAVINGS_ACCOUNT, CASH_ACCOUNT, REAL_ESTATE).
+- 2 new controller tests: `toAccountResponse_returns_portfolioValue_for_pea_account`,
+  `toAccountResponse_returns_null_portfolioValue_for_savings_account`.
+- BUILD SUCCESS, 9/9 modules green.
+
 ## Architecture Decisions
 
 - Lombok is forbidden everywhere. Java 21 records replace POJOs; explicit methods replace generated ones.
