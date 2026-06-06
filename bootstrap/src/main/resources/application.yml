@@ -23,6 +23,12 @@ email:
   from-address: ${EMAIL_FROM_ADDRESS:noreply@equily.app}
   app-base-url: ${APP_BASE_URL:http://localhost:4200}
 
+market-data:
+  fmp:
+    api-key: ${FMP_API_KEY:demo}
+  alpha-vantage:
+    api-key: ${ALPHA_VANTAGE_API_KEY:demo}
+
 ---
 spring:
   config:

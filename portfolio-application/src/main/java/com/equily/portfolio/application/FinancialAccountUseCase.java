@@ -7,6 +7,7 @@ import com.equily.portfolio.domain.Holding;
 import com.equily.portfolio.domain.TransactionId;
 import com.equily.portfolio.domain.TransactionType;
 import com.equily.portfolio.domain.csv.CsvImportResult;
+import com.equily.portfolio.domain.marketdata.EnrichedHolding;
 import java.util.List;
 
 /**
@@ -45,6 +46,12 @@ public interface FinancialAccountUseCase {
    * the account does not exist or is not owned by the requesting user.
    */
   CsvImportResult importCsv(FinancialAccountId accountId, CsvImportResult parsed, UserId ownerId);
+
+  /**
+   * Returns enriched holdings for a given account, fetching live prices from the market data
+   * context. Holdings without an available quote are returned with priceAvailable=false.
+   */
+  List<EnrichedHolding> getEnrichedHoldings(FinancialAccountId id, UserId ownerId);
 
   /**
    * Updates an existing transaction's mutable fields. Type and ticker cannot be changed. Throws

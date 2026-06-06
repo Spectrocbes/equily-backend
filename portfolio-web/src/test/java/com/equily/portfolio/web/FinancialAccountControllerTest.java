@@ -35,9 +35,12 @@ import com.equily.portfolio.domain.exception.InsufficientFundsException;
 import com.equily.portfolio.domain.exception.InvalidHoldingException;
 import com.equily.portfolio.domain.exception.InvalidTransactionException;
 import com.equily.portfolio.domain.exception.TransactionNotFoundException;
+import com.equily.portfolio.domain.marketdata.EnrichedHolding;
+import com.equily.portfolio.domain.marketdata.Quote;
 import com.equily.shared.Country;
 import com.equily.shared.Money;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Currency;
 import java.util.List;
@@ -379,8 +382,7 @@ class FinancialAccountControllerTest {
 
   @Test
   void getHoldings_returns_200_with_holdings_list() throws Exception {
-    List<Holding> holdings = List.of();
-    when(useCase.getHoldings(any(), any())).thenReturn(holdings);
+    when(useCase.getEnrichedHoldings(any(), any())).thenReturn(List.of());
 
     mockMvc
         .perform(
@@ -392,7 +394,7 @@ class FinancialAccountControllerTest {
 
   @Test
   void getHoldings_returns_404_when_account_not_found() throws Exception {
-    when(useCase.getHoldings(any(), any()))
+    when(useCase.getEnrichedHoldings(any(), any()))
         .thenThrow(new AccountNotFoundException(FinancialAccountId.generate()));
 
     mockMvc
@@ -403,7 +405,7 @@ class FinancialAccountControllerTest {
   }
 
   @Test
-  void getHoldings_returns_200_with_mapped_holding_fields() throws Exception {
+  void getHoldings_returns_200_with_enriched_holding_fields_with_price() throws Exception {
     Holding holding =
         new Holding(
             new Ticker("AAPL"),
@@ -413,7 +415,10 @@ class FinancialAccountControllerTest {
             new Money(new BigDecimal("150.00"), Currency.getInstance("EUR")),
             new Money(new BigDecimal("1500.00"), Currency.getInstance("EUR")),
             new Money(new BigDecimal("4.99"), Currency.getInstance("EUR")));
-    when(useCase.getHoldings(any(), any())).thenReturn(List.of(holding));
+    Quote quote =
+        new Quote("AAPL", new BigDecimal("160.00"), "EUR", "Apple Inc.", Instant.now(), null);
+    EnrichedHolding enriched = EnrichedHolding.withPrice(holding, quote);
+    when(useCase.getEnrichedHoldings(any(), any())).thenReturn(List.of(enriched));
 
     mockMvc
         .perform(
@@ -424,9 +429,39 @@ class FinancialAccountControllerTest {
         .andExpect(jsonPath("$[0].ticker").value("AAPL"))
         .andExpect(jsonPath("$[0].quantity").value(10))
         .andExpect(jsonPath("$[0].averageCostPrice").value(150.00))
-        .andExpect(jsonPath("$[0].currency").value("EUR"))
         .andExpect(jsonPath("$[0].totalInvested").value(1500.00))
-        .andExpect(jsonPath("$[0].totalFeesPaid").value(4.99));
+        .andExpect(jsonPath("$[0].totalFeesPaid").value(4.99))
+        .andExpect(jsonPath("$[0].priceAvailable").value(true))
+        .andExpect(jsonPath("$[0].currentPrice").value(160.00))
+        .andExpect(jsonPath("$[0].currency").value("EUR"))
+        .andExpect(jsonPath("$[0].marketValue").value(1600.00))
+        .andExpect(jsonPath("$[0].unrealizedPnl").value(100.00));
+  }
+
+  @Test
+  void getHoldings_returns_200_with_enriched_holding_without_price() throws Exception {
+    Holding holding =
+        new Holding(
+            new Ticker("OBSCURE"),
+            AssetType.STOCK,
+            new AssetMetadata("Obscure Corp", null, new Country("US")),
+            new BigDecimal("5"),
+            new Money(new BigDecimal("200.00"), Currency.getInstance("EUR")),
+            new Money(new BigDecimal("1000.00"), Currency.getInstance("EUR")),
+            new Money(BigDecimal.ZERO, Currency.getInstance("EUR")));
+    EnrichedHolding enriched = EnrichedHolding.withoutPrice(holding);
+    when(useCase.getEnrichedHoldings(any(), any())).thenReturn(List.of(enriched));
+
+    mockMvc
+        .perform(
+            get("/api/v1/accounts/{id}/holdings", UUID.randomUUID().toString())
+                .with(authentication(mockAuth())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.length()").value(1))
+        .andExpect(jsonPath("$[0].ticker").value("OBSCURE"))
+        .andExpect(jsonPath("$[0].priceAvailable").value(false))
+        .andExpect(jsonPath("$[0].ticker").value("OBSCURE"))
+        .andExpect(jsonPath("$[0].totalInvested").value(1000.00));
   }
 
   @Test

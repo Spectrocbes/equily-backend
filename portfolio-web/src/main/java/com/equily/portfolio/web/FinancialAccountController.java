@@ -20,6 +20,7 @@ import com.equily.portfolio.domain.account.AccountBusinessRules;
 import com.equily.portfolio.domain.account.AccountSubType;
 import com.equily.portfolio.domain.account.DepositLimits;
 import com.equily.portfolio.domain.csv.CsvImportResult;
+import com.equily.portfolio.domain.marketdata.EnrichedHolding;
 import com.equily.shared.Money;
 import jakarta.validation.Valid;
 import java.io.IOException;
@@ -139,23 +140,30 @@ class FinancialAccountController {
   }
 
   @GetMapping("/{id}/holdings")
-  ResponseEntity<List<HoldingResponse>> getHoldings(@PathVariable String id, Authentication auth) {
+  ResponseEntity<List<EnrichedHoldingResponse>> getHoldings(
+      @PathVariable String id, Authentication auth) {
     UserId userId = extractUserId(auth);
-    List<Holding> holdings =
-        useCase.getHoldings(new FinancialAccountId(UUID.fromString(id)), userId);
-    List<HoldingResponse> response =
-        holdings.stream()
-            .map(
-                h ->
-                    new HoldingResponse(
-                        h.ticker().symbol(),
-                        h.quantity(),
-                        h.averageCostPrice().amount(),
-                        h.averageCostPrice().currency().getCurrencyCode(),
-                        h.totalInvested().amount(),
-                        h.totalFeesPaid().amount()))
-            .toList();
+    List<EnrichedHolding> holdings =
+        useCase.getEnrichedHoldings(new FinancialAccountId(UUID.fromString(id)), userId);
+    List<EnrichedHoldingResponse> response =
+        holdings.stream().map(this::toEnrichedHoldingResponse).toList();
     return ResponseEntity.ok(response);
+  }
+
+  private EnrichedHoldingResponse toEnrichedHoldingResponse(EnrichedHolding eh) {
+    Holding h = eh.holding();
+    return new EnrichedHoldingResponse(
+        h.ticker().symbol(),
+        h.quantity(),
+        h.averageCostPrice().amount(),
+        h.totalInvested().amount(),
+        h.totalFeesPaid().amount(),
+        eh.currentPrice(),
+        eh.currency(),
+        eh.marketValue(),
+        eh.unrealizedPnl(),
+        eh.unrealizedPnlPct(),
+        eh.priceAvailable());
   }
 
   @PutMapping("/{accountId}/transactions/{transactionId}")

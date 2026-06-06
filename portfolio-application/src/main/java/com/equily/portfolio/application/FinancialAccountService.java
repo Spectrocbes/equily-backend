@@ -15,6 +15,9 @@ import com.equily.portfolio.domain.account.AccountBusinessRules;
 import com.equily.portfolio.domain.csv.CsvImportResult;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
 import com.equily.portfolio.domain.exception.TransactionNotFoundException;
+import com.equily.portfolio.domain.marketdata.EnrichedHolding;
+import com.equily.portfolio.domain.marketdata.MarketDataPort;
+import com.equily.portfolio.domain.marketdata.Quote;
 import com.equily.shared.Country;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -43,9 +46,11 @@ class FinancialAccountService implements FinancialAccountUseCase {
           TransactionType.SELL, 5);
 
   private final FinancialAccountRepository repository;
+  private final MarketDataPort marketDataPort;
 
-  FinancialAccountService(FinancialAccountRepository repository) {
+  FinancialAccountService(FinancialAccountRepository repository, MarketDataPort marketDataPort) {
     this.repository = repository;
+    this.marketDataPort = marketDataPort;
   }
 
   @Override
@@ -127,6 +132,27 @@ class FinancialAccountService implements FinancialAccountUseCase {
       throw new AccountNotFoundException(id);
     }
     return account;
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public List<EnrichedHolding> getEnrichedHoldings(FinancialAccountId id, UserId ownerId) {
+    FinancialAccount account = getAccountById(id, ownerId);
+    List<Holding> holdings = Holding.computeFrom(account.transactions());
+
+    if (holdings.isEmpty()) return List.of();
+
+    List<String> symbols = holdings.stream().map(h -> h.ticker().symbol()).distinct().toList();
+
+    Map<String, Quote> quotes = marketDataPort.getQuotes(symbols);
+
+    return holdings.stream()
+        .map(
+            h -> {
+              Quote q = quotes.get(h.ticker().symbol());
+              return q != null ? EnrichedHolding.withPrice(h, q) : EnrichedHolding.withoutPrice(h);
+            })
+        .toList();
   }
 
   @Override

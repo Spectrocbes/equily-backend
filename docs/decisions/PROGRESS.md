@@ -342,6 +342,27 @@
   not need to pass a pre-computed total.
 - 301 tests, 0 failures, 9/9 modules green.
 
+## 2026-06-06 — Phase 2: Market Data live prices
+
+- New Maven module `market-data-infrastructure` (10th module in reactor)
+- `Quote` record + `MarketDataPort` interface added to `portfolio-domain` (zero framework deps)
+- `EnrichedHolding` in `portfolio-domain`: `withPrice(Holding, Quote)` and `withoutPrice(Holding)` factories;
+  computes `marketValue`, `unrealizedPnl`, `unrealizedPnlPct`, `priceAvailable`
+- `CryptoSymbols`: 15 symbol → CoinGecko ID mappings (BTC, ETH, SOL, BNB, XRP, ADA, AVAX, DOT, MATIC, LINK,
+  LTC, UNI, ATOM, ALGO, DOGE)
+- 4 adapters:
+  - `CoinGeckoAdapter` — crypto via `/simple/price`
+  - `YahooFinanceAdapter` — EU + US tickers via `/v8/finance/chart/{symbol}`
+  - `FmpAdapter` — US-only fallback (skips symbols with `.` suffix)
+  - `AlphaVantageAdapter` — EU fallback, hard-capped at 20 calls/day (`AtomicInteger` + daily cron reset)
+- `CompositeMarketDataAdapter` (`@Primary`): routing crypto → CoinGecko (Yahoo-USD fallback); EU tickers →
+  Yahoo → AlphaVantage; US tickers → Yahoo → FMP; `@Cacheable(value="quotes", key="#symbol")`
+- `MarketDataCacheConfig`: Caffeine cache, 5-min TTL, 1 000 entries max, `recordStats()`, migratable to Redis
+- `FinancialAccountService`: `MarketDataPort` injected; `getEnrichedHoldings()` fetches live quotes in batch
+- `EnrichedHoldingResponse`: `currentPrice`, `currency`, `marketValue`, `unrealizedPnl`, `unrealizedPnlPct`,
+  `priceAvailable` — replaces plain `HoldingResponse` on `GET /api/v1/accounts/{id}/holdings`
+- 367 tests, 0 failures, 10/10 modules green
+
 ## Architecture Decisions
 
 - Lombok is forbidden everywhere. Java 21 records replace POJOs; explicit methods replace generated ones.

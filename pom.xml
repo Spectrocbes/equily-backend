@@ -45,6 +45,7 @@
         <module>portfolio-web</module>
         <module>identity-domain</module>
         <module>identity-infrastructure</module>
+        <module>market-data-infrastructure</module>
         <module>bootstrap</module>
     </modules>
 
@@ -112,6 +113,16 @@
                 <groupId>com.resend</groupId>
                 <artifactId>resend-java</artifactId>
                 <version>3.1.0</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.ben-manes.caffeine</groupId>
+                <artifactId>caffeine</artifactId>
+                <version>3.1.8</version>
+            </dependency>
+            <dependency>
+                <groupId>com.equily</groupId>
+                <artifactId>market-data-infrastructure</artifactId>
+                <version>${project.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
