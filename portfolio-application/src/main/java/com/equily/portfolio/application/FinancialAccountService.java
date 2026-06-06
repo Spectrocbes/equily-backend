@@ -14,6 +14,7 @@ import com.equily.portfolio.domain.TransactionType;
 import com.equily.portfolio.domain.account.AccountBusinessRules;
 import com.equily.portfolio.domain.csv.CsvImportResult;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
+import com.equily.portfolio.domain.exception.TransactionNotFoundException;
 import com.equily.shared.Country;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -199,8 +200,36 @@ class FinancialAccountService implements FinancialAccountUseCase {
       throw new AccountNotFoundException(command.accountId());
     }
 
+    Transaction existing =
+        account.transactions().stream()
+            .filter(t -> t.id().equals(command.transactionId()))
+            .findFirst()
+            .orElseThrow(() -> new TransactionNotFoundException(command.transactionId()));
+
     account.updateTransaction(command.transactionId(), command.values());
+
+    if (existing.type() == TransactionType.DEPOSIT && account.subType() != null) {
+      List<FinancialAccount> allUserAccounts = repository.findAllByOwnerId(account.ownerId());
+      AccountBusinessRules.validateDepositAfterEdit(account, allUserAccounts);
+    }
+
     repository.save(account);
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public TransactionType getTransactionType(
+      FinancialAccountId accountId, TransactionId transactionId, UserId userId) {
+    FinancialAccount account =
+        repository.findById(accountId).orElseThrow(() -> new AccountNotFoundException(accountId));
+    if (!account.ownerId().equals(userId)) {
+      throw new AccountNotFoundException(accountId);
+    }
+    return account.transactions().stream()
+        .filter(t -> t.id().equals(transactionId))
+        .map(Transaction::type)
+        .findFirst()
+        .orElseThrow(() -> new TransactionNotFoundException(transactionId));
   }
 
   private String duplicateKey(LocalDate date, Ticker ticker, BigDecimal amount) {

@@ -166,20 +166,36 @@ class FinancialAccountController {
       Authentication authentication) {
 
     UserId userId = extractUserId(authentication);
+    FinancialAccountId fId = new FinancialAccountId(UUID.fromString(accountId));
+    TransactionId tId = new TransactionId(UUID.fromString(transactionId));
+
+    TransactionType type = useCase.getTransactionType(fId, tId, userId);
+    BigDecimal fees = request.fees();
+
+    BigDecimal totalAmount;
+    if ((type == TransactionType.BUY || type == TransactionType.SELL)
+        && request.quantity() != null
+        && request.pricePerUnit() != null) {
+      BigDecimal base =
+          request.quantity().multiply(request.pricePerUnit()).setScale(2, RoundingMode.HALF_EVEN);
+      totalAmount = type == TransactionType.BUY ? base.add(fees) : base.subtract(fees);
+    } else {
+      totalAmount = request.totalAmount();
+    }
 
     UpdateTransactionCommand command =
         new UpdateTransactionCommand(
-            new FinancialAccountId(UUID.fromString(accountId)),
-            new TransactionId(UUID.fromString(transactionId)),
+            fId,
+            tId,
             userId,
             new UpdatedTransactionValues(
                 request.quantity(),
                 request.pricePerUnit() != null
                     ? new Money(request.pricePerUnit(), Currency.getInstance("EUR"))
                     : null,
-                new Money(request.totalAmount(), Currency.getInstance("EUR")),
+                new Money(totalAmount, Currency.getInstance("EUR")),
                 request.date(),
-                request.fees(),
+                fees,
                 request.description()));
 
     useCase.updateTransaction(command);

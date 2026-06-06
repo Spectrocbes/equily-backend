@@ -3,6 +3,7 @@ package com.equily.portfolio.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -22,6 +23,7 @@ import com.equily.portfolio.domain.account.AccountSubType;
 import com.equily.portfolio.domain.csv.CsvImportResult;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
 import com.equily.portfolio.domain.exception.DepositLimitExceededException;
+import com.equily.portfolio.domain.exception.TransactionNotFoundException;
 import com.equily.shared.Money;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -601,6 +603,256 @@ class FinancialAccountServiceTest {
     CsvImportResult result = service.importCsv(account.id(), parsed, ownerId);
 
     assertThat(result.imported()).isEqualTo(2);
+  }
+
+  @Test
+  void updateTransaction_throws_when_edited_deposit_exceeds_livretA_limit() {
+    UserId ownerId = UserId.generate();
+    FinancialAccount livretA =
+        FinancialAccount.open(
+            "Livret A",
+            AccountType.SAVINGS_ACCOUNT,
+            new Money(BigDecimal.ZERO, EUR),
+            "BNP",
+            ownerId,
+            AccountSubType.LIVRET_A,
+            OPENED_AT);
+    Transaction deposit =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("22000"), EUR),
+            LocalDate.of(2026, 1, 1),
+            BigDecimal.ZERO,
+            null);
+    livretA.recordTransaction(deposit);
+    when(repository.findById(livretA.id())).thenReturn(Optional.of(livretA));
+    when(repository.findAllByOwnerId(ownerId)).thenReturn(List.of(livretA));
+
+    // Edit the deposit to 23 000€ — exceeds 22 950€ Livret A cap
+    UpdatedTransactionValues values =
+        new UpdatedTransactionValues(
+            null,
+            null,
+            new Money(new BigDecimal("23000"), EUR),
+            LocalDate.of(2026, 1, 1),
+            BigDecimal.ZERO,
+            null);
+    UpdateTransactionCommand command =
+        new UpdateTransactionCommand(livretA.id(), deposit.id(), ownerId, values);
+
+    assertThatThrownBy(() -> service.updateTransaction(command))
+        .isInstanceOf(DepositLimitExceededException.class);
+    verify(repository, never()).save(any());
+  }
+
+  @Test
+  void updateTransaction_allows_editing_deposit_within_livretA_limit() {
+    UserId ownerId = UserId.generate();
+    FinancialAccount livretA =
+        FinancialAccount.open(
+            "Livret A",
+            AccountType.SAVINGS_ACCOUNT,
+            new Money(BigDecimal.ZERO, EUR),
+            "BNP",
+            ownerId,
+            AccountSubType.LIVRET_A,
+            OPENED_AT);
+    Transaction deposit =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("20000"), EUR),
+            LocalDate.of(2026, 1, 1),
+            BigDecimal.ZERO,
+            null);
+    livretA.recordTransaction(deposit);
+    when(repository.findById(livretA.id())).thenReturn(Optional.of(livretA));
+    when(repository.findAllByOwnerId(ownerId)).thenReturn(List.of(livretA));
+
+    // Edit to 22 000€ — still under 22 950€ cap
+    UpdatedTransactionValues values =
+        new UpdatedTransactionValues(
+            null,
+            null,
+            new Money(new BigDecimal("22000"), EUR),
+            LocalDate.of(2026, 1, 1),
+            BigDecimal.ZERO,
+            null);
+    UpdateTransactionCommand command =
+        new UpdateTransactionCommand(livretA.id(), deposit.id(), ownerId, values);
+
+    service.updateTransaction(command);
+
+    verify(repository, times(1)).save(livretA);
+  }
+
+  @Test
+  void updateTransaction_throws_when_edited_pea_deposit_exceeds_limit() {
+    UserId ownerId = UserId.generate();
+    FinancialAccount pea =
+        FinancialAccount.open(
+            "PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            ownerId,
+            AccountSubType.PEA,
+            OPENED_AT);
+    Transaction deposit =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("140000"), EUR),
+            LocalDate.of(2026, 1, 1),
+            BigDecimal.ZERO,
+            null);
+    pea.recordTransaction(deposit);
+    when(repository.findById(pea.id())).thenReturn(Optional.of(pea));
+    when(repository.findAllByOwnerId(ownerId)).thenReturn(List.of(pea));
+
+    // Edit to 160 000€ — exceeds 150 000€ PEA cap
+    UpdatedTransactionValues values =
+        new UpdatedTransactionValues(
+            null,
+            null,
+            new Money(new BigDecimal("160000"), EUR),
+            LocalDate.of(2026, 1, 1),
+            BigDecimal.ZERO,
+            null);
+    UpdateTransactionCommand command =
+        new UpdateTransactionCommand(pea.id(), deposit.id(), ownerId, values);
+
+    assertThatThrownBy(() -> service.updateTransaction(command))
+        .isInstanceOf(DepositLimitExceededException.class);
+    verify(repository, never()).save(any());
+  }
+
+  @Test
+  void updateTransaction_no_limit_check_for_non_deposit_types() {
+    UserId ownerId = UserId.generate();
+    FinancialAccount pea =
+        FinancialAccount.open(
+            "PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            ownerId,
+            AccountSubType.PEA,
+            OPENED_AT);
+    Transaction deposit =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("10000"), EUR),
+            LocalDate.of(2026, 1, 1),
+            BigDecimal.ZERO,
+            null);
+    pea.recordTransaction(deposit);
+    Transaction buy =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.BUY,
+            new Ticker("AAPL"),
+            new BigDecimal("10"),
+            new Money(new BigDecimal("100"), EUR),
+            new Money(new BigDecimal("1000"), EUR),
+            LocalDate.of(2026, 1, 2),
+            BigDecimal.ZERO,
+            null);
+    pea.recordTransaction(buy);
+    when(repository.findById(pea.id())).thenReturn(Optional.of(pea));
+
+    // Edit the BUY — type is not DEPOSIT so no deposit limit check runs
+    UpdatedTransactionValues values =
+        new UpdatedTransactionValues(
+            new BigDecimal("5"),
+            new Money(new BigDecimal("200"), EUR),
+            new Money(new BigDecimal("1000"), EUR),
+            LocalDate.of(2026, 1, 2),
+            BigDecimal.ZERO,
+            null);
+    UpdateTransactionCommand command =
+        new UpdateTransactionCommand(pea.id(), buy.id(), ownerId, values);
+
+    service.updateTransaction(command);
+
+    verify(repository).save(pea);
+    verify(repository, never()).findAllByOwnerId(any());
+  }
+
+  @Test
+  void getTransactionType_returns_correct_type() {
+    UserId ownerId = UserId.generate();
+    FinancialAccount account =
+        FinancialAccount.open(
+            "My PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            ownerId,
+            null,
+            OPENED_AT);
+    Transaction deposit =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("5000"), EUR),
+            LocalDate.of(2026, 1, 1),
+            BigDecimal.ZERO,
+            null);
+    account.recordTransaction(deposit);
+    when(repository.findById(account.id())).thenReturn(Optional.of(account));
+
+    TransactionType result = service.getTransactionType(account.id(), deposit.id(), ownerId);
+
+    assertThat(result).isEqualTo(TransactionType.DEPOSIT);
+  }
+
+  @Test
+  void getTransactionType_throws_when_ownership_mismatch() {
+    FinancialAccount account = openAccount("My PEA", "10000");
+    when(repository.findById(account.id())).thenReturn(Optional.of(account));
+
+    assertThatThrownBy(
+            () ->
+                service.getTransactionType(
+                    account.id(), TransactionId.generate(), UserId.generate()))
+        .isInstanceOf(AccountNotFoundException.class);
+  }
+
+  @Test
+  void getTransactionType_throws_when_transaction_not_found() {
+    UserId ownerId = UserId.generate();
+    FinancialAccount account =
+        FinancialAccount.open(
+            "My PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            ownerId,
+            null,
+            OPENED_AT);
+    when(repository.findById(account.id())).thenReturn(Optional.of(account));
+
+    assertThatThrownBy(
+            () -> service.getTransactionType(account.id(), TransactionId.generate(), ownerId))
+        .isInstanceOf(TransactionNotFoundException.class);
   }
 
   @Test

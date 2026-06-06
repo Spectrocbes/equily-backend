@@ -1,5 +1,6 @@
 package com.equily.portfolio.web;
 
+import com.equily.portfolio.web.validation.ValidTransactionAmount;
 import com.equily.portfolio.web.validation.ValidTransactionDate;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
@@ -7,6 +8,7 @@ import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
+@ValidTransactionAmount
 public record RecordTransactionRequest(
     @NotBlank String type,
     String ticker,
