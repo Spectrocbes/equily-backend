@@ -328,6 +328,20 @@
   `toAccountResponse_returns_null_portfolioValue_for_savings_account`.
 - BUILD SUCCESS, 9/9 modules green.
 
+## 2026-06-06 — fix: deposit limit enforced on transaction edit
+
+- `AccountBusinessRules.validateDepositAfterEdit()`: checks post-edit deposit state — ensures editing a DEPOSIT
+  transaction cannot silently push cumulative deposits past the regulatory cap.
+- `FinancialAccountService.updateTransaction()`: calls `validateDepositAfterEdit` when the transaction type is DEPOSIT,
+  after the in-place replacement and before persisting.
+- `TransactionAmountValidator`: custom constraint enforcing `totalAmount > 0` for INTEREST, DIVIDEND, DEPOSIT, and
+  WITHDRAWAL transaction types.
+- `getTransactionType()` use case added to `FinancialAccountUseCase` + `FinancialAccountService` — allows the web layer
+  to resolve the type of an existing transaction without loading the full account.
+- BUY/SELL edit: `totalAmount` computed server-side in controller as `qty × pricePerUnit ± fees`, so the client does
+  not need to pass a pre-computed total.
+- 301 tests, 0 failures, 9/9 modules green.
+
 ## Architecture Decisions
 
 - Lombok is forbidden everywhere. Java 21 records replace POJOs; explicit methods replace generated ones.

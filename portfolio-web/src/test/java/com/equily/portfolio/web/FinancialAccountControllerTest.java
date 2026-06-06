@@ -590,6 +590,67 @@ class FinancialAccountControllerTest {
   }
 
   @Test
+  void updateTransaction_buy_computes_total_from_qty_and_price() throws Exception {
+    UUID txId = UUID.randomUUID();
+    when(useCase.getTransactionType(any(), any(), any())).thenReturn(TransactionType.BUY);
+
+    // qty=10, pricePerUnit=150, fees=4.99 → total = 10×150 + 4.99 = 1504.99
+    mockMvc
+        .perform(
+            put(
+                    "/api/v1/accounts/{id}/transactions/{txId}",
+                    testAccount.id().value().toString(),
+                    txId.toString())
+                .with(authentication(mockAuth()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"quantity": 10, "pricePerUnit": 150.00,
+                     "date": "2026-01-15", "fees": 4.99}
+                    """))
+        .andExpect(status().isNoContent());
+  }
+
+  @Test
+  void updateTransaction_deposit_uses_total_amount_directly() throws Exception {
+    UUID txId = UUID.randomUUID();
+    when(useCase.getTransactionType(any(), any(), any())).thenReturn(TransactionType.DEPOSIT);
+
+    mockMvc
+        .perform(
+            put(
+                    "/api/v1/accounts/{id}/transactions/{txId}",
+                    testAccount.id().value().toString(),
+                    txId.toString())
+                .with(authentication(mockAuth()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"totalAmount": 500, "date": "2026-05-24", "fees": 0}
+                    """))
+        .andExpect(status().isNoContent());
+  }
+
+  @Test
+  void updateTransaction_rejects_zero_total_amount() throws Exception {
+    UUID txId = UUID.randomUUID();
+
+    mockMvc
+        .perform(
+            put(
+                    "/api/v1/accounts/{id}/transactions/{txId}",
+                    testAccount.id().value().toString(),
+                    txId.toString())
+                .with(authentication(mockAuth()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"totalAmount": 0, "date": "2026-05-24", "fees": 0}
+                    """))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
   void updateTransaction_returns_204() throws Exception {
     UUID txId = UUID.randomUUID();
 

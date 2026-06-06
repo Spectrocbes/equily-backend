@@ -329,6 +329,78 @@ class AccountBusinessRulesTest {
   }
 
   @Test
+  void validateDepositAfterEdit_throws_when_balance_exceeds_livretA_limit() {
+    FinancialAccount account = openAccount(AccountSubType.LIVRET_A);
+    // Post-edit state: balance 23 500€ > 22 950€ cap
+    account.recordTransaction(deposit("23500"));
+
+    assertThatThrownBy(
+            () -> AccountBusinessRules.validateDepositAfterEdit(account, List.of(account)))
+        .isInstanceOf(DepositLimitExceededException.class)
+        .hasMessageContaining("LIVRET_A");
+  }
+
+  @Test
+  void validateDepositAfterEdit_passes_when_balance_within_limit() {
+    FinancialAccount account = openAccount(AccountSubType.LIVRET_A);
+    account.recordTransaction(deposit("22000"));
+
+    // Must not throw
+    AccountBusinessRules.validateDepositAfterEdit(account, List.of(account));
+  }
+
+  @Test
+  void validateDepositAfterEdit_passes_when_no_subtype() {
+    FinancialAccount account =
+        FinancialAccount.open(
+            "CTO",
+            AccountType.COMPTE_TITRES,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            UserId.generate(),
+            null,
+            TODAY);
+    account.recordTransaction(deposit("999999"));
+
+    // Null subType — no limit applies; must not throw
+    AccountBusinessRules.validateDepositAfterEdit(account, List.of(account));
+  }
+
+  @Test
+  void validateDepositAfterEdit_uses_combined_rule_for_pea_pme() {
+    UserId userId = UserId.generate();
+    FinancialAccount peaAccount =
+        FinancialAccount.open(
+            "PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            userId,
+            AccountSubType.PEA,
+            TODAY);
+    peaAccount.recordTransaction(deposit("150000"));
+
+    FinancialAccount peaPmeAccount =
+        FinancialAccount.open(
+            "PEA-PME",
+            AccountType.PEA_PME,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            userId,
+            AccountSubType.PEA_PME,
+            TODAY);
+    // Post-edit state: PEA-PME has 80 000€ deposits; combined = 230 000€ > 225 000€
+    peaPmeAccount.recordTransaction(deposit("80000"));
+
+    List<FinancialAccount> allAccounts = List.of(peaAccount, peaPmeAccount);
+
+    assertThatThrownBy(
+            () -> AccountBusinessRules.validateDepositAfterEdit(peaPmeAccount, allAccounts))
+        .isInstanceOf(DepositLimitExceededException.class)
+        .hasMessageContaining("PEA_PME");
+  }
+
+  @Test
   void depositLimitExceededException_carries_correct_fields() {
     FinancialAccount account = openAccount(AccountSubType.LIVRET_A);
     account.recordTransaction(deposit("22000"));

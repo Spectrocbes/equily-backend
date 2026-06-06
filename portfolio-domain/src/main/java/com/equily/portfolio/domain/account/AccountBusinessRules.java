@@ -55,6 +55,33 @@ public final class AccountBusinessRules {
     }
   }
 
+  /**
+   * Validates deposit limits AFTER a transaction edit has been applied to the in-memory account.
+   * The account's balance and transaction list already reflect the post-edit state when this is
+   * called — so savings types (balance-based) and investment types (cumulative-deposit-based) both
+   * work correctly without extra arithmetic.
+   *
+   * @throws DepositLimitExceededException if the post-edit state violates the regulatory cap; the
+   *     {@code attempted} field carries the excess amount over the limit
+   */
+  public static void validateDepositAfterEdit(
+      FinancialAccount account, List<FinancialAccount> allUserAccounts) {
+
+    AccountSubType subType = account.subType();
+    if (subType == null) return;
+
+    Optional<Money> limitOpt = DepositLimits.limitFor(subType);
+    if (limitOpt.isEmpty()) return;
+
+    Money limit = limitOpt.get();
+    Money used = computeDepositTotal(account, allUserAccounts, subType);
+
+    if (used.amount().compareTo(limit.amount()) > 0) {
+      Money excess = new Money(used.amount().subtract(limit.amount()), limit.currency());
+      throw new DepositLimitExceededException(subType, limit, used, excess);
+    }
+  }
+
   /** Returns the remaining deposit capacity for an account. Returns empty if no limit applies. */
   public static Optional<Money> remainingCapacity(
       FinancialAccount account, List<FinancialAccount> allUserAccounts) {

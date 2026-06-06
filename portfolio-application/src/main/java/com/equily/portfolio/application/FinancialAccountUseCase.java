@@ -4,6 +4,8 @@ import com.equily.identity.domain.UserId;
 import com.equily.portfolio.domain.FinancialAccount;
 import com.equily.portfolio.domain.FinancialAccountId;
 import com.equily.portfolio.domain.Holding;
+import com.equily.portfolio.domain.TransactionId;
+import com.equily.portfolio.domain.TransactionType;
 import com.equily.portfolio.domain.csv.CsvImportResult;
 import java.util.List;
 
@@ -50,4 +52,12 @@ public interface FinancialAccountUseCase {
    * Throws TransactionNotFoundException if no transaction with the given id exists.
    */
   void updateTransaction(UpdateTransactionCommand command);
+
+  /**
+   * Returns the type of an existing transaction. Throws AccountNotFoundException if the account
+   * does not exist or is not owned by the requesting user. Throws TransactionNotFoundException if
+   * no transaction with the given id exists.
+   */
+  TransactionType getTransactionType(
+      FinancialAccountId accountId, TransactionId transactionId, UserId userId);
 }
