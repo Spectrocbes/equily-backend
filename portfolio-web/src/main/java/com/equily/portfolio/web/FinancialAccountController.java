@@ -139,7 +139,7 @@ class FinancialAccountController {
     return ResponseEntity.noContent().build();
   }
 
-  @GetMapping("/{id}/holdings")
+  @GetMapping("/{id}/holdings/enriched")
   ResponseEntity<List<EnrichedHoldingResponse>> getHoldings(
       @PathVariable String id, Authentication auth) {
     UserId userId = extractUserId(auth);

@@ -386,7 +386,7 @@ class FinancialAccountControllerTest {
 
     mockMvc
         .perform(
-            get("/api/v1/accounts/{id}/holdings", UUID.randomUUID().toString())
+            get("/api/v1/accounts/{id}/holdings/enriched", UUID.randomUUID().toString())
                 .with(authentication(mockAuth())))
         .andExpect(status().isOk())
         .andExpect(content().json("[]"));
@@ -399,7 +399,7 @@ class FinancialAccountControllerTest {
 
     mockMvc
         .perform(
-            get("/api/v1/accounts/{id}/holdings", UUID.randomUUID().toString())
+            get("/api/v1/accounts/{id}/holdings/enriched", UUID.randomUUID().toString())
                 .with(authentication(mockAuth())))
         .andExpect(status().isNotFound());
   }
@@ -422,7 +422,7 @@ class FinancialAccountControllerTest {
 
     mockMvc
         .perform(
-            get("/api/v1/accounts/{id}/holdings", UUID.randomUUID().toString())
+            get("/api/v1/accounts/{id}/holdings/enriched", UUID.randomUUID().toString())
                 .with(authentication(mockAuth())))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.length()").value(1))
@@ -454,7 +454,7 @@ class FinancialAccountControllerTest {
 
     mockMvc
         .perform(
-            get("/api/v1/accounts/{id}/holdings", UUID.randomUUID().toString())
+            get("/api/v1/accounts/{id}/holdings/enriched", UUID.randomUUID().toString())
                 .with(authentication(mockAuth())))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.length()").value(1))
@@ -467,7 +467,9 @@ class FinancialAccountControllerTest {
   @Test
   void getHoldings_invalid_uuid_returns_400() throws Exception {
     mockMvc
-        .perform(get("/api/v1/accounts/not-a-valid-uuid/holdings").with(authentication(mockAuth())))
+        .perform(
+            get("/api/v1/accounts/not-a-valid-uuid/holdings/enriched")
+                .with(authentication(mockAuth())))
         .andExpect(status().isBadRequest());
   }
 
