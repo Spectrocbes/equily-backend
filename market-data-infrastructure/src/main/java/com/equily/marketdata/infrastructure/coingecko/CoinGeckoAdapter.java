@@ -74,11 +74,17 @@ public class CoinGeckoAdapter {
               .header("User-Agent", "Equily/1.0")
               .retrieve()
               .body(String.class);
-      return parseBatchCoinGeckoResponse(cryptoSymbols, response);
+      Map<String, Quote> result = parseBatchCoinGeckoResponse(cryptoSymbols, response);
+      if (!result.isEmpty()) return result;
     } catch (Exception e) {
-      log.warn("CoinGecko batch failed: {}", e.getMessage());
-      return Map.of();
+      log.warn("CoinGecko batch failed: {} — falling back to individual calls", e.getMessage());
     }
+
+    Map<String, Quote> fallback = new HashMap<>();
+    for (String s : cryptoSymbols) {
+      getQuote(s).ifPresent(q -> fallback.put(s, q));
+    }
+    return fallback;
   }
 
   private Optional<Quote> parseCoinGeckoResponse(String symbol, String id, String json) {

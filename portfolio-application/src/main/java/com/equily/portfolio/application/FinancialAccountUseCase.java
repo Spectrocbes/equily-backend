@@ -54,6 +54,12 @@ public interface FinancialAccountUseCase {
   List<EnrichedHolding> getEnrichedHoldings(FinancialAccountId id, UserId ownerId);
 
   /**
+   * Returns a live portfolio summary for every investment account owned by the user. All holdings
+   * across all accounts are fetched in a single batch market-data call.
+   */
+  List<AccountPortfolioSummary> getPortfolioSummaries(UserId userId);
+
+  /**
    * Updates an existing transaction's mutable fields. Type and ticker cannot be changed. Throws
    * AccountNotFoundException if the account does not exist or is not owned by the requesting user.
    * Throws TransactionNotFoundException if no transaction with the given id exists.

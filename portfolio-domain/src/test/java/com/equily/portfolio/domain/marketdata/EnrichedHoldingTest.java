@@ -32,7 +32,8 @@ class EnrichedHoldingTest {
   }
 
   private Quote buildQuote(String price) {
-    return new Quote("AAPL", new BigDecimal(price), "EUR", "Apple Inc.", Instant.now(), null);
+    return new Quote(
+        "AAPL", new BigDecimal(price), "EUR", "Apple Inc.", Instant.now(), new BigDecimal("1.23"));
   }
 
   @Test
@@ -44,6 +45,7 @@ class EnrichedHoldingTest {
 
     assertThat(enriched.marketValue()).isEqualByComparingTo("1600.00");
     assertThat(enriched.priceAvailable()).isTrue();
+    assertThat(enriched.dayChangePercent()).isEqualByComparingTo("1.23");
   }
 
   @Test
@@ -99,6 +101,7 @@ class EnrichedHoldingTest {
     assertThat(enriched.marketValue()).isNull();
     assertThat(enriched.unrealizedPnl()).isNull();
     assertThat(enriched.unrealizedPnlPct()).isNull();
+    assertThat(enriched.dayChangePercent()).isNull();
     assertThat(enriched.holding()).isEqualTo(holding);
   }
 }

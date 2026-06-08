@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.equily.identity.domain.UserId;
+import com.equily.portfolio.application.AccountPortfolioSummary;
 import com.equily.portfolio.application.BrokerCsvParserPort;
 import com.equily.portfolio.application.FinancialAccountUseCase;
 import com.equily.portfolio.application.exception.CsvParsingException;
@@ -416,7 +417,13 @@ class FinancialAccountControllerTest {
             new Money(new BigDecimal("1500.00"), Currency.getInstance("EUR")),
             new Money(new BigDecimal("4.99"), Currency.getInstance("EUR")));
     Quote quote =
-        new Quote("AAPL", new BigDecimal("160.00"), "EUR", "Apple Inc.", Instant.now(), null);
+        new Quote(
+            "AAPL",
+            new BigDecimal("160.00"),
+            "EUR",
+            "Apple Inc.",
+            Instant.now(),
+            new BigDecimal("2.50"));
     EnrichedHolding enriched = EnrichedHolding.withPrice(holding, quote);
     when(useCase.getEnrichedHoldings(any(), any())).thenReturn(List.of(enriched));
 
@@ -435,7 +442,8 @@ class FinancialAccountControllerTest {
         .andExpect(jsonPath("$[0].currentPrice").value(160.00))
         .andExpect(jsonPath("$[0].currency").value("EUR"))
         .andExpect(jsonPath("$[0].marketValue").value(1600.00))
-        .andExpect(jsonPath("$[0].unrealizedPnl").value(100.00));
+        .andExpect(jsonPath("$[0].unrealizedPnl").value(100.00))
+        .andExpect(jsonPath("$[0].dayChangePercent").value(2.50));
   }
 
   @Test
@@ -851,5 +859,29 @@ class FinancialAccountControllerTest {
         .andExpect(jsonPath("$.subType").doesNotExist())
         .andExpect(jsonPath("$.depositLimit").doesNotExist())
         .andExpect(jsonPath("$.remainingCapacity").doesNotExist());
+  }
+
+  @Test
+  void getPortfolioSummaries_returns_200_with_list() throws Exception {
+    when(useCase.getPortfolioSummaries(any()))
+        .thenReturn(
+            List.of(
+                new AccountPortfolioSummary(
+                    new FinancialAccountId(UUID.randomUUID()),
+                    new BigDecimal("300.00"),
+                    new BigDecimal("150.00"),
+                    new BigDecimal("150.00"),
+                    new BigDecimal("100.00"),
+                    true)));
+
+    mockMvc
+        .perform(get("/api/v1/accounts/portfolio-summary").with(authentication(mockAuth())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.length()").value(1))
+        .andExpect(jsonPath("$[0].livePortfolioValue").value(300.00))
+        .andExpect(jsonPath("$[0].costPortfolioValue").value(150.00))
+        .andExpect(jsonPath("$[0].unrealizedPnl").value(150.00))
+        .andExpect(jsonPath("$[0].unrealizedPnlPct").value(100.00))
+        .andExpect(jsonPath("$[0].priceAvailable").value(true));
   }
 }

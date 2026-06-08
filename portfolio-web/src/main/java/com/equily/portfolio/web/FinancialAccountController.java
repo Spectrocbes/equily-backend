@@ -1,6 +1,7 @@
 package com.equily.portfolio.web;
 
 import com.equily.identity.domain.UserId;
+import com.equily.portfolio.application.AccountPortfolioSummary;
 import com.equily.portfolio.application.BrokerCsvParserPort;
 import com.equily.portfolio.application.CreateFinancialAccountCommand;
 import com.equily.portfolio.application.FinancialAccountUseCase;
@@ -163,6 +164,7 @@ class FinancialAccountController {
         eh.marketValue(),
         eh.unrealizedPnl(),
         eh.unrealizedPnlPct(),
+        eh.dayChangePercent(),
         eh.priceAvailable());
   }
 
@@ -208,6 +210,26 @@ class FinancialAccountController {
 
     useCase.updateTransaction(command);
     return ResponseEntity.noContent().build();
+  }
+
+  @GetMapping("/portfolio-summary")
+  ResponseEntity<List<AccountPortfolioSummaryResponse>> getPortfolioSummaries(
+      Authentication authentication) {
+    UserId userId = extractUserId(authentication);
+    List<AccountPortfolioSummary> summaries = useCase.getPortfolioSummaries(userId);
+    List<AccountPortfolioSummaryResponse> response =
+        summaries.stream()
+            .map(
+                s ->
+                    new AccountPortfolioSummaryResponse(
+                        s.accountId().value().toString(),
+                        s.livePortfolioValue(),
+                        s.costPortfolioValue(),
+                        s.unrealizedPnl(),
+                        s.unrealizedPnlPct(),
+                        s.priceAvailable()))
+            .toList();
+    return ResponseEntity.ok(response);
   }
 
   @GetMapping("/summary/pea")

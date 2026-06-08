@@ -115,4 +115,23 @@ class CoinGeckoAdapterTest {
 
     assertThat(result).isEmpty();
   }
+
+  @Test
+  void getQuotes_falls_back_to_individual_calls_when_batch_returns_empty() {
+    when(restClient.get()).thenReturn(requestSpec);
+    when(requestSpec.uri(anyString())).thenReturn(requestSpec);
+    when(requestSpec.header(anyString(), anyString())).thenReturn(requestSpec);
+    when(requestSpec.retrieve()).thenReturn(responseSpec);
+    when(responseSpec.body(String.class))
+        .thenReturn("{}")
+        .thenReturn(
+            """
+            {"bitcoin":{"eur":42000.50,"eur_24h_change":1.23}}
+            """);
+
+    Map<String, Quote> result = adapter.getQuotes(List.of("BTC"));
+
+    assertThat(result).containsKey("BTC");
+    assertThat(result.get("BTC").price()).isEqualByComparingTo("42000.50");
+  }
 }

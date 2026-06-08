@@ -22,7 +22,7 @@ public class MarketDataCacheConfig {
         new CaffeineCache(
             "quotes",
             Caffeine.newBuilder()
-                .expireAfterWrite(5, TimeUnit.MINUTES)
+                .expireAfterWrite(15, TimeUnit.MINUTES)
                 .maximumSize(1000)
                 .recordStats()
                 .build());

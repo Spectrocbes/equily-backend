@@ -11,6 +11,7 @@ public record EnrichedHolding(
     BigDecimal marketValue,
     BigDecimal unrealizedPnl,
     BigDecimal unrealizedPnlPct,
+    BigDecimal dayChangePercent,
     boolean priceAvailable) {
 
   public static EnrichedHolding withPrice(Holding holding, Quote quote) {
@@ -25,10 +26,17 @@ public record EnrichedHolding(
                 .multiply(new BigDecimal("100"))
                 .setScale(2, RoundingMode.HALF_EVEN);
     return new EnrichedHolding(
-        holding, quote.price(), quote.currency(), marketValue, pnl, pnlPct, true);
+        holding,
+        quote.price(),
+        quote.currency(),
+        marketValue,
+        pnl,
+        pnlPct,
+        quote.changePercent(),
+        true);
   }
 
   public static EnrichedHolding withoutPrice(Holding holding) {
-    return new EnrichedHolding(holding, null, null, null, null, null, false);
+    return new EnrichedHolding(holding, null, null, null, null, null, null, false);
   }
 }

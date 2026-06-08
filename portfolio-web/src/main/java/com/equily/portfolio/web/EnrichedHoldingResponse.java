@@ -13,4 +13,5 @@ public record EnrichedHoldingResponse(
     BigDecimal marketValue,
     BigDecimal unrealizedPnl,
     BigDecimal unrealizedPnlPct,
+    BigDecimal dayChangePercent,
     boolean priceAvailable) {}
