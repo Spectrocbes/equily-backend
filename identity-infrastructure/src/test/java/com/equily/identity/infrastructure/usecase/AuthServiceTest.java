@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -13,6 +14,7 @@ import static org.mockito.Mockito.when;
 
 import com.equily.identity.domain.User;
 import com.equily.identity.domain.UserId;
+import com.equily.identity.domain.UserPreferencesUseCase;
 import com.equily.identity.domain.UserRepository;
 import com.equily.identity.domain.exception.EmailNotVerifiedException;
 import com.equily.identity.domain.exception.InvalidCredentialsException;
@@ -43,6 +45,7 @@ class AuthServiceTest {
   @Mock EmailVerificationService emailVerificationService;
   @Mock EmailService emailService;
   @Mock PasswordResetService passwordResetService;
+  @Mock UserPreferencesUseCase userPreferencesUseCase;
   @InjectMocks AuthService authService;
 
   private User verifiedUser() {
@@ -66,6 +69,7 @@ class AuthServiceTest {
     AuthTokenPair result = authService.register("alice@example.com", "password", "Alice");
 
     verify(userRepository).save(any());
+    verify(userPreferencesUseCase).updatePreferences(any(), eq("EUR"), eq("fr"));
     verify(emailVerificationService).createVerificationToken(any());
     verify(emailService).sendVerificationEmail(anyString(), anyString(), anyString());
     assertThat(result.accessToken()).isEqualTo("access-token");

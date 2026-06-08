@@ -363,6 +363,33 @@
   `priceAvailable` — replaces plain `HoldingResponse` on `GET /api/v1/accounts/{id}/holdings`
 - 367 tests, 0 failures, 10/10 modules green
 
+## 2026-06-08 — User Preferences + FX Rate Conversion
+
+- Flyway V20: `identity.user_preferences` table (user_id PK → identity.users FK, currency VARCHAR(3), locale
+  VARCHAR(5)); backfill inserts EUR/fr defaults for all existing users.
+- `UserPreferences` record in `identity-domain`: immutable, validates currency against `SUPPORTED_CURRENCIES`
+  (EUR, USD, GBP, CHF); `defaultFor(UserId)` static factory.
+- `UserPreferencesRepository` (output port) + `UserPreferencesUseCase` (input port) in `identity-domain` (zero
+  framework deps).
+- `UserPreferencesJpaEntity` + `UserPreferencesJpaRepository` + `UserPreferencesRepositoryAdapter` in
+  `identity-infrastructure.persistence` — same `Persistable<UUID>` + `existsById` isNew pattern as UserJpaEntity.
+- `UserPreferencesService` in `identity-infrastructure.usecase` — `getPreferences` falls back to `defaultFor` when
+  no row exists; `updatePreferences` validates via domain constructor then persists.
+- `AuthService.register()`: creates default EUR/fr preferences immediately after persisting the new user.
+- `GET /api/v1/preferences` + `PUT /api/v1/preferences` in `UserPreferencesController` (`portfolio-web`);
+  `UpdatePreferencesRequest` has `@Pattern(regexp="EUR|USD|GBP|CHF")` validation; response includes
+  `supportedCurrencies` list.
+- `FxRatePort` interface in `portfolio-domain` (zero framework deps): `getRate(base, target)` → `Optional<BigDecimal>`.
+- `YahooFxRateAdapter` in `market-data-infrastructure/fx` — reuses `YahooFinanceAdapter.getQuote()` with Yahoo ticker
+  format `BASECURR=X`; returns `Optional.of(ONE)` for same-currency; `@Cacheable("fxRates")` 1-hour TTL.
+- `fxRates` Caffeine cache added to `MarketDataCacheConfig` (1-hour TTL, 20 entries max).
+- `EnrichedHolding.withPrice()` now takes `(Holding, Quote, String targetCurrency, BigDecimal fxRate)` — live price
+  is converted to targetCurrency; cost basis stays in account currency (EUR) pending per-transaction currency storage.
+- `getEnrichedHoldings(id, userId, targetCurrency)` + `getPortfolioSummaries(userId, targetCurrency)` — both
+  `FinancialAccountUseCase` and `FinancialAccountService` updated; controller endpoints gain
+  `@RequestParam(defaultValue = "EUR") String currency`.
+- 392 tests, 0 failures, 10/10 modules green
+
 ## Architecture Decisions
 
 - Lombok is forbidden everywhere. Java 21 records replace POJOs; explicit methods replace generated ones.

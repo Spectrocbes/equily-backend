@@ -37,6 +37,7 @@ import com.equily.portfolio.domain.exception.InvalidHoldingException;
 import com.equily.portfolio.domain.exception.InvalidTransactionException;
 import com.equily.portfolio.domain.exception.TransactionNotFoundException;
 import com.equily.portfolio.domain.marketdata.EnrichedHolding;
+import com.equily.portfolio.domain.marketdata.FxRatePort;
 import com.equily.portfolio.domain.marketdata.Quote;
 import com.equily.shared.Country;
 import com.equily.shared.Money;
@@ -45,6 +46,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Currency;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -64,6 +66,7 @@ class FinancialAccountControllerTest {
 
   @MockitoBean private FinancialAccountUseCase useCase;
   @MockitoBean private BrokerCsvParserPort parserPort;
+  @MockitoBean private FxRatePort fxRatePort;
 
   @Autowired private MockMvc mockMvc;
 
@@ -96,6 +99,69 @@ class FinancialAccountControllerTest {
         .perform(get("/api/v1/accounts").with(authentication(mockAuth())))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.length()").value(1));
+  }
+
+  @Test
+  void getAccounts_converts_balance_to_target_currency() throws Exception {
+    FinancialAccount account =
+        FinancialAccount.open(
+            "Mon PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, Currency.getInstance("EUR")),
+            "Fortuneo",
+            testUserId,
+            null,
+            LocalDate.of(2024, 1, 1));
+    account.recordTransaction(
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("1000"), Currency.getInstance("EUR")),
+            LocalDate.of(2024, 1, 1),
+            BigDecimal.ZERO,
+            null));
+    when(useCase.getAllAccounts(any())).thenReturn(List.of(account));
+    when(fxRatePort.getRate("EUR", "USD")).thenReturn(Optional.of(new BigDecimal("1.10")));
+
+    mockMvc
+        .perform(get("/api/v1/accounts").param("currency", "USD").with(authentication(mockAuth())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].currency").value("USD"))
+        .andExpect(jsonPath("$[0].balance").value(1100.00));
+  }
+
+  @Test
+  void getAccounts_keeps_eur_when_no_currency_param() throws Exception {
+    FinancialAccount account =
+        FinancialAccount.open(
+            "Mon PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, Currency.getInstance("EUR")),
+            "Fortuneo",
+            testUserId,
+            null,
+            LocalDate.of(2024, 1, 1));
+    account.recordTransaction(
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("1000"), Currency.getInstance("EUR")),
+            LocalDate.of(2024, 1, 1),
+            BigDecimal.ZERO,
+            null));
+    when(useCase.getAllAccounts(any())).thenReturn(List.of(account));
+
+    mockMvc
+        .perform(get("/api/v1/accounts").with(authentication(mockAuth())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].currency").value("EUR"))
+        .andExpect(jsonPath("$[0].balance").value(1000.00));
   }
 
   @Test
@@ -242,13 +308,13 @@ class FinancialAccountControllerTest {
                 .with(authentication(mockAuth())))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.length()").value(2))
-        .andExpect(jsonPath("$[1].type").value("BUY"))
-        .andExpect(jsonPath("$[1].ticker").value("AAPL"))
-        .andExpect(jsonPath("$[1].quantity").value(10))
-        .andExpect(jsonPath("$[1].pricePerUnit").value(150))
-        .andExpect(jsonPath("$[1].totalAmount").value(1500))
-        .andExpect(jsonPath("$[1].fees").value(0))
-        .andExpect(jsonPath("$[1].description").value("DCA janvier"));
+        .andExpect(jsonPath("$[0].type").value("BUY"))
+        .andExpect(jsonPath("$[0].ticker").value("AAPL"))
+        .andExpect(jsonPath("$[0].quantity").value(10))
+        .andExpect(jsonPath("$[0].pricePerUnit").value(150))
+        .andExpect(jsonPath("$[0].totalAmount").value(1500))
+        .andExpect(jsonPath("$[0].fees").value(0))
+        .andExpect(jsonPath("$[0].description").value("DCA janvier"));
   }
 
   @Test
@@ -276,6 +342,56 @@ class FinancialAccountControllerTest {
         .andExpect(jsonPath("$[0].type").value("DEPOSIT"))
         .andExpect(jsonPath("$[0].ticker").isEmpty())
         .andExpect(jsonPath("$[0].pricePerUnit").isEmpty());
+  }
+
+  @Test
+  void getTransactions_converts_amounts_to_target_currency() throws Exception {
+    FinancialAccount account =
+        FinancialAccount.open(
+            "Mon CTO",
+            AccountType.COMPTE_TITRES,
+            new Money(BigDecimal.ZERO, Currency.getInstance("EUR")),
+            "IBKR",
+            testUserId,
+            null,
+            LocalDate.of(2024, 1, 1));
+    account.recordTransaction(
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("10000"), Currency.getInstance("EUR")),
+            LocalDate.of(2026, 1, 1),
+            BigDecimal.ZERO,
+            null));
+    account.recordTransaction(
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.BUY,
+            new Ticker("AAPL"),
+            new BigDecimal("10"),
+            new Money(new BigDecimal("150.00"), Currency.getInstance("EUR")),
+            new Money(new BigDecimal("1500.00"), Currency.getInstance("EUR")),
+            LocalDate.of(2026, 1, 15),
+            new BigDecimal("4.99"),
+            null));
+    when(useCase.getAccountById(any(), any())).thenReturn(account);
+    when(fxRatePort.getRate("EUR", "USD")).thenReturn(Optional.of(new BigDecimal("1.10")));
+
+    mockMvc
+        .perform(
+            get("/api/v1/accounts/{id}/transactions", account.id().value().toString())
+                .param("currency", "USD")
+                .with(authentication(mockAuth())))
+        .andExpect(status().isOk())
+        // BUY is newest (2026-01-15), DEPOSIT is older (2026-01-01) — sorted desc
+        .andExpect(jsonPath("$[0].type").value("BUY"))
+        .andExpect(jsonPath("$[0].currency").value("USD"))
+        .andExpect(jsonPath("$[0].pricePerUnit").value(165.00))
+        .andExpect(jsonPath("$[0].totalAmount").value(1650.00))
+        .andExpect(jsonPath("$[0].fees").value(5.49));
   }
 
   @Test
@@ -383,7 +499,7 @@ class FinancialAccountControllerTest {
 
   @Test
   void getHoldings_returns_200_with_holdings_list() throws Exception {
-    when(useCase.getEnrichedHoldings(any(), any())).thenReturn(List.of());
+    when(useCase.getEnrichedHoldings(any(), any(), any())).thenReturn(List.of());
 
     mockMvc
         .perform(
@@ -395,7 +511,7 @@ class FinancialAccountControllerTest {
 
   @Test
   void getHoldings_returns_404_when_account_not_found() throws Exception {
-    when(useCase.getEnrichedHoldings(any(), any()))
+    when(useCase.getEnrichedHoldings(any(), any(), any()))
         .thenThrow(new AccountNotFoundException(FinancialAccountId.generate()));
 
     mockMvc
@@ -424,8 +540,9 @@ class FinancialAccountControllerTest {
             "Apple Inc.",
             Instant.now(),
             new BigDecimal("2.50"));
-    EnrichedHolding enriched = EnrichedHolding.withPrice(holding, quote);
-    when(useCase.getEnrichedHoldings(any(), any())).thenReturn(List.of(enriched));
+    EnrichedHolding enriched =
+        EnrichedHolding.withPrice(holding, quote, "EUR", BigDecimal.ONE, BigDecimal.ONE);
+    when(useCase.getEnrichedHoldings(any(), any(), any())).thenReturn(List.of(enriched));
 
     mockMvc
         .perform(
@@ -458,7 +575,7 @@ class FinancialAccountControllerTest {
             new Money(new BigDecimal("1000.00"), Currency.getInstance("EUR")),
             new Money(BigDecimal.ZERO, Currency.getInstance("EUR")));
     EnrichedHolding enriched = EnrichedHolding.withoutPrice(holding);
-    when(useCase.getEnrichedHoldings(any(), any())).thenReturn(List.of(enriched));
+    when(useCase.getEnrichedHoldings(any(), any(), any())).thenReturn(List.of(enriched));
 
     mockMvc
         .perform(
@@ -863,7 +980,7 @@ class FinancialAccountControllerTest {
 
   @Test
   void getPortfolioSummaries_returns_200_with_list() throws Exception {
-    when(useCase.getPortfolioSummaries(any()))
+    when(useCase.getPortfolioSummaries(any(), any()))
         .thenReturn(
             List.of(
                 new AccountPortfolioSummary(

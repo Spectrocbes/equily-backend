@@ -49,15 +49,18 @@ public interface FinancialAccountUseCase {
 
   /**
    * Returns enriched holdings for a given account, fetching live prices from the market data
-   * context. Holdings without an available quote are returned with priceAvailable=false.
+   * context and converting them to targetCurrency. Holdings without an available quote are returned
+   * with priceAvailable=false.
    */
-  List<EnrichedHolding> getEnrichedHoldings(FinancialAccountId id, UserId ownerId);
+  List<EnrichedHolding> getEnrichedHoldings(
+      FinancialAccountId id, UserId ownerId, String targetCurrency);
 
   /**
    * Returns a live portfolio summary for every investment account owned by the user. All holdings
-   * across all accounts are fetched in a single batch market-data call.
+   * across all accounts are fetched in a single batch market-data call. Live values are converted
+   * to targetCurrency using FX rates.
    */
-  List<AccountPortfolioSummary> getPortfolioSummaries(UserId userId);
+  List<AccountPortfolioSummary> getPortfolioSummaries(UserId userId, String targetCurrency);
 
   /**
    * Updates an existing transaction's mutable fields. Type and ticker cannot be changed. Throws

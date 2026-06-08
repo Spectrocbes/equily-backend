@@ -2,6 +2,8 @@ package com.equily.identity.infrastructure.usecase;
 
 import com.equily.identity.domain.User;
 import com.equily.identity.domain.UserId;
+import com.equily.identity.domain.UserPreferences;
+import com.equily.identity.domain.UserPreferencesUseCase;
 import com.equily.identity.domain.UserRepository;
 import com.equily.identity.domain.exception.EmailNotVerifiedException;
 import com.equily.identity.domain.exception.InvalidCredentialsException;
@@ -29,6 +31,7 @@ public class AuthService {
   private final EmailVerificationService emailVerificationService;
   private final EmailService emailService;
   private final PasswordResetService passwordResetService;
+  private final UserPreferencesUseCase userPreferencesUseCase;
 
   public AuthService(
       UserRepository userRepository,
@@ -37,7 +40,8 @@ public class AuthService {
       PasswordEncoder passwordEncoder,
       EmailVerificationService emailVerificationService,
       EmailService emailService,
-      PasswordResetService passwordResetService) {
+      PasswordResetService passwordResetService,
+      UserPreferencesUseCase userPreferencesUseCase) {
     this.userRepository = userRepository;
     this.jwtService = jwtService;
     this.refreshTokenService = refreshTokenService;
@@ -45,6 +49,7 @@ public class AuthService {
     this.emailVerificationService = emailVerificationService;
     this.emailService = emailService;
     this.passwordResetService = passwordResetService;
+    this.userPreferencesUseCase = userPreferencesUseCase;
   }
 
   public AuthTokenPair register(String email, String password, String displayName) {
@@ -54,6 +59,8 @@ public class AuthService {
     String hash = passwordEncoder.encode(password);
     User user = User.register(email, hash, displayName);
     userRepository.save(user);
+    userPreferencesUseCase.updatePreferences(
+        user.id(), UserPreferences.DEFAULT_CURRENCY, UserPreferences.DEFAULT_LOCALE);
 
     String token = emailVerificationService.createVerificationToken(user.id());
     emailService.sendVerificationEmail(email, displayName, token);

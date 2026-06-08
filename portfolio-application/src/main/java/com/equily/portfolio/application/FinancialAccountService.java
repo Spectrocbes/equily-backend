@@ -17,6 +17,7 @@ import com.equily.portfolio.domain.csv.CsvImportResult;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
 import com.equily.portfolio.domain.exception.TransactionNotFoundException;
 import com.equily.portfolio.domain.marketdata.EnrichedHolding;
+import com.equily.portfolio.domain.marketdata.FxRatePort;
 import com.equily.portfolio.domain.marketdata.MarketDataPort;
 import com.equily.portfolio.domain.marketdata.Quote;
 import com.equily.shared.Country;
@@ -58,10 +59,13 @@ class FinancialAccountService implements FinancialAccountUseCase {
 
   private final FinancialAccountRepository repository;
   private final MarketDataPort marketDataPort;
+  private final FxRatePort fxRatePort;
 
-  FinancialAccountService(FinancialAccountRepository repository, MarketDataPort marketDataPort) {
+  FinancialAccountService(
+      FinancialAccountRepository repository, MarketDataPort marketDataPort, FxRatePort fxRatePort) {
     this.repository = repository;
     this.marketDataPort = marketDataPort;
+    this.fxRatePort = fxRatePort;
   }
 
   @Override
@@ -147,7 +151,8 @@ class FinancialAccountService implements FinancialAccountUseCase {
 
   @Override
   @Transactional(readOnly = true)
-  public List<EnrichedHolding> getEnrichedHoldings(FinancialAccountId id, UserId ownerId) {
+  public List<EnrichedHolding> getEnrichedHoldings(
+      FinancialAccountId id, UserId ownerId, String targetCurrency) {
     FinancialAccount account = getAccountById(id, ownerId);
     List<Holding> holdings = Holding.computeFrom(account.transactions());
 
@@ -157,11 +162,21 @@ class FinancialAccountService implements FinancialAccountUseCase {
 
     Map<String, Quote> quotes = marketDataPort.getQuotes(symbols);
 
+    BigDecimal costToTarget =
+        "EUR".equals(targetCurrency)
+            ? BigDecimal.ONE
+            : fxRatePort.getRate("EUR", targetCurrency).orElse(BigDecimal.ONE);
+
     return holdings.stream()
         .map(
             h -> {
               Quote q = quotes.get(h.ticker().symbol());
-              return q != null ? EnrichedHolding.withPrice(h, q) : EnrichedHolding.withoutPrice(h);
+              if (q == null) return EnrichedHolding.withoutPrice(h);
+              BigDecimal liveToTarget =
+                  q.currency().equals(targetCurrency)
+                      ? BigDecimal.ONE
+                      : fxRatePort.getRate(q.currency(), targetCurrency).orElse(BigDecimal.ONE);
+              return EnrichedHolding.withPrice(h, q, targetCurrency, liveToTarget, costToTarget);
             })
         .toList();
   }
@@ -271,7 +286,7 @@ class FinancialAccountService implements FinancialAccountUseCase {
 
   @Override
   @Transactional(readOnly = true)
-  public List<AccountPortfolioSummary> getPortfolioSummaries(UserId userId) {
+  public List<AccountPortfolioSummary> getPortfolioSummaries(UserId userId, String targetCurrency) {
     List<FinancialAccount> investmentAccounts =
         repository.findAllByOwnerId(userId).stream()
             .filter(a -> INVESTMENT_ACCOUNT_TYPES.contains(a.accountType()))
@@ -289,11 +304,21 @@ class FinancialAccountService implements FinancialAccountUseCase {
     Map<String, Quote> quotes =
         allSymbols.isEmpty() ? Map.of() : marketDataPort.getQuotes(allSymbols);
 
-    return investmentAccounts.stream().map(a -> computeSummary(a, quotes)).toList();
+    BigDecimal costToTarget =
+        "EUR".equals(targetCurrency)
+            ? BigDecimal.ONE
+            : fxRatePort.getRate("EUR", targetCurrency).orElse(BigDecimal.ONE);
+
+    return investmentAccounts.stream()
+        .map(a -> computeSummary(a, quotes, targetCurrency, costToTarget))
+        .toList();
   }
 
   private AccountPortfolioSummary computeSummary(
-      FinancialAccount account, Map<String, Quote> quotes) {
+      FinancialAccount account,
+      Map<String, Quote> quotes,
+      String targetCurrency,
+      BigDecimal costToTarget) {
     List<Holding> holdings = Holding.computeFrom(account.transactions());
 
     if (holdings.isEmpty()) {
@@ -312,16 +337,27 @@ class FinancialAccountService implements FinancialAccountUseCase {
               h.averageCostPrice()
                   .amount()
                   .multiply(h.quantity())
+                  .multiply(costToTarget)
                   .setScale(2, RoundingMode.HALF_EVEN));
       if (quote != null) {
+        BigDecimal liveToTarget =
+            quote.currency().equals(targetCurrency)
+                ? BigDecimal.ONE
+                : fxRatePort.getRate(quote.currency(), targetCurrency).orElse(BigDecimal.ONE);
         liveValue =
-            liveValue.add(quote.price().multiply(h.quantity()).setScale(2, RoundingMode.HALF_EVEN));
+            liveValue.add(
+                quote
+                    .price()
+                    .multiply(liveToTarget)
+                    .multiply(h.quantity())
+                    .setScale(2, RoundingMode.HALF_EVEN));
       } else {
         liveValue =
             liveValue.add(
                 h.averageCostPrice()
                     .amount()
                     .multiply(h.quantity())
+                    .multiply(costToTarget)
                     .setScale(2, RoundingMode.HALF_EVEN));
         allPrices = false;
       }

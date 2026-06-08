@@ -14,21 +14,29 @@ public record EnrichedHolding(
     BigDecimal dayChangePercent,
     boolean priceAvailable) {
 
-  public static EnrichedHolding withPrice(Holding holding, Quote quote) {
+  public static EnrichedHolding withPrice(
+      Holding holding,
+      Quote quote,
+      String targetCurrency,
+      BigDecimal liveToTarget,
+      BigDecimal costToTarget) {
+    BigDecimal priceInTarget =
+        quote.price().multiply(liveToTarget).setScale(2, RoundingMode.HALF_EVEN);
     BigDecimal marketValue =
-        quote.price().multiply(holding.quantity()).setScale(2, RoundingMode.HALF_EVEN);
-    BigDecimal pnl =
-        marketValue.subtract(holding.totalInvested().amount()).setScale(2, RoundingMode.HALF_EVEN);
+        priceInTarget.multiply(holding.quantity()).setScale(2, RoundingMode.HALF_EVEN);
+    BigDecimal costInTarget =
+        holding.totalInvested().amount().multiply(costToTarget).setScale(2, RoundingMode.HALF_EVEN);
+    BigDecimal pnl = marketValue.subtract(costInTarget).setScale(2, RoundingMode.HALF_EVEN);
     BigDecimal pnlPct =
-        holding.totalInvested().amount().compareTo(BigDecimal.ZERO) == 0
+        costInTarget.compareTo(BigDecimal.ZERO) == 0
             ? BigDecimal.ZERO
-            : pnl.divide(holding.totalInvested().amount(), 4, RoundingMode.HALF_EVEN)
+            : pnl.divide(costInTarget, 4, RoundingMode.HALF_EVEN)
                 .multiply(new BigDecimal("100"))
                 .setScale(2, RoundingMode.HALF_EVEN);
     return new EnrichedHolding(
         holding,
-        quote.price(),
-        quote.currency(),
+        priceInTarget,
+        targetCurrency,
         marketValue,
         pnl,
         pnlPct,

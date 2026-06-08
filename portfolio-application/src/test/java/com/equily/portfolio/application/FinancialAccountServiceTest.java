@@ -25,6 +25,7 @@ import com.equily.portfolio.domain.exception.AccountNotFoundException;
 import com.equily.portfolio.domain.exception.DepositLimitExceededException;
 import com.equily.portfolio.domain.exception.TransactionNotFoundException;
 import com.equily.portfolio.domain.marketdata.EnrichedHolding;
+import com.equily.portfolio.domain.marketdata.FxRatePort;
 import com.equily.portfolio.domain.marketdata.MarketDataPort;
 import com.equily.portfolio.domain.marketdata.Quote;
 import com.equily.shared.Money;
@@ -46,6 +47,7 @@ class FinancialAccountServiceTest {
 
   @Mock private FinancialAccountRepository repository;
   @Mock private MarketDataPort marketDataPort;
+  @Mock private FxRatePort fxRatePort;
 
   @InjectMocks private FinancialAccountService service;
 
@@ -963,7 +965,7 @@ class FinancialAccountServiceTest {
     Quote quote = new Quote("AAPL", new BigDecimal("150.00"), "EUR", "Apple", Instant.now(), null);
     when(marketDataPort.getQuotes(List.of("AAPL"))).thenReturn(Map.of("AAPL", quote));
 
-    List<EnrichedHolding> result = service.getEnrichedHoldings(account.id(), ownerId);
+    List<EnrichedHolding> result = service.getEnrichedHoldings(account.id(), ownerId, "EUR");
 
     assertThat(result).hasSize(1);
     assertThat(result.get(0).priceAvailable()).isTrue();
@@ -1009,7 +1011,7 @@ class FinancialAccountServiceTest {
     when(repository.findById(any())).thenReturn(Optional.of(account));
     when(marketDataPort.getQuotes(List.of("OBSCURE"))).thenReturn(Map.of());
 
-    List<EnrichedHolding> result = service.getEnrichedHoldings(account.id(), ownerId);
+    List<EnrichedHolding> result = service.getEnrichedHoldings(account.id(), ownerId, "EUR");
 
     assertThat(result).hasSize(1);
     assertThat(result.get(0).priceAvailable()).isFalse();
@@ -1031,7 +1033,7 @@ class FinancialAccountServiceTest {
             OPENED_AT);
     when(repository.findById(any())).thenReturn(Optional.of(account));
 
-    List<EnrichedHolding> result = service.getEnrichedHoldings(account.id(), ownerId);
+    List<EnrichedHolding> result = service.getEnrichedHoldings(account.id(), ownerId, "EUR");
 
     assertThat(result).isEmpty();
   }
@@ -1074,7 +1076,7 @@ class FinancialAccountServiceTest {
     Quote quote = new Quote("AAPL", new BigDecimal("300.00"), "EUR", "Apple", Instant.now(), null);
     when(marketDataPort.getQuotes(List.of("AAPL"))).thenReturn(Map.of("AAPL", quote));
 
-    List<AccountPortfolioSummary> result = service.getPortfolioSummaries(ownerId);
+    List<AccountPortfolioSummary> result = service.getPortfolioSummaries(ownerId, "EUR");
 
     assertThat(result).hasSize(1);
     assertThat(result.get(0).livePortfolioValue()).isEqualByComparingTo("300.00");
@@ -1121,7 +1123,7 @@ class FinancialAccountServiceTest {
     when(repository.findAllByOwnerId(ownerId)).thenReturn(List.of(pea));
     when(marketDataPort.getQuotes(List.of("OBSCURE"))).thenReturn(Map.of());
 
-    List<AccountPortfolioSummary> result = service.getPortfolioSummaries(ownerId);
+    List<AccountPortfolioSummary> result = service.getPortfolioSummaries(ownerId, "EUR");
 
     assertThat(result).hasSize(1);
     assertThat(result.get(0).livePortfolioValue())
@@ -1152,7 +1154,7 @@ class FinancialAccountServiceTest {
             OPENED_AT);
     when(repository.findAllByOwnerId(ownerId)).thenReturn(List.of(savings, pea));
 
-    List<AccountPortfolioSummary> result = service.getPortfolioSummaries(ownerId);
+    List<AccountPortfolioSummary> result = service.getPortfolioSummaries(ownerId, "EUR");
 
     assertThat(result).hasSize(1);
     assertThat(result.get(0).accountId()).isEqualTo(pea.id());
@@ -1183,12 +1185,114 @@ class FinancialAccountServiceTest {
             null));
     when(repository.findAllByOwnerId(ownerId)).thenReturn(List.of(pea));
 
-    List<AccountPortfolioSummary> result = service.getPortfolioSummaries(ownerId);
+    List<AccountPortfolioSummary> result = service.getPortfolioSummaries(ownerId, "EUR");
 
     assertThat(result).hasSize(1);
     assertThat(result.get(0).livePortfolioValue()).isEqualByComparingTo(BigDecimal.ZERO);
     assertThat(result.get(0).costPortfolioValue()).isEqualByComparingTo(BigDecimal.ZERO);
     assertThat(result.get(0).priceAvailable()).isFalse();
+  }
+
+  @Test
+  void getEnrichedHoldings_converts_eur_cost_to_usd_target() {
+    UserId ownerId = UserId.generate();
+    FinancialAccount account =
+        FinancialAccount.open(
+            "Mon CTO",
+            AccountType.COMPTE_TITRES,
+            new Money(BigDecimal.ZERO, EUR),
+            "IBKR",
+            ownerId,
+            null,
+            OPENED_AT);
+    account.recordTransaction(
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("10000"), EUR),
+            LocalDate.now(),
+            BigDecimal.ZERO,
+            null));
+    account.recordTransaction(
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.BUY,
+            new Ticker("AAPL"),
+            new BigDecimal("10"),
+            new Money(new BigDecimal("100.00"), EUR),
+            new Money(new BigDecimal("1000.00"), EUR),
+            LocalDate.now(),
+            BigDecimal.ZERO,
+            null));
+    when(repository.findById(any())).thenReturn(Optional.of(account));
+
+    // Quote in USD, target is USD → liveToTarget short-circuits to ONE (no FX call for live)
+    Quote quote = new Quote("AAPL", new BigDecimal("100.00"), "USD", "Apple", Instant.now(), null);
+    when(marketDataPort.getQuotes(List.of("AAPL"))).thenReturn(Map.of("AAPL", quote));
+    // costToTarget: EUR→USD because targetCurrency != "EUR"
+    when(fxRatePort.getRate("EUR", "USD")).thenReturn(Optional.of(new BigDecimal("1.10")));
+
+    List<EnrichedHolding> result = service.getEnrichedHoldings(account.id(), ownerId, "USD");
+
+    assertThat(result).hasSize(1);
+    // costInTarget = 1000 EUR * 1.10 = 1100 USD, marketValue = 100 USD * 10 = 1000 USD
+    assertThat(result.get(0).marketValue()).isEqualByComparingTo("1000.00");
+    assertThat(result.get(0).unrealizedPnl()).isEqualByComparingTo("-100.00");
+  }
+
+  @Test
+  void getPortfolioSummaries_converts_cost_to_target_currency() {
+    UserId ownerId = UserId.generate();
+    FinancialAccount pea =
+        FinancialAccount.open(
+            "Mon PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            ownerId,
+            null,
+            OPENED_AT);
+    pea.recordTransaction(
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("10000"), EUR),
+            LocalDate.now(),
+            BigDecimal.ZERO,
+            null));
+    pea.recordTransaction(
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.BUY,
+            new Ticker("AAPL"),
+            new BigDecimal("1"),
+            new Money(new BigDecimal("100.00"), EUR),
+            new Money(new BigDecimal("100.00"), EUR),
+            LocalDate.now(),
+            BigDecimal.ZERO,
+            null));
+    when(repository.findAllByOwnerId(ownerId)).thenReturn(List.of(pea));
+
+    // Quote in USD, target is USD → liveToTarget short-circuits to ONE
+    Quote quote = new Quote("AAPL", new BigDecimal("100.00"), "USD", "Apple", Instant.now(), null);
+    when(marketDataPort.getQuotes(List.of("AAPL"))).thenReturn(Map.of("AAPL", quote));
+    // costToTarget: EUR→USD
+    when(fxRatePort.getRate("EUR", "USD")).thenReturn(Optional.of(new BigDecimal("1.10")));
+
+    List<AccountPortfolioSummary> result = service.getPortfolioSummaries(ownerId, "USD");
+
+    assertThat(result).hasSize(1);
+    // costPortfolioValue = 100 EUR * 1.10 = 110.00 USD
+    assertThat(result.get(0).costPortfolioValue()).isEqualByComparingTo("110.00");
+    // livePortfolioValue = 100 USD * 1 = 100.00 USD
+    assertThat(result.get(0).livePortfolioValue()).isEqualByComparingTo("100.00");
+    assertThat(result.get(0).unrealizedPnl()).isEqualByComparingTo("-10.00");
   }
 
   @Test
@@ -1247,5 +1351,103 @@ class FinancialAccountServiceTest {
     assertThat(holdings.get(0).quantity()).isEqualByComparingTo(new BigDecimal("10"));
     assertThat(holdings.get(0).averageCostPrice().amount())
         .isEqualByComparingTo(new BigDecimal("150.00"));
+  }
+
+  @Test
+  void getEnrichedHoldings_converts_usd_price_to_eur_target() {
+    UserId ownerId = UserId.generate();
+    FinancialAccount account =
+        FinancialAccount.open(
+            "Mon CTO",
+            AccountType.COMPTE_TITRES,
+            new Money(BigDecimal.ZERO, EUR),
+            "IBKR",
+            ownerId,
+            null,
+            OPENED_AT);
+    account.recordTransaction(
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("10000"), EUR),
+            LocalDate.now(),
+            BigDecimal.ZERO,
+            null));
+    account.recordTransaction(
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.BUY,
+            new Ticker("AAPL"),
+            new BigDecimal("10"),
+            new Money(new BigDecimal("100.00"), EUR),
+            new Money(new BigDecimal("1000.00"), EUR),
+            LocalDate.now(),
+            BigDecimal.ZERO,
+            null));
+    when(repository.findById(any())).thenReturn(Optional.of(account));
+
+    Quote quote = new Quote("AAPL", new BigDecimal("200.00"), "USD", "Apple", Instant.now(), null);
+    when(marketDataPort.getQuotes(List.of("AAPL"))).thenReturn(Map.of("AAPL", quote));
+    when(fxRatePort.getRate("USD", "EUR")).thenReturn(Optional.of(new BigDecimal("0.90")));
+
+    List<EnrichedHolding> result = service.getEnrichedHoldings(account.id(), ownerId, "EUR");
+
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0).priceAvailable()).isTrue();
+    assertThat(result.get(0).currency()).isEqualTo("EUR");
+    // 200.00 USD * 0.90 = 180.00 EUR
+    assertThat(result.get(0).currentPrice()).isEqualByComparingTo("180.00");
+    // 180.00 * 10 shares = 1800.00
+    assertThat(result.get(0).marketValue()).isEqualByComparingTo("1800.00");
+  }
+
+  @Test
+  void getEnrichedHoldings_uses_fx_rate_1_when_currencies_match() {
+    UserId ownerId = UserId.generate();
+    FinancialAccount account =
+        FinancialAccount.open(
+            "Mon PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            ownerId,
+            null,
+            OPENED_AT);
+    account.recordTransaction(
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("5000"), EUR),
+            LocalDate.now(),
+            BigDecimal.ZERO,
+            null));
+    account.recordTransaction(
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.BUY,
+            new Ticker("AIR.PA"),
+            new BigDecimal("5"),
+            new Money(new BigDecimal("150.00"), EUR),
+            new Money(new BigDecimal("750.00"), EUR),
+            LocalDate.now(),
+            BigDecimal.ZERO,
+            null));
+    when(repository.findById(any())).thenReturn(Optional.of(account));
+
+    Quote quote =
+        new Quote("AIR.PA", new BigDecimal("160.00"), "EUR", "Airbus", Instant.now(), null);
+    when(marketDataPort.getQuotes(List.of("AIR.PA"))).thenReturn(Map.of("AIR.PA", quote));
+
+    List<EnrichedHolding> result = service.getEnrichedHoldings(account.id(), ownerId, "EUR");
+
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0).currentPrice()).isEqualByComparingTo("160.00");
+    assertThat(result.get(0).marketValue()).isEqualByComparingTo("800.00");
   }
 }

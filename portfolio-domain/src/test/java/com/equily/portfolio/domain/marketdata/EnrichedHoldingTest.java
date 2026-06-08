@@ -41,7 +41,8 @@ class EnrichedHoldingTest {
     Holding holding = buildHolding("10", "100");
     Quote quote = buildQuote("160");
 
-    EnrichedHolding enriched = EnrichedHolding.withPrice(holding, quote);
+    EnrichedHolding enriched =
+        EnrichedHolding.withPrice(holding, quote, "EUR", BigDecimal.ONE, BigDecimal.ONE);
 
     assertThat(enriched.marketValue()).isEqualByComparingTo("1600.00");
     assertThat(enriched.priceAvailable()).isTrue();
@@ -53,7 +54,8 @@ class EnrichedHoldingTest {
     Holding holding = buildHolding("10", "100");
     Quote quote = buildQuote("160");
 
-    EnrichedHolding enriched = EnrichedHolding.withPrice(holding, quote);
+    EnrichedHolding enriched =
+        EnrichedHolding.withPrice(holding, quote, "EUR", BigDecimal.ONE, BigDecimal.ONE);
 
     // marketValue=1600, totalInvested=1000 => pnl=600
     assertThat(enriched.unrealizedPnl()).isEqualByComparingTo("600.00");
@@ -64,7 +66,8 @@ class EnrichedHoldingTest {
     Holding holding = buildHolding("10", "100");
     Quote quote = buildQuote("160");
 
-    EnrichedHolding enriched = EnrichedHolding.withPrice(holding, quote);
+    EnrichedHolding enriched =
+        EnrichedHolding.withPrice(holding, quote, "EUR", BigDecimal.ONE, BigDecimal.ONE);
 
     // pnl=600, totalInvested=1000 => 60.00%
     assertThat(enriched.unrealizedPnlPct()).isEqualByComparingTo("60.00");
@@ -84,9 +87,55 @@ class EnrichedHoldingTest {
             new Money(BigDecimal.ZERO, EUR));
     Quote quote = buildQuote("150");
 
-    EnrichedHolding enriched = EnrichedHolding.withPrice(holding, quote);
+    EnrichedHolding enriched =
+        EnrichedHolding.withPrice(holding, quote, "EUR", BigDecimal.ONE, BigDecimal.ONE);
 
     assertThat(enriched.unrealizedPnlPct()).isEqualByComparingTo("0");
+  }
+
+  @Test
+  void withPrice_applies_costToTarget_to_total_invested() {
+    Holding holding = buildHolding("10", "100"); // totalInvested = 1000 EUR
+    Quote quote =
+        new Quote(
+            "AAPL", new BigDecimal("200"), "USD", "Apple Inc.", Instant.now(), BigDecimal.ZERO);
+    // liveToTarget = 1 (USD quote stays in USD), costToTarget = 1.10 (EUR→USD)
+    EnrichedHolding enriched =
+        EnrichedHolding.withPrice(holding, quote, "USD", BigDecimal.ONE, new BigDecimal("1.10"));
+
+    // costInTarget = 1000 * 1.10 = 1100.00, marketValue = 200 * 10 = 2000.00, pnl = 900.00
+    assertThat(enriched.marketValue()).isEqualByComparingTo("2000.00");
+    assertThat(enriched.unrealizedPnl()).isEqualByComparingTo("900.00");
+  }
+
+  @Test
+  void withPrice_pnlPct_uses_fx_converted_cost() {
+    Holding holding = buildHolding("10", "100"); // totalInvested = 1000 EUR
+    Quote quote =
+        new Quote(
+            "AAPL", new BigDecimal("200"), "USD", "Apple Inc.", Instant.now(), BigDecimal.ZERO);
+    EnrichedHolding enriched =
+        EnrichedHolding.withPrice(holding, quote, "USD", BigDecimal.ONE, new BigDecimal("1.10"));
+
+    // pnl = 900, costInTarget = 1100 → 900/1100 * 100 = 81.82%
+    assertThat(enriched.unrealizedPnlPct()).isEqualByComparingTo("81.82");
+  }
+
+  @Test
+  void withPrice_applies_liveToTarget_independently_of_costToTarget() {
+    Holding holding = buildHolding("5", "200"); // totalInvested = 1000 EUR
+    Quote quote =
+        new Quote(
+            "AAPL", new BigDecimal("300"), "USD", "Apple Inc.", Instant.now(), BigDecimal.ZERO);
+    // USD→EUR live rate, cost stays in EUR (costToTarget = 1)
+    EnrichedHolding enriched =
+        EnrichedHolding.withPrice(holding, quote, "EUR", new BigDecimal("0.90"), BigDecimal.ONE);
+
+    // priceInTarget = 300 * 0.90 = 270.00, marketValue = 270 * 5 = 1350.00
+    // costInTarget = 1000 * 1 = 1000.00, pnl = 350.00
+    assertThat(enriched.currentPrice()).isEqualByComparingTo("270.00");
+    assertThat(enriched.marketValue()).isEqualByComparingTo("1350.00");
+    assertThat(enriched.unrealizedPnl()).isEqualByComparingTo("350.00");
   }
 
   @Test
