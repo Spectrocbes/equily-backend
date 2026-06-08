@@ -22,12 +22,14 @@ import com.equily.portfolio.domain.account.AccountSubType;
 import com.equily.portfolio.domain.account.DepositLimits;
 import com.equily.portfolio.domain.csv.CsvImportResult;
 import com.equily.portfolio.domain.marketdata.EnrichedHolding;
+import com.equily.portfolio.domain.marketdata.FxRatePort;
 import com.equily.shared.Money;
 import jakarta.validation.Valid;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.Currency;
 import java.util.List;
 import java.util.Map;
@@ -62,10 +64,13 @@ class FinancialAccountController {
 
   private final FinancialAccountUseCase useCase;
   private final BrokerCsvParserPort parserPort;
+  private final FxRatePort fxRatePort;
 
-  FinancialAccountController(FinancialAccountUseCase useCase, BrokerCsvParserPort parserPort) {
+  FinancialAccountController(
+      FinancialAccountUseCase useCase, BrokerCsvParserPort parserPort, FxRatePort fxRatePort) {
     this.useCase = useCase;
     this.parserPort = parserPort;
+    this.fxRatePort = fxRatePort;
   }
 
   private UserId extractUserId(Authentication auth) {
@@ -73,22 +78,27 @@ class FinancialAccountController {
   }
 
   @GetMapping
-  ResponseEntity<List<FinancialAccountResponse>> getAllAccounts(Authentication auth) {
+  ResponseEntity<List<FinancialAccountResponse>> getAllAccounts(
+      @RequestParam(defaultValue = "EUR") String currency, Authentication auth) {
     UserId userId = extractUserId(auth);
     List<FinancialAccount> accounts = useCase.getAllAccounts(userId);
+    BigDecimal eurToTarget = eurToTarget(currency);
     List<FinancialAccountResponse> responses =
-        accounts.stream().map(a -> toAccountResponse(a, accounts)).toList();
+        accounts.stream().map(a -> toAccountResponse(a, accounts, eurToTarget, currency)).toList();
     return ResponseEntity.ok(responses);
   }
 
   @GetMapping("/{id}")
   ResponseEntity<FinancialAccountResponse> getAccountById(
-      @PathVariable String id, Authentication auth) {
+      @PathVariable String id,
+      @RequestParam(defaultValue = "EUR") String currency,
+      Authentication auth) {
     UserId userId = extractUserId(auth);
     FinancialAccount account =
         useCase.getAccountById(new FinancialAccountId(UUID.fromString(id)), userId);
     List<FinancialAccount> allUserAccounts = useCase.getAllAccounts(userId);
-    return ResponseEntity.ok(toAccountResponse(account, allUserAccounts));
+    BigDecimal eurToTarget = eurToTarget(currency);
+    return ResponseEntity.ok(toAccountResponse(account, allUserAccounts, eurToTarget, currency));
   }
 
   @PostMapping
@@ -142,10 +152,12 @@ class FinancialAccountController {
 
   @GetMapping("/{id}/holdings/enriched")
   ResponseEntity<List<EnrichedHoldingResponse>> getHoldings(
-      @PathVariable String id, Authentication auth) {
+      @PathVariable String id,
+      @RequestParam(defaultValue = "EUR") String currency,
+      Authentication auth) {
     UserId userId = extractUserId(auth);
     List<EnrichedHolding> holdings =
-        useCase.getEnrichedHoldings(new FinancialAccountId(UUID.fromString(id)), userId);
+        useCase.getEnrichedHoldings(new FinancialAccountId(UUID.fromString(id)), userId, currency);
     List<EnrichedHoldingResponse> response =
         holdings.stream().map(this::toEnrichedHoldingResponse).toList();
     return ResponseEntity.ok(response);
@@ -214,9 +226,9 @@ class FinancialAccountController {
 
   @GetMapping("/portfolio-summary")
   ResponseEntity<List<AccountPortfolioSummaryResponse>> getPortfolioSummaries(
-      Authentication authentication) {
+      @RequestParam(defaultValue = "EUR") String currency, Authentication authentication) {
     UserId userId = extractUserId(authentication);
-    List<AccountPortfolioSummary> summaries = useCase.getPortfolioSummaries(userId);
+    List<AccountPortfolioSummary> summaries = useCase.getPortfolioSummaries(userId, currency);
     List<AccountPortfolioSummaryResponse> response =
         summaries.stream()
             .map(
@@ -270,12 +282,18 @@ class FinancialAccountController {
 
   @GetMapping("/{id}/transactions")
   ResponseEntity<List<TransactionResponse>> getTransactions(
-      @PathVariable String id, Authentication auth) {
+      @PathVariable String id,
+      @RequestParam(defaultValue = "EUR") String currency,
+      Authentication auth) {
     UserId userId = extractUserId(auth);
     FinancialAccount account =
         useCase.getAccountById(new FinancialAccountId(UUID.fromString(id)), userId);
+    BigDecimal eurToTarget = eurToTarget(currency);
     List<TransactionResponse> transactions =
-        account.transactions().stream().map(this::toTransactionResponse).toList();
+        account.transactions().stream()
+            .sorted(Comparator.comparing(Transaction::date).reversed())
+            .map(t -> toTransactionResponse(t, eurToTarget, currency))
+            .toList();
     return ResponseEntity.ok(transactions);
   }
 
@@ -319,9 +337,20 @@ class FinancialAccountController {
         .reduce(BigDecimal.ZERO, BigDecimal::add);
   }
 
+  private BigDecimal eurToTarget(String targetCurrency) {
+    return "EUR".equals(targetCurrency)
+        ? BigDecimal.ONE
+        : fxRatePort.getRate("EUR", targetCurrency).orElse(BigDecimal.ONE);
+  }
+
   private FinancialAccountResponse toAccountResponse(
-      FinancialAccount account, List<FinancialAccount> allUserAccounts) {
+      FinancialAccount account,
+      List<FinancialAccount> allUserAccounts,
+      BigDecimal eurToTarget,
+      String targetCurrency) {
     AccountSubType subType = account.subType();
+    // deposit limits and remaining capacity stay in EUR — French regulatory caps are
+    // EUR-denominated
     BigDecimal depositLimit =
         subType != null ? DepositLimits.limitFor(subType).map(Money::amount).orElse(null) : null;
     BigDecimal totalDeposits =
@@ -333,20 +362,27 @@ class FinancialAccountController {
         AccountBusinessRules.remainingCapacity(account, allUserAccounts)
             .map(Money::amount)
             .orElse(null);
+    BigDecimal convertedBalance =
+        account.balance().amount().multiply(eurToTarget).setScale(2, RoundingMode.HALF_EVEN);
+    BigDecimal rawPortfolioValue = computePortfolioValue(account);
+    BigDecimal convertedPortfolioValue =
+        rawPortfolioValue != null
+            ? rawPortfolioValue.multiply(eurToTarget).setScale(2, RoundingMode.HALF_EVEN)
+            : null;
     return new FinancialAccountResponse(
         account.id().value().toString(),
         account.name(),
         account.accountType().name(),
         subType != null ? subType.name() : null,
-        account.balance().amount(),
-        account.balance().currency().getCurrencyCode(),
+        convertedBalance,
+        targetCurrency,
         account.transactions().size(),
         account.broker(),
         depositLimit,
         totalDeposits,
         remainingCapacity,
         account.openedAt(),
-        computePortfolioValue(account));
+        convertedPortfolioValue);
   }
 
   private BigDecimal computePortfolioValue(FinancialAccount account) {
@@ -362,17 +398,22 @@ class FinancialAccountController {
         .reduce(BigDecimal.ZERO, BigDecimal::add);
   }
 
-  private TransactionResponse toTransactionResponse(Transaction tx) {
+  private TransactionResponse toTransactionResponse(
+      Transaction tx, BigDecimal eurToTarget, String targetCurrency) {
     return new TransactionResponse(
         tx.id().value().toString(),
         tx.type().name(),
         tx.ticker() != null ? tx.ticker().symbol() : null,
         tx.quantity(),
-        tx.pricePerUnit() != null ? tx.pricePerUnit().amount() : null,
-        tx.totalAmount().amount(),
-        tx.totalAmount().currency().getCurrencyCode(),
+        tx.pricePerUnit() != null
+            ? tx.pricePerUnit().amount().multiply(eurToTarget).setScale(2, RoundingMode.HALF_EVEN)
+            : null,
+        tx.totalAmount().amount().multiply(eurToTarget).setScale(2, RoundingMode.HALF_EVEN),
+        targetCurrency,
         tx.date(),
-        tx.fees(),
+        tx.fees() != null
+            ? tx.fees().multiply(eurToTarget).setScale(2, RoundingMode.HALF_EVEN)
+            : null,
         tx.description());
   }
 }
