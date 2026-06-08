@@ -1,6 +1,7 @@
 package com.equily.portfolio.application;
 
 import com.equily.identity.domain.UserId;
+import com.equily.portfolio.domain.AccountType;
 import com.equily.portfolio.domain.AssetMetadata;
 import com.equily.portfolio.domain.AssetType;
 import com.equily.portfolio.domain.FinancialAccount;
@@ -15,8 +16,12 @@ import com.equily.portfolio.domain.account.AccountBusinessRules;
 import com.equily.portfolio.domain.csv.CsvImportResult;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
 import com.equily.portfolio.domain.exception.TransactionNotFoundException;
+import com.equily.portfolio.domain.marketdata.EnrichedHolding;
+import com.equily.portfolio.domain.marketdata.MarketDataPort;
+import com.equily.portfolio.domain.marketdata.Quote;
 import com.equily.shared.Country;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -31,6 +36,15 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 class FinancialAccountService implements FinancialAccountUseCase {
 
+  private static final Set<AccountType> INVESTMENT_ACCOUNT_TYPES =
+      Set.of(
+          AccountType.PEA,
+          AccountType.PEA_PME,
+          AccountType.COMPTE_TITRES,
+          AccountType.PER,
+          AccountType.ASSURANCE_VIE,
+          AccountType.CRYPTO_WALLET);
+
   // DEPOSIT/WITHDRAWAL/DIVIDEND must precede asset operations within the same day
   // to avoid InsufficientFundsException when Boursobank exports newest-first
   private static final Map<TransactionType, Integer> TYPE_PRIORITY =
@@ -43,9 +57,11 @@ class FinancialAccountService implements FinancialAccountUseCase {
           TransactionType.SELL, 5);
 
   private final FinancialAccountRepository repository;
+  private final MarketDataPort marketDataPort;
 
-  FinancialAccountService(FinancialAccountRepository repository) {
+  FinancialAccountService(FinancialAccountRepository repository, MarketDataPort marketDataPort) {
     this.repository = repository;
+    this.marketDataPort = marketDataPort;
   }
 
   @Override
@@ -127,6 +143,27 @@ class FinancialAccountService implements FinancialAccountUseCase {
       throw new AccountNotFoundException(id);
     }
     return account;
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public List<EnrichedHolding> getEnrichedHoldings(FinancialAccountId id, UserId ownerId) {
+    FinancialAccount account = getAccountById(id, ownerId);
+    List<Holding> holdings = Holding.computeFrom(account.transactions());
+
+    if (holdings.isEmpty()) return List.of();
+
+    List<String> symbols = holdings.stream().map(h -> h.ticker().symbol()).distinct().toList();
+
+    Map<String, Quote> quotes = marketDataPort.getQuotes(symbols);
+
+    return holdings.stream()
+        .map(
+            h -> {
+              Quote q = quotes.get(h.ticker().symbol());
+              return q != null ? EnrichedHolding.withPrice(h, q) : EnrichedHolding.withoutPrice(h);
+            })
+        .toList();
   }
 
   @Override
@@ -230,6 +267,75 @@ class FinancialAccountService implements FinancialAccountUseCase {
         .map(Transaction::type)
         .findFirst()
         .orElseThrow(() -> new TransactionNotFoundException(transactionId));
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public List<AccountPortfolioSummary> getPortfolioSummaries(UserId userId) {
+    List<FinancialAccount> investmentAccounts =
+        repository.findAllByOwnerId(userId).stream()
+            .filter(a -> INVESTMENT_ACCOUNT_TYPES.contains(a.accountType()))
+            .toList();
+
+    if (investmentAccounts.isEmpty()) return List.of();
+
+    List<String> allSymbols =
+        investmentAccounts.stream()
+            .flatMap(a -> Holding.computeFrom(a.transactions()).stream())
+            .map(h -> h.ticker().symbol())
+            .distinct()
+            .toList();
+
+    Map<String, Quote> quotes =
+        allSymbols.isEmpty() ? Map.of() : marketDataPort.getQuotes(allSymbols);
+
+    return investmentAccounts.stream().map(a -> computeSummary(a, quotes)).toList();
+  }
+
+  private AccountPortfolioSummary computeSummary(
+      FinancialAccount account, Map<String, Quote> quotes) {
+    List<Holding> holdings = Holding.computeFrom(account.transactions());
+
+    if (holdings.isEmpty()) {
+      return new AccountPortfolioSummary(
+          account.id(), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, false);
+    }
+
+    BigDecimal liveValue = BigDecimal.ZERO;
+    BigDecimal costValue = BigDecimal.ZERO;
+    boolean allPrices = true;
+
+    for (Holding h : holdings) {
+      Quote quote = quotes.get(h.ticker().symbol());
+      costValue =
+          costValue.add(
+              h.averageCostPrice()
+                  .amount()
+                  .multiply(h.quantity())
+                  .setScale(2, RoundingMode.HALF_EVEN));
+      if (quote != null) {
+        liveValue =
+            liveValue.add(quote.price().multiply(h.quantity()).setScale(2, RoundingMode.HALF_EVEN));
+      } else {
+        liveValue =
+            liveValue.add(
+                h.averageCostPrice()
+                    .amount()
+                    .multiply(h.quantity())
+                    .setScale(2, RoundingMode.HALF_EVEN));
+        allPrices = false;
+      }
+    }
+
+    BigDecimal pnl = liveValue.subtract(costValue).setScale(2, RoundingMode.HALF_EVEN);
+    BigDecimal pnlPct =
+        costValue.compareTo(BigDecimal.ZERO) == 0
+            ? BigDecimal.ZERO
+            : pnl.divide(costValue, 4, RoundingMode.HALF_EVEN)
+                .multiply(new BigDecimal("100"))
+                .setScale(2, RoundingMode.HALF_EVEN);
+
+    return new AccountPortfolioSummary(account.id(), liveValue, costValue, pnl, pnlPct, allPrices);
   }
 
   private String duplicateKey(LocalDate date, Ticker ticker, BigDecimal amount) {

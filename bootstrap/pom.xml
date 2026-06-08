@@ -26,6 +26,10 @@
             <groupId>com.equily</groupId>
             <artifactId>identity-infrastructure</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.equily</groupId>
+            <artifactId>market-data-infrastructure</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>

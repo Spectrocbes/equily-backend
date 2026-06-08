@@ -24,11 +24,16 @@ import com.equily.portfolio.domain.csv.CsvImportResult;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
 import com.equily.portfolio.domain.exception.DepositLimitExceededException;
 import com.equily.portfolio.domain.exception.TransactionNotFoundException;
+import com.equily.portfolio.domain.marketdata.EnrichedHolding;
+import com.equily.portfolio.domain.marketdata.MarketDataPort;
+import com.equily.portfolio.domain.marketdata.Quote;
 import com.equily.shared.Money;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Currency;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,6 +45,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class FinancialAccountServiceTest {
 
   @Mock private FinancialAccountRepository repository;
+  @Mock private MarketDataPort marketDataPort;
 
   @InjectMocks private FinancialAccountService service;
 
@@ -916,6 +922,273 @@ class FinancialAccountServiceTest {
 
     assertThatThrownBy(() -> service.updateTransaction(command))
         .isInstanceOf(AccountNotFoundException.class);
+  }
+
+  @Test
+  void getEnrichedHoldings_enriches_with_price_when_quote_available() {
+    UserId ownerId = UserId.generate();
+    FinancialAccount account =
+        FinancialAccount.open(
+            "Mon PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            ownerId,
+            null,
+            OPENED_AT);
+    account.recordTransaction(
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("10000"), EUR),
+            LocalDate.now(),
+            BigDecimal.ZERO,
+            null));
+    account.recordTransaction(
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.BUY,
+            new Ticker("AAPL"),
+            new BigDecimal("10"),
+            new Money(new BigDecimal("100.00"), EUR),
+            new Money(new BigDecimal("1000.00"), EUR),
+            LocalDate.now(),
+            BigDecimal.ZERO,
+            null));
+    when(repository.findById(any())).thenReturn(Optional.of(account));
+
+    Quote quote = new Quote("AAPL", new BigDecimal("150.00"), "EUR", "Apple", Instant.now(), null);
+    when(marketDataPort.getQuotes(List.of("AAPL"))).thenReturn(Map.of("AAPL", quote));
+
+    List<EnrichedHolding> result = service.getEnrichedHoldings(account.id(), ownerId);
+
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0).priceAvailable()).isTrue();
+    assertThat(result.get(0).currentPrice()).isEqualByComparingTo("150.00");
+    assertThat(result.get(0).marketValue()).isEqualByComparingTo("1500.00");
+    assertThat(result.get(0).unrealizedPnl()).isEqualByComparingTo("500.00");
+  }
+
+  @Test
+  void getEnrichedHoldings_returns_withoutPrice_when_quote_not_found() {
+    UserId ownerId = UserId.generate();
+    FinancialAccount account =
+        FinancialAccount.open(
+            "Mon PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            ownerId,
+            null,
+            OPENED_AT);
+    account.recordTransaction(
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("10000"), EUR),
+            LocalDate.now(),
+            BigDecimal.ZERO,
+            null));
+    account.recordTransaction(
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.BUY,
+            new Ticker("OBSCURE"),
+            new BigDecimal("5"),
+            new Money(new BigDecimal("200.00"), EUR),
+            new Money(new BigDecimal("1000.00"), EUR),
+            LocalDate.now(),
+            BigDecimal.ZERO,
+            null));
+    when(repository.findById(any())).thenReturn(Optional.of(account));
+    when(marketDataPort.getQuotes(List.of("OBSCURE"))).thenReturn(Map.of());
+
+    List<EnrichedHolding> result = service.getEnrichedHoldings(account.id(), ownerId);
+
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0).priceAvailable()).isFalse();
+    assertThat(result.get(0).currentPrice()).isNull();
+    assertThat(result.get(0).marketValue()).isNull();
+  }
+
+  @Test
+  void getEnrichedHoldings_returns_empty_when_no_holdings() {
+    UserId ownerId = UserId.generate();
+    FinancialAccount account =
+        FinancialAccount.open(
+            "Mon PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            ownerId,
+            null,
+            OPENED_AT);
+    when(repository.findById(any())).thenReturn(Optional.of(account));
+
+    List<EnrichedHolding> result = service.getEnrichedHoldings(account.id(), ownerId);
+
+    assertThat(result).isEmpty();
+  }
+
+  @Test
+  void getPortfolioSummaries_returns_live_values_when_prices_available() {
+    UserId ownerId = UserId.generate();
+    FinancialAccount pea =
+        FinancialAccount.open(
+            "Mon PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            ownerId,
+            null,
+            OPENED_AT);
+    pea.recordTransaction(
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("10000"), EUR),
+            LocalDate.now(),
+            BigDecimal.ZERO,
+            null));
+    pea.recordTransaction(
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.BUY,
+            new Ticker("AAPL"),
+            new BigDecimal("1"),
+            new Money(new BigDecimal("150.00"), EUR),
+            new Money(new BigDecimal("150.00"), EUR),
+            LocalDate.now(),
+            BigDecimal.ZERO,
+            null));
+    when(repository.findAllByOwnerId(ownerId)).thenReturn(List.of(pea));
+    Quote quote = new Quote("AAPL", new BigDecimal("300.00"), "EUR", "Apple", Instant.now(), null);
+    when(marketDataPort.getQuotes(List.of("AAPL"))).thenReturn(Map.of("AAPL", quote));
+
+    List<AccountPortfolioSummary> result = service.getPortfolioSummaries(ownerId);
+
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0).livePortfolioValue()).isEqualByComparingTo("300.00");
+    assertThat(result.get(0).costPortfolioValue()).isEqualByComparingTo("150.00");
+    assertThat(result.get(0).unrealizedPnl()).isEqualByComparingTo("150.00");
+    assertThat(result.get(0).unrealizedPnlPct()).isEqualByComparingTo("100.00");
+    assertThat(result.get(0).priceAvailable()).isTrue();
+  }
+
+  @Test
+  void getPortfolioSummaries_falls_back_to_cost_when_no_price() {
+    UserId ownerId = UserId.generate();
+    FinancialAccount pea =
+        FinancialAccount.open(
+            "Mon PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            ownerId,
+            null,
+            OPENED_AT);
+    pea.recordTransaction(
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("10000"), EUR),
+            LocalDate.now(),
+            BigDecimal.ZERO,
+            null));
+    pea.recordTransaction(
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.BUY,
+            new Ticker("OBSCURE"),
+            new BigDecimal("5"),
+            new Money(new BigDecimal("200.00"), EUR),
+            new Money(new BigDecimal("1000.00"), EUR),
+            LocalDate.now(),
+            BigDecimal.ZERO,
+            null));
+    when(repository.findAllByOwnerId(ownerId)).thenReturn(List.of(pea));
+    when(marketDataPort.getQuotes(List.of("OBSCURE"))).thenReturn(Map.of());
+
+    List<AccountPortfolioSummary> result = service.getPortfolioSummaries(ownerId);
+
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0).livePortfolioValue())
+        .isEqualByComparingTo(result.get(0).costPortfolioValue());
+    assertThat(result.get(0).priceAvailable()).isFalse();
+  }
+
+  @Test
+  void getPortfolioSummaries_skips_non_investment_accounts() {
+    UserId ownerId = UserId.generate();
+    FinancialAccount savings =
+        FinancialAccount.open(
+            "Livret A",
+            AccountType.SAVINGS_ACCOUNT,
+            new Money(BigDecimal.ZERO, EUR),
+            "BNP",
+            ownerId,
+            AccountSubType.LIVRET_A,
+            OPENED_AT);
+    FinancialAccount pea =
+        FinancialAccount.open(
+            "Mon PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            ownerId,
+            null,
+            OPENED_AT);
+    when(repository.findAllByOwnerId(ownerId)).thenReturn(List.of(savings, pea));
+
+    List<AccountPortfolioSummary> result = service.getPortfolioSummaries(ownerId);
+
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0).accountId()).isEqualTo(pea.id());
+  }
+
+  @Test
+  void getPortfolioSummaries_returns_zeros_for_account_with_no_holdings() {
+    UserId ownerId = UserId.generate();
+    FinancialAccount pea =
+        FinancialAccount.open(
+            "Mon PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            ownerId,
+            null,
+            OPENED_AT);
+    pea.recordTransaction(
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("5000"), EUR),
+            LocalDate.now(),
+            BigDecimal.ZERO,
+            null));
+    when(repository.findAllByOwnerId(ownerId)).thenReturn(List.of(pea));
+
+    List<AccountPortfolioSummary> result = service.getPortfolioSummaries(ownerId);
+
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0).livePortfolioValue()).isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(result.get(0).costPortfolioValue()).isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(result.get(0).priceAvailable()).isFalse();
   }
 
   @Test
