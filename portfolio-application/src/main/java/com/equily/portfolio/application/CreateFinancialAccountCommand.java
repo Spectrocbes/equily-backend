@@ -13,4 +13,5 @@ public record CreateFinancialAccountCommand(
     String broker,
     UserId ownerId,
     AccountSubType subType,
-    LocalDate openedAt) {}
+    LocalDate openedAt,
+    String currency) {}

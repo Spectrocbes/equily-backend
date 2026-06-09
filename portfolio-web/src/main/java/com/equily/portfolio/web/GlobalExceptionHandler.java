@@ -11,6 +11,7 @@ import com.equily.portfolio.domain.exception.InsufficientFundsException;
 import com.equily.portfolio.domain.exception.InvalidHoldingException;
 import com.equily.portfolio.domain.exception.InvalidTransactionException;
 import com.equily.portfolio.domain.exception.TransactionNotFoundException;
+import com.equily.shared.exception.CurrencyMismatchException;
 import java.math.BigDecimal;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -44,6 +45,11 @@ class GlobalExceptionHandler {
   @ExceptionHandler(TransactionNotFoundException.class)
   ResponseEntity<String> handleTransactionNotFound(TransactionNotFoundException ex) {
     return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
+  }
+
+  @ExceptionHandler(CurrencyMismatchException.class)
+  ResponseEntity<String> handleCurrencyMismatch(CurrencyMismatchException ex) {
+    return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(ex.getMessage());
   }
 
   @ExceptionHandler(InsufficientFundsException.class)

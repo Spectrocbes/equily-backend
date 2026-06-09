@@ -153,4 +153,34 @@ class EnrichedHoldingTest {
     assertThat(enriched.dayChangePercent()).isNull();
     assertThat(enriched.holding()).isEqualTo(holding);
   }
+
+  @Test
+  void withPrice_converts_avgCostPrice_to_target_currency() {
+    Holding holding = buildHolding("10", "100"); // avgCostPrice=100 EUR
+    Quote quote =
+        new Quote(
+            "AAPL", new BigDecimal("200"), "USD", "Apple Inc.", Instant.now(), BigDecimal.ZERO);
+
+    // costToTarget = 1.10 (EUR→USD)
+    EnrichedHolding enriched =
+        EnrichedHolding.withPrice(holding, quote, "USD", BigDecimal.ONE, new BigDecimal("1.10"));
+
+    // avgCostInTarget = 100 EUR * 1.10 = 110.00 USD
+    assertThat(enriched.avgCostInTarget()).isEqualByComparingTo("110.00");
+  }
+
+  @Test
+  void withPrice_converts_totalInvested_to_target_currency() {
+    Holding holding = buildHolding("10", "100"); // totalInvested = 1000 EUR
+    Quote quote =
+        new Quote(
+            "AAPL", new BigDecimal("200"), "USD", "Apple Inc.", Instant.now(), BigDecimal.ZERO);
+
+    // costToTarget = 1.10 (EUR→USD)
+    EnrichedHolding enriched =
+        EnrichedHolding.withPrice(holding, quote, "USD", BigDecimal.ONE, new BigDecimal("1.10"));
+
+    // totalInvestedInTarget = 1000 EUR * 1.10 = 1100.00 USD
+    assertThat(enriched.totalInvestedInTarget()).isEqualByComparingTo("1100.00");
+  }
 }

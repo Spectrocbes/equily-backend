@@ -26,7 +26,7 @@ class HoldingTest {
   private Transaction buy(String qty, String price) {
     BigDecimal q = new BigDecimal(qty);
     BigDecimal p = new BigDecimal(price);
-    return Transaction.of(
+    return Transaction.ofEur(
         TransactionId.generate(),
         TransactionType.BUY,
         AAPL,
@@ -41,7 +41,7 @@ class HoldingTest {
   private Transaction sell(String qty, String price) {
     BigDecimal q = new BigDecimal(qty);
     BigDecimal p = new BigDecimal(price);
-    return Transaction.of(
+    return Transaction.ofEur(
         TransactionId.generate(),
         TransactionType.SELL,
         AAPL,
@@ -55,26 +55,27 @@ class HoldingTest {
 
   @Test
   void two_buy_transactions_compute_correct_weighted_average_cost() {
-    // Buy 10 @ 100 + fees 2€, Buy 10 @ 200 + fees 3€ → avg = 150 (fees excluded)
+    // Buy 10 @ 100 + fees 2€, Buy 10 @ 200 + fees 3€ → avgCost = 150
+    // totalAmount = qty × price (fees separate — amountEur excludes fees)
     List<Transaction> txns =
         List.of(
-            Transaction.of(
+            Transaction.ofEur(
                 TransactionId.generate(),
                 TransactionType.BUY,
                 AAPL,
                 new BigDecimal("10"),
                 new Money(new BigDecimal("100.00"), EUR),
-                new Money(new BigDecimal("1002.00"), EUR),
+                new Money(new BigDecimal("1000.00"), EUR),
                 TODAY,
                 new BigDecimal("2.00"),
                 null),
-            Transaction.of(
+            Transaction.ofEur(
                 TransactionId.generate(),
                 TransactionType.BUY,
                 AAPL,
                 new BigDecimal("10"),
                 new Money(new BigDecimal("200.00"), EUR),
-                new Money(new BigDecimal("2003.00"), EUR),
+                new Money(new BigDecimal("2000.00"), EUR),
                 TODAY,
                 new BigDecimal("3.00"),
                 null));
@@ -90,16 +91,16 @@ class HoldingTest {
 
   @Test
   void buy_with_fees_avgcost_excludes_fees() {
-    // Buy 10 @ 150 + 5€ fees → avgCost = 150 (not 150.50)
+    // Buy 10 @ 150 + 5€ fees → avgCost = 150 (amountEur = qty × price, fees separate)
     List<Transaction> txns =
         List.of(
-            Transaction.of(
+            Transaction.ofEur(
                 TransactionId.generate(),
                 TransactionType.BUY,
                 AAPL,
                 new BigDecimal("10"),
                 new Money(new BigDecimal("150.00"), EUR),
-                new Money(new BigDecimal("1505.00"), EUR),
+                new Money(new BigDecimal("1500.00"), EUR),
                 TODAY,
                 new BigDecimal("5.00"),
                 null));
@@ -130,17 +131,17 @@ class HoldingTest {
     // Buy 10 @ 100 + 2€ fees, Sell 4 → qty=6, avgCost=100, fees=2
     List<Transaction> txns =
         List.of(
-            Transaction.of(
+            Transaction.ofEur(
                 TransactionId.generate(),
                 TransactionType.BUY,
                 AAPL,
                 new BigDecimal("10"),
                 new Money(new BigDecimal("100.00"), EUR),
-                new Money(new BigDecimal("1002.00"), EUR),
+                new Money(new BigDecimal("1000.00"), EUR),
                 TODAY,
                 new BigDecimal("2.00"),
                 null),
-            Transaction.of(
+            Transaction.ofEur(
                 TransactionId.generate(),
                 TransactionType.SELL,
                 AAPL,
@@ -177,7 +178,7 @@ class HoldingTest {
   void negative_fees_throws_InvalidTransactionException() {
     assertThatThrownBy(
             () ->
-                Transaction.of(
+                Transaction.ofEur(
                     TransactionId.generate(),
                     TransactionType.BUY,
                     AAPL,
@@ -188,5 +189,32 @@ class HoldingTest {
                     new BigDecimal("-1.00"),
                     null))
         .isInstanceOf(InvalidTransactionException.class);
+  }
+
+  @Test
+  void usd_buy_uses_amountEur_for_cost_basis() {
+    // USD BUY: 10 shares @ $100, eurFxRate=0.92 → amountEur=920, avgCostEur=92
+    BigDecimal fxRate = new BigDecimal("0.920000");
+    Transaction usdBuy =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.BUY,
+            AAPL,
+            new BigDecimal("10"),
+            new Money(new BigDecimal("100.00"), Currency.getInstance("USD")),
+            new Money(new BigDecimal("1000.00"), Currency.getInstance("USD")),
+            TODAY,
+            BigDecimal.ZERO,
+            null,
+            "USD",
+            new BigDecimal("920.0000"),
+            fxRate);
+    Optional<Holding> result = Holding.computeFrom(List.of(usdBuy), STOCK, META);
+
+    assertThat(result).isPresent();
+    Holding h = result.get();
+    assertThat(h.averageCostPrice().currency().getCurrencyCode()).isEqualTo("EUR");
+    assertThat(h.averageCostPrice().amount()).isEqualByComparingTo(new BigDecimal("92.00"));
+    assertThat(h.totalInvested().amount()).isEqualByComparingTo(new BigDecimal("920.00"));
   }
 }

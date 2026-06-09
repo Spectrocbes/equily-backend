@@ -390,6 +390,65 @@
   `@RequestParam(defaultValue = "EUR") String currency`.
 - 392 tests, 0 failures, 10/10 modules green
 
+## 2026-06-08 — Multi-currency + historical FX rates
+
+- Flyway V21: `currency VARCHAR(3) NOT NULL`, `amount_eur NUMERIC(19,4) NOT NULL`,
+  `eur_fx_rate NUMERIC(10,6) NOT NULL` added to `portfolio.transaction`; all existing rows
+  backfilled to `currency='EUR'`, `amount_eur=total_amount`, `eur_fx_rate=1.0`.
+- `Transaction.of()`: 3 new required fields — `currency`, `amountEur`, `eurFxRate`; validation
+  enforces non-blank currency, `amountEur >= 0`, `eurFxRate > 0`.
+- `Transaction.ofEur()`: 9-param convenience factory for EUR transactions; sets
+  `currency='EUR'`, `amountEur=totalAmount.amount()`, `eurFxRate=1.0`. All existing callers
+  migrated from the old 9-param `of()`.
+- `FxRatePort.getRateToEur(String currency, LocalDate date)`: new method on the FX port
+  (portfolio-domain) — historical rate 1 unit of currency → EUR on a given date.
+- `YahooFinanceAdapter.getHistoricalClose(String symbol, LocalDate date)`: fetches closing
+  price from `/v8/finance/chart/{symbol}?interval=1d&period1=X&period2=Y`; made `public`
+  so `YahooFxRateAdapter` (different package) can call it.
+- `YahooFxRateAdapter.getRateToEur()`: delegates to `getHistoricalClose`; falls back to
+  `getRate(currency, "EUR")` (current rate) when historical data is unavailable.
+- `FinancialAccountService.recordTransaction()`: fetches historical FX rate at transaction
+  date, computes `amountEur = totalAmount × eurFxRate`, uses `amountEur` (EUR-equivalent)
+  for deposit limit validation so regulatory caps are consistently EUR-denominated.
+- `Holding.computeFrom()`: cost basis now uses `t.amountEur()` directly instead of
+  `qty × price` — all P&L / averageCostPrice calculations are EUR-internally regardless of
+  the transaction's native currency.
+- `TransactionResponse`: `totalAmount` = display-currency equivalent; `totalAmountNative` =
+  original amount in `nativeCurrency`; `fees` = display-currency equivalent;
+  `feesNative` = original native fees.
+- `RecordTransactionRequest`: new optional `currency` field
+  (`@Pattern(regexp="EUR|USD|GBP|CHF")`); compact constructor defaults to `"EUR"`.
+- `RecordTransactionCommand`: new `String currency` field (11th component).
+- 369 tests, 0 failures, 10/10 modules green.
+
+## 2026-06-09 — feat/multi-currency-historical-fx: fixes and completion
+
+- Flyway V22: drops `price_currency` and `total_currency` legacy columns from `portfolio.transaction`;
+  `TransactionJpaEntity` fields removed; `FinancialAccountMapper` hardcodes `Currency.getInstance("EUR")` for
+  `pricePerUnit` and `totalAmount` on read (all domain values are EUR-denominated).
+- Initial deposit currency fixed: `FinancialAccountService.createAccount()` now opens accounts with a EUR
+  zero-balance (domain invariant), then creates the initial deposit using the native currency + historical FX
+  rate — same logic as `recordTransaction()`. EUR-only account types force `currency="EUR"` regardless of
+  client input.
+- `CreateFinancialAccountCommand`: `String currency` field added (8th component); controller passes
+  `request.currency()` to the command.
+- `recordTransaction()` domain amount: `domainTotalAmount` always `new Money(amountEur, EUR)` — prevents
+  `CurrencyMismatchException` when adding a foreign-currency transaction to an EUR-balance account.
+- `GET /api/v1/accounts/{id}`: already accepts `?currency` param (confirmed in review; debug log added to
+  trace balance conversion: balance, eurToTarget rate, converted amount).
+- FX rate short-circuit: `YahooFxRateAdapter.getRate()` returns `Optional.of(ONE)` for same-currency pairs;
+  `getRateToEur()` returns `Optional.of(ONE)` for EUR; `recordTransaction()` short-circuits to `1.0` when
+  effective currency is EUR — no Yahoo call for e.g. `EURUSD=X`.
+- `EnrichedHolding`: three new fields — `avgCostInTarget`, `totalInvestedInTarget`, `totalFeesInTarget` —
+  computed in `withPrice()` as `× costToTarget`; `withoutPrice()` passes raw EUR amounts. Controller's
+  `toEnrichedHoldingResponse()` uses these converted values instead of reaching into the raw `Holding`.
+- `CurrencyMismatchException` → 422 Unprocessable Entity added to `GlobalExceptionHandler`.
+- EUR-only account types (`PEA`, `PEA_PME`, `SAVINGS_ACCOUNT`, `PER`, `ASSURANCE_VIE`, `COMPTE_TITRES`)
+  force `currency="EUR"` in `recordTransaction()` regardless of user-supplied currency preference.
+- `AuthController.me()`: `instanceof UserId` pattern-match guard prevents `ClassCastException` on null or
+  anonymous authentication.
+- 372 tests, 10/10 modules green.
+
 ## Architecture Decisions
 
 - Lombok is forbidden everywhere. Java 21 records replace POJOs; explicit methods replace generated ones.

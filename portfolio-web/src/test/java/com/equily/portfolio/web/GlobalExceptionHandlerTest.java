@@ -6,6 +6,8 @@ import static org.mockito.Mockito.mock;
 import com.equily.portfolio.application.exception.CsvParsingException;
 import com.equily.portfolio.domain.TransactionId;
 import com.equily.portfolio.domain.exception.TransactionNotFoundException;
+import com.equily.shared.exception.CurrencyMismatchException;
+import java.util.Currency;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.MethodParameter;
@@ -18,6 +20,15 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 class GlobalExceptionHandlerTest {
 
   private final GlobalExceptionHandler handler = new GlobalExceptionHandler();
+
+  @Test
+  void handleCurrencyMismatch_returns_422_with_message() {
+    CurrencyMismatchException ex =
+        new CurrencyMismatchException(Currency.getInstance("EUR"), Currency.getInstance("USD"));
+    ResponseEntity<String> response = handler.handleCurrencyMismatch(ex);
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+    assertThat(response.getBody()).contains("EUR");
+  }
 
   @Test
   void handleTransactionNotFound_returns_404_with_message() {

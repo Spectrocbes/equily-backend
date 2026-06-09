@@ -35,6 +35,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -48,10 +50,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/v1/accounts")
 class FinancialAccountController {
+
+  private static final Logger log = LoggerFactory.getLogger(FinancialAccountController.class);
 
   private static final Set<AccountType> INVESTMENT_TYPES =
       Set.of(
@@ -74,7 +79,10 @@ class FinancialAccountController {
   }
 
   private UserId extractUserId(Authentication auth) {
-    return (UserId) auth.getPrincipal();
+    if (auth == null || !(auth.getPrincipal() instanceof UserId userId)) {
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+    }
+    return userId;
   }
 
   @GetMapping
@@ -98,6 +106,11 @@ class FinancialAccountController {
         useCase.getAccountById(new FinancialAccountId(UUID.fromString(id)), userId);
     List<FinancialAccount> allUserAccounts = useCase.getAllAccounts(userId);
     BigDecimal eurToTarget = eurToTarget(currency);
+    log.info(
+        "getAccount balance: {} eurToTarget: {} converted: {}",
+        account.balance().amount(),
+        eurToTarget,
+        account.balance().amount().multiply(eurToTarget));
     return ResponseEntity.ok(toAccountResponse(account, allUserAccounts, eurToTarget, currency));
   }
 
@@ -116,7 +129,8 @@ class FinancialAccountController {
             request.broker(),
             userId,
             subType,
-            openedAt);
+            openedAt,
+            request.currency());
     FinancialAccountId id = useCase.createAccount(command);
     return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("id", id.value().toString()));
   }
@@ -132,7 +146,7 @@ class FinancialAccountController {
     Ticker ticker = request.ticker() != null ? new Ticker(request.ticker()) : null;
     Money pricePerUnit =
         request.pricePerUnit() != null
-            ? new Money(request.pricePerUnit(), Currency.getInstance(request.priceCurrency()))
+            ? new Money(request.pricePerUnit(), Currency.getInstance(request.currency()))
             : null;
     RecordTransactionCommand command =
         new RecordTransactionCommand(
@@ -142,10 +156,11 @@ class FinancialAccountController {
             ticker,
             request.quantity(),
             pricePerUnit,
-            new Money(request.totalAmount(), Currency.getInstance(request.totalCurrency())),
+            new Money(request.totalAmount(), Currency.getInstance(request.currency())),
             request.date(),
             request.fees(),
-            request.description());
+            request.description(),
+            request.currency());
     useCase.recordTransaction(command);
     return ResponseEntity.noContent().build();
   }
@@ -168,9 +183,9 @@ class FinancialAccountController {
     return new EnrichedHoldingResponse(
         h.ticker().symbol(),
         h.quantity(),
-        h.averageCostPrice().amount(),
-        h.totalInvested().amount(),
-        h.totalFeesPaid().amount(),
+        eh.avgCostInTarget(),
+        eh.totalInvestedInTarget(),
+        eh.totalFeesInTarget(),
         eh.currentPrice(),
         eh.currency(),
         eh.marketValue(),
@@ -349,19 +364,27 @@ class FinancialAccountController {
       BigDecimal eurToTarget,
       String targetCurrency) {
     AccountSubType subType = account.subType();
-    // deposit limits and remaining capacity stay in EUR — French regulatory caps are
-    // EUR-denominated
-    BigDecimal depositLimit =
+    BigDecimal rawDepositLimit =
         subType != null ? DepositLimits.limitFor(subType).map(Money::amount).orElse(null) : null;
+    BigDecimal depositLimit =
+        rawDepositLimit != null
+            ? rawDepositLimit.multiply(eurToTarget).setScale(2, RoundingMode.HALF_EVEN)
+            : null;
     BigDecimal totalDeposits =
         account.transactions().stream()
             .filter(t -> t.type() == TransactionType.DEPOSIT)
             .map(t -> t.totalAmount().amount())
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
-    BigDecimal remainingCapacity =
+            .reduce(BigDecimal.ZERO, BigDecimal::add)
+            .multiply(eurToTarget)
+            .setScale(2, RoundingMode.HALF_EVEN);
+    BigDecimal rawRemainingCapacity =
         AccountBusinessRules.remainingCapacity(account, allUserAccounts)
             .map(Money::amount)
             .orElse(null);
+    BigDecimal remainingCapacity =
+        rawRemainingCapacity != null
+            ? rawRemainingCapacity.multiply(eurToTarget).setScale(2, RoundingMode.HALF_EVEN)
+            : null;
     BigDecimal convertedBalance =
         account.balance().amount().multiply(eurToTarget).setScale(2, RoundingMode.HALF_EVEN);
     BigDecimal rawPortfolioValue = computePortfolioValue(account);
@@ -400,6 +423,14 @@ class FinancialAccountController {
 
   private TransactionResponse toTransactionResponse(
       Transaction tx, BigDecimal eurToTarget, String targetCurrency) {
+    // totalAmount in display currency: amountEur (cost basis in EUR) × eurToTarget
+    BigDecimal totalAmountDisplay =
+        tx.amountEur().multiply(eurToTarget).setScale(2, RoundingMode.HALF_EVEN);
+    // fees in EUR (stored) → display currency
+    BigDecimal feesDisplay = tx.fees().multiply(eurToTarget).setScale(2, RoundingMode.HALF_EVEN);
+    // native amounts: reverse the EUR conversion using stored FX rate
+    BigDecimal totalAmountNative = tx.amountEur().divide(tx.eurFxRate(), 2, RoundingMode.HALF_EVEN);
+    BigDecimal feesNative = tx.fees().divide(tx.eurFxRate(), 2, RoundingMode.HALF_EVEN);
     return new TransactionResponse(
         tx.id().value().toString(),
         tx.type().name(),
@@ -408,12 +439,12 @@ class FinancialAccountController {
         tx.pricePerUnit() != null
             ? tx.pricePerUnit().amount().multiply(eurToTarget).setScale(2, RoundingMode.HALF_EVEN)
             : null,
-        tx.totalAmount().amount().multiply(eurToTarget).setScale(2, RoundingMode.HALF_EVEN),
-        targetCurrency,
+        totalAmountDisplay,
+        totalAmountNative,
+        tx.currency(),
         tx.date(),
-        tx.fees() != null
-            ? tx.fees().multiply(eurToTarget).setScale(2, RoundingMode.HALF_EVEN)
-            : null,
+        feesDisplay,
+        feesNative,
         tx.description());
   }
 }

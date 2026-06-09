@@ -319,6 +319,11 @@ class AuthControllerTest {
   }
 
   @Test
+  void getMe_returns_401_when_unauthenticated() throws Exception {
+    mockMvc.perform(get("/auth/me")).andExpect(status().isUnauthorized());
+  }
+
+  @Test
   void refresh_returns_401_with_specific_message_for_revoked_token() throws Exception {
     when(authService.refresh(any()))
         .thenThrow(new InvalidCredentialsException("Invalid or expired refresh token"));

@@ -3,6 +3,7 @@ package com.equily.portfolio.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -38,6 +39,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -76,7 +78,8 @@ class FinancialAccountServiceTest {
             "Fortuneo",
             UserId.generate(),
             null,
-            OPENED_AT);
+            OPENED_AT,
+            "EUR");
 
     FinancialAccountId result = service.createAccount(command);
 
@@ -95,7 +98,8 @@ class FinancialAccountServiceTest {
             "BNP",
             UserId.generate(),
             AccountSubType.LIVRET_A,
-            OPENED_AT);
+            OPENED_AT,
+            "EUR");
 
     service.createAccount(command);
 
@@ -113,7 +117,8 @@ class FinancialAccountServiceTest {
             "Fortuneo",
             UserId.generate(),
             null,
-            OPENED_AT);
+            OPENED_AT,
+            "EUR");
 
     service.createAccount(command);
 
@@ -137,7 +142,8 @@ class FinancialAccountServiceTest {
             new Money(BigDecimal.valueOf(500), EUR),
             LocalDate.of(2026, 5, 24),
             null,
-            null);
+            null,
+            "EUR");
 
     service.recordTransaction(command);
 
@@ -161,7 +167,8 @@ class FinancialAccountServiceTest {
             new Money(BigDecimal.valueOf(100), EUR),
             LocalDate.of(2026, 5, 24),
             null,
-            null);
+            null,
+            "EUR");
 
     assertThatThrownBy(() -> service.recordTransaction(command))
         .isInstanceOf(AccountNotFoundException.class);
@@ -181,7 +188,7 @@ class FinancialAccountServiceTest {
             OPENED_AT);
     // Add deposits totaling 22000 EUR
     Transaction existingDeposit =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -206,7 +213,8 @@ class FinancialAccountServiceTest {
             new Money(new BigDecimal("1000"), EUR),
             LocalDate.of(2026, 5, 24),
             null,
-            null);
+            null,
+            "EUR");
 
     assertThatThrownBy(() -> service.recordTransaction(command))
         .isInstanceOf(DepositLimitExceededException.class);
@@ -228,7 +236,8 @@ class FinancialAccountServiceTest {
             new Money(BigDecimal.valueOf(500), EUR),
             LocalDate.of(2026, 5, 24),
             null,
-            null);
+            null,
+            "EUR");
 
     assertThatThrownBy(() -> service.recordTransaction(command))
         .isInstanceOf(AccountNotFoundException.class);
@@ -317,7 +326,7 @@ class FinancialAccountServiceTest {
             null,
             OPENED_AT);
     account.recordTransaction(
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -328,7 +337,7 @@ class FinancialAccountServiceTest {
             BigDecimal.ZERO,
             null));
     Transaction buy =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.BUY,
             new Ticker("AAPL"),
@@ -372,7 +381,7 @@ class FinancialAccountServiceTest {
             null,
             OPENED_AT);
     Transaction deposit =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -405,7 +414,7 @@ class FinancialAccountServiceTest {
     when(repository.findById(any())).thenReturn(Optional.of(account));
 
     Transaction newTx =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -437,7 +446,7 @@ class FinancialAccountServiceTest {
             null,
             OPENED_AT);
     Transaction existingDeposit =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -451,7 +460,7 @@ class FinancialAccountServiceTest {
     when(repository.findById(any())).thenReturn(Optional.of(account));
 
     Transaction duplicateTx =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -495,7 +504,7 @@ class FinancialAccountServiceTest {
     when(repository.findById(any())).thenReturn(Optional.of(account));
 
     Transaction tx1 =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -506,7 +515,7 @@ class FinancialAccountServiceTest {
             BigDecimal.ZERO,
             "Imported from Boursobank");
     Transaction tx2 =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -540,7 +549,7 @@ class FinancialAccountServiceTest {
 
     // Boursobank exports newest-first: BUY on day 2 comes before DEPOSIT on day 1
     Transaction buyDay2 =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.BUY,
             new Ticker("FR0010342592"),
@@ -551,7 +560,7 @@ class FinancialAccountServiceTest {
             BigDecimal.ZERO,
             "Imported from Boursobank");
     Transaction depositDay1 =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -584,7 +593,7 @@ class FinancialAccountServiceTest {
 
     // Same day: BUY arrives first in parsed list (Boursobank newest-first within same day)
     Transaction sameDayBuy =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.BUY,
             new Ticker("FR0010342592"),
@@ -595,7 +604,7 @@ class FinancialAccountServiceTest {
             BigDecimal.ZERO,
             "Imported from Boursobank");
     Transaction sameDayDeposit =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -626,7 +635,7 @@ class FinancialAccountServiceTest {
             AccountSubType.LIVRET_A,
             OPENED_AT);
     Transaction deposit =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -670,7 +679,7 @@ class FinancialAccountServiceTest {
             AccountSubType.LIVRET_A,
             OPENED_AT);
     Transaction deposit =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -714,7 +723,7 @@ class FinancialAccountServiceTest {
             AccountSubType.PEA,
             OPENED_AT);
     Transaction deposit =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -758,7 +767,7 @@ class FinancialAccountServiceTest {
             AccountSubType.PEA,
             OPENED_AT);
     Transaction deposit =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -770,7 +779,7 @@ class FinancialAccountServiceTest {
             null);
     pea.recordTransaction(deposit);
     Transaction buy =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.BUY,
             new Ticker("AAPL"),
@@ -814,7 +823,7 @@ class FinancialAccountServiceTest {
             null,
             OPENED_AT);
     Transaction deposit =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -876,7 +885,7 @@ class FinancialAccountServiceTest {
             null,
             OPENED_AT);
     Transaction deposit =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -939,7 +948,7 @@ class FinancialAccountServiceTest {
             null,
             OPENED_AT);
     account.recordTransaction(
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -950,7 +959,7 @@ class FinancialAccountServiceTest {
             BigDecimal.ZERO,
             null));
     account.recordTransaction(
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.BUY,
             new Ticker("AAPL"),
@@ -987,7 +996,7 @@ class FinancialAccountServiceTest {
             null,
             OPENED_AT);
     account.recordTransaction(
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -998,7 +1007,7 @@ class FinancialAccountServiceTest {
             BigDecimal.ZERO,
             null));
     account.recordTransaction(
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.BUY,
             new Ticker("OBSCURE"),
@@ -1051,7 +1060,7 @@ class FinancialAccountServiceTest {
             null,
             OPENED_AT);
     pea.recordTransaction(
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -1062,7 +1071,7 @@ class FinancialAccountServiceTest {
             BigDecimal.ZERO,
             null));
     pea.recordTransaction(
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.BUY,
             new Ticker("AAPL"),
@@ -1099,7 +1108,7 @@ class FinancialAccountServiceTest {
             null,
             OPENED_AT);
     pea.recordTransaction(
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -1110,7 +1119,7 @@ class FinancialAccountServiceTest {
             BigDecimal.ZERO,
             null));
     pea.recordTransaction(
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.BUY,
             new Ticker("OBSCURE"),
@@ -1173,7 +1182,7 @@ class FinancialAccountServiceTest {
             null,
             OPENED_AT);
     pea.recordTransaction(
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -1206,7 +1215,7 @@ class FinancialAccountServiceTest {
             null,
             OPENED_AT);
     account.recordTransaction(
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -1217,7 +1226,7 @@ class FinancialAccountServiceTest {
             BigDecimal.ZERO,
             null));
     account.recordTransaction(
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.BUY,
             new Ticker("AAPL"),
@@ -1244,6 +1253,59 @@ class FinancialAccountServiceTest {
   }
 
   @Test
+  void createAccount_initial_deposit_uses_native_currency_for_crypto() {
+    UserId ownerId = UserId.generate();
+    Money initialBalance = new Money(new BigDecimal("500"), Currency.getInstance("USD"));
+    CreateFinancialAccountCommand command =
+        new CreateFinancialAccountCommand(
+            "My Crypto",
+            AccountType.CRYPTO_WALLET,
+            initialBalance,
+            "Binance",
+            ownerId,
+            null,
+            OPENED_AT,
+            "USD");
+    when(fxRatePort.getRateToEur(eq("USD"), any(LocalDate.class)))
+        .thenReturn(Optional.of(new BigDecimal("0.920000")));
+
+    service.createAccount(command);
+
+    ArgumentCaptor<FinancialAccount> captor = ArgumentCaptor.forClass(FinancialAccount.class);
+    verify(repository, times(2)).save(captor.capture());
+    Transaction deposit = captor.getAllValues().get(1).transactions().get(0);
+    assertThat(deposit.currency()).isEqualTo("USD");
+    assertThat(deposit.eurFxRate()).isEqualByComparingTo(new BigDecimal("0.920000"));
+    assertThat(deposit.amountEur()).isEqualByComparingTo(new BigDecimal("460.0000"));
+  }
+
+  @Test
+  void createAccount_initial_deposit_forces_eur_for_pea() {
+    UserId ownerId = UserId.generate();
+    // Client sends USD but PEA is EUR-only — service must force EUR
+    Money initialBalance = new Money(new BigDecimal("1000"), Currency.getInstance("USD"));
+    CreateFinancialAccountCommand command =
+        new CreateFinancialAccountCommand(
+            "Mon PEA",
+            AccountType.PEA,
+            initialBalance,
+            "Fortuneo",
+            ownerId,
+            AccountSubType.PEA,
+            OPENED_AT,
+            "USD");
+
+    service.createAccount(command);
+
+    ArgumentCaptor<FinancialAccount> captor = ArgumentCaptor.forClass(FinancialAccount.class);
+    verify(repository, times(2)).save(captor.capture());
+    Transaction deposit = captor.getAllValues().get(1).transactions().get(0);
+    assertThat(deposit.currency()).isEqualTo("EUR");
+    assertThat(deposit.eurFxRate()).isEqualByComparingTo(BigDecimal.ONE);
+    verify(fxRatePort, never()).getRateToEur(any(), any());
+  }
+
+  @Test
   void getPortfolioSummaries_converts_cost_to_target_currency() {
     UserId ownerId = UserId.generate();
     FinancialAccount pea =
@@ -1256,7 +1318,7 @@ class FinancialAccountServiceTest {
             null,
             OPENED_AT);
     pea.recordTransaction(
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -1267,7 +1329,7 @@ class FinancialAccountServiceTest {
             BigDecimal.ZERO,
             null));
     pea.recordTransaction(
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.BUY,
             new Ticker("AAPL"),
@@ -1308,7 +1370,7 @@ class FinancialAccountServiceTest {
             null,
             OPENED_AT);
     account.recordTransaction(
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -1319,7 +1381,7 @@ class FinancialAccountServiceTest {
             BigDecimal.ZERO,
             null));
     Transaction buy1 =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.BUY,
             new Ticker("AAPL"),
@@ -1330,7 +1392,7 @@ class FinancialAccountServiceTest {
             BigDecimal.ZERO,
             null);
     Transaction buy2 =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.BUY,
             new Ticker("AAPL"),
@@ -1366,7 +1428,7 @@ class FinancialAccountServiceTest {
             null,
             OPENED_AT);
     account.recordTransaction(
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -1377,7 +1439,7 @@ class FinancialAccountServiceTest {
             BigDecimal.ZERO,
             null));
     account.recordTransaction(
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.BUY,
             new Ticker("AAPL"),
@@ -1417,7 +1479,7 @@ class FinancialAccountServiceTest {
             null,
             OPENED_AT);
     account.recordTransaction(
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -1428,7 +1490,7 @@ class FinancialAccountServiceTest {
             BigDecimal.ZERO,
             null));
     account.recordTransaction(
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.BUY,
             new Ticker("AIR.PA"),
@@ -1449,5 +1511,254 @@ class FinancialAccountServiceTest {
     assertThat(result).hasSize(1);
     assertThat(result.get(0).currentPrice()).isEqualByComparingTo("160.00");
     assertThat(result.get(0).marketValue()).isEqualByComparingTo("800.00");
+  }
+
+  @Test
+  void recordTransaction_stores_rate_1_for_eur_transaction() {
+    FinancialAccount account = openAccount("My PEA", "10000");
+    when(repository.findById(account.id())).thenReturn(Optional.of(account));
+
+    RecordTransactionCommand command =
+        new RecordTransactionCommand(
+            account.id(),
+            account.ownerId(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("500"), EUR),
+            LocalDate.of(2026, 6, 1),
+            BigDecimal.ZERO,
+            null,
+            "EUR");
+
+    service.recordTransaction(command);
+
+    Transaction recorded = account.transactions().get(account.transactions().size() - 1);
+    assertThat(recorded.currency()).isEqualTo("EUR");
+    assertThat(recorded.eurFxRate()).isEqualByComparingTo(BigDecimal.ONE);
+    assertThat(recorded.amountEur()).isEqualByComparingTo(new BigDecimal("500"));
+  }
+
+  @Test
+  void recordTransaction_stores_eur_fx_rate_for_usd_transaction() {
+    // CRYPTO_WALLET is not EUR-only — USD transactions are permitted
+    UserId ownerId = UserId.generate();
+    FinancialAccount account =
+        FinancialAccount.open(
+            "My Crypto",
+            AccountType.CRYPTO_WALLET,
+            new Money(new BigDecimal("10000"), EUR),
+            "Binance",
+            ownerId,
+            null,
+            OPENED_AT);
+    account.recordTransaction(
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("10000"), EUR),
+            OPENED_AT,
+            BigDecimal.ZERO,
+            null));
+    when(repository.findById(account.id())).thenReturn(Optional.of(account));
+    LocalDate txDate = LocalDate.of(2026, 6, 1);
+    when(fxRatePort.getRateToEur("USD", txDate))
+        .thenReturn(Optional.of(new BigDecimal("0.920000")));
+
+    RecordTransactionCommand command =
+        new RecordTransactionCommand(
+            account.id(),
+            ownerId,
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("1000"), EUR),
+            txDate,
+            BigDecimal.ZERO,
+            null,
+            "USD");
+
+    service.recordTransaction(command);
+
+    Transaction recorded = account.transactions().get(account.transactions().size() - 1);
+    assertThat(recorded.currency()).isEqualTo("USD");
+    assertThat(recorded.eurFxRate()).isEqualByComparingTo(new BigDecimal("0.920000"));
+    assertThat(recorded.amountEur()).isEqualByComparingTo(new BigDecimal("920.0000"));
+  }
+
+  @Test
+  void recordTransaction_uses_amount_eur_for_deposit_limit_check() {
+    UserId ownerId = UserId.generate();
+    FinancialAccount livretA =
+        FinancialAccount.open(
+            "Livret A",
+            AccountType.SAVINGS_ACCOUNT,
+            new Money(BigDecimal.ZERO, EUR),
+            "BNP",
+            ownerId,
+            AccountSubType.LIVRET_A,
+            OPENED_AT);
+    Transaction existingDeposit =
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("22000"), EUR),
+            LocalDate.of(2026, 1, 1),
+            BigDecimal.ZERO,
+            null);
+    livretA.recordTransaction(existingDeposit);
+    when(repository.findById(livretA.id())).thenReturn(Optional.of(livretA));
+    when(repository.findAllByOwnerId(ownerId)).thenReturn(List.of(livretA));
+
+    // SAVINGS_ACCOUNT is EUR-only: currency forced to EUR; 22000 + 1100 = 23100 > 22950 cap
+    RecordTransactionCommand command =
+        new RecordTransactionCommand(
+            livretA.id(),
+            ownerId,
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("1100"), EUR),
+            LocalDate.of(2026, 6, 1),
+            BigDecimal.ZERO,
+            null,
+            "EUR");
+
+    assertThatThrownBy(() -> service.recordTransaction(command))
+        .isInstanceOf(DepositLimitExceededException.class);
+  }
+
+  @Test
+  void recordTransaction_eur_only_account_ignores_client_currency_and_forces_eur() {
+    FinancialAccount account = openAccount("My PEA", "10000");
+    when(repository.findById(account.id())).thenReturn(Optional.of(account));
+
+    RecordTransactionCommand command =
+        new RecordTransactionCommand(
+            account.id(),
+            account.ownerId(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("500"), EUR),
+            LocalDate.of(2026, 6, 1),
+            BigDecimal.ZERO,
+            null,
+            "USD"); // client sends USD, but PEA is EUR-only
+
+    service.recordTransaction(command);
+
+    Transaction recorded = account.transactions().get(account.transactions().size() - 1);
+    assertThat(recorded.currency()).isEqualTo("EUR");
+    assertThat(recorded.eurFxRate()).isEqualByComparingTo(BigDecimal.ONE);
+    assertThat(recorded.amountEur()).isEqualByComparingTo(new BigDecimal("500"));
+  }
+
+  @Test
+  void recordTransaction_usd_transaction_stored_with_eur_amount_in_domain() {
+    UserId ownerId = UserId.generate();
+    FinancialAccount account =
+        FinancialAccount.open(
+            "My Crypto",
+            AccountType.CRYPTO_WALLET,
+            new Money(BigDecimal.ZERO, EUR),
+            "Binance",
+            ownerId,
+            null,
+            OPENED_AT);
+    account.recordTransaction(
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("10000"), EUR),
+            OPENED_AT,
+            BigDecimal.ZERO,
+            null));
+    when(repository.findById(account.id())).thenReturn(Optional.of(account));
+    LocalDate txDate = LocalDate.of(2026, 6, 1);
+    when(fxRatePort.getRateToEur("USD", txDate)).thenReturn(Optional.of(new BigDecimal("0.92")));
+
+    RecordTransactionCommand command =
+        new RecordTransactionCommand(
+            account.id(),
+            ownerId,
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("1000"), EUR),
+            txDate,
+            BigDecimal.ZERO,
+            null,
+            "USD");
+
+    service.recordTransaction(command);
+
+    Transaction recorded = account.transactions().get(account.transactions().size() - 1);
+    // totalAmount in domain must always be EUR — currency mismatch with EUR balance would throw
+    assertThat(recorded.totalAmount().amount()).isEqualByComparingTo(new BigDecimal("920.0000"));
+    assertThat(recorded.totalAmount().currency()).isEqualTo(EUR);
+    assertThat(recorded.currency()).isEqualTo("USD");
+  }
+
+  @Test
+  void recordTransaction_eur_fees_correctly_converted() {
+    UserId ownerId = UserId.generate();
+    FinancialAccount account =
+        FinancialAccount.open(
+            "My Crypto",
+            AccountType.CRYPTO_WALLET,
+            new Money(BigDecimal.ZERO, EUR),
+            "Binance",
+            ownerId,
+            null,
+            OPENED_AT);
+    account.recordTransaction(
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("10000"), EUR),
+            OPENED_AT,
+            BigDecimal.ZERO,
+            null));
+    when(repository.findById(account.id())).thenReturn(Optional.of(account));
+    LocalDate txDate = LocalDate.of(2026, 6, 1);
+    when(fxRatePort.getRateToEur("USD", txDate)).thenReturn(Optional.of(new BigDecimal("0.92")));
+
+    RecordTransactionCommand command =
+        new RecordTransactionCommand(
+            account.id(),
+            ownerId,
+            TransactionType.BUY,
+            new Ticker("BTC-USD"),
+            new BigDecimal("0.1"),
+            new Money(new BigDecimal("50000"), EUR),
+            new Money(new BigDecimal("5000"), EUR),
+            txDate,
+            new BigDecimal("10"),
+            null,
+            "USD");
+
+    service.recordTransaction(command);
+
+    Transaction recorded = account.transactions().get(account.transactions().size() - 1);
+    // fees must be stored in EUR: 10 USD * 0.92 = 9.20 EUR
+    assertThat(recorded.fees()).isEqualByComparingTo(new BigDecimal("9.20"));
   }
 }

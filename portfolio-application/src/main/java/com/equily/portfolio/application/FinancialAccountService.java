@@ -13,6 +13,7 @@ import com.equily.portfolio.domain.Transaction;
 import com.equily.portfolio.domain.TransactionId;
 import com.equily.portfolio.domain.TransactionType;
 import com.equily.portfolio.domain.account.AccountBusinessRules;
+import com.equily.portfolio.domain.account.AccountSubType;
 import com.equily.portfolio.domain.csv.CsvImportResult;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
 import com.equily.portfolio.domain.exception.TransactionNotFoundException;
@@ -21,11 +22,13 @@ import com.equily.portfolio.domain.marketdata.FxRatePort;
 import com.equily.portfolio.domain.marketdata.MarketDataPort;
 import com.equily.portfolio.domain.marketdata.Quote;
 import com.equily.shared.Country;
+import com.equily.shared.Money;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Currency;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -45,6 +48,33 @@ class FinancialAccountService implements FinancialAccountUseCase {
           AccountType.PER,
           AccountType.ASSURANCE_VIE,
           AccountType.CRYPTO_WALLET);
+
+  // French regulated accounts are always EUR — ignore any client-supplied currency
+  private static final Set<AccountType> EUR_ONLY_TYPES =
+      Set.of(
+          AccountType.PEA,
+          AccountType.PEA_PME,
+          AccountType.SAVINGS_ACCOUNT,
+          AccountType.PER,
+          AccountType.ASSURANCE_VIE,
+          AccountType.COMPTE_TITRES);
+
+  private static final Set<AccountSubType> EUR_ONLY_SUBTYPES =
+      Set.of(
+          AccountSubType.PEA,
+          AccountSubType.PEA_PME,
+          AccountSubType.LIVRET_A,
+          AccountSubType.LDDS,
+          AccountSubType.LDD,
+          AccountSubType.LEP,
+          AccountSubType.LIVRET_JEUNE,
+          AccountSubType.PER,
+          AccountSubType.ASSURANCE_VIE);
+
+  private static boolean isEurOnly(FinancialAccount account) {
+    return EUR_ONLY_TYPES.contains(account.accountType())
+        || (account.subType() != null && EUR_ONLY_SUBTYPES.contains(account.subType()));
+  }
 
   // DEPOSIT/WITHDRAWAL/DIVIDEND must precede asset operations within the same day
   // to avoid InsufficientFundsException when Boursobank exports newest-first
@@ -70,11 +100,13 @@ class FinancialAccountService implements FinancialAccountUseCase {
 
   @Override
   public FinancialAccountId createAccount(CreateFinancialAccountCommand command) {
+    // Domain balance is always EUR — pass EUR zero so open() initialises the balance in EUR.
+    // The native currency of the initial deposit is handled separately below.
     FinancialAccount account =
         FinancialAccount.open(
             command.name(),
             command.accountType(),
-            command.initialBalance(),
+            new Money(BigDecimal.ZERO, Currency.getInstance("EUR")),
             command.broker(),
             command.ownerId(),
             command.subType(),
@@ -82,6 +114,14 @@ class FinancialAccountService implements FinancialAccountUseCase {
     repository.save(account);
 
     if (command.initialBalance().amount().compareTo(BigDecimal.ZERO) > 0) {
+      String currency = isEurOnly(account) ? "EUR" : command.currency();
+      BigDecimal eurFxRate =
+          "EUR".equals(currency)
+              ? BigDecimal.ONE
+              : fxRatePort.getRateToEur(currency, LocalDate.now()).orElse(BigDecimal.ONE);
+      BigDecimal amountEur =
+          command.initialBalance().amount().multiply(eurFxRate).setScale(4, RoundingMode.HALF_EVEN);
+      Money domainAmount = new Money(amountEur, Currency.getInstance("EUR"));
       Transaction initialDeposit =
           Transaction.of(
               TransactionId.generate(),
@@ -89,10 +129,13 @@ class FinancialAccountService implements FinancialAccountUseCase {
               null,
               null,
               null,
-              command.initialBalance(),
+              domainAmount,
               LocalDate.now(),
               BigDecimal.ZERO,
-              "Initial deposit");
+              "Initial deposit",
+              currency,
+              amountEur,
+              eurFxRate);
       account.recordTransaction(initialDeposit);
       repository.save(account);
     }
@@ -111,10 +154,36 @@ class FinancialAccountService implements FinancialAccountUseCase {
       throw new AccountNotFoundException(command.accountId());
     }
 
+    String currency =
+        isEurOnly(account) ? "EUR" : (command.currency() != null ? command.currency() : "EUR");
+
+    BigDecimal eurFxRate =
+        "EUR".equals(currency)
+            ? BigDecimal.ONE
+            : fxRatePort.getRateToEur(currency, command.date()).orElse(BigDecimal.ONE);
+
+    BigDecimal amountEur =
+        command.totalAmount().amount().multiply(eurFxRate).setScale(4, RoundingMode.HALF_EVEN);
+
     if (command.type() == TransactionType.DEPOSIT && account.subType() != null) {
       List<FinancialAccount> allUserAccounts = repository.findAllByOwnerId(account.ownerId());
-      AccountBusinessRules.validateDeposit(account, command.totalAmount(), allUserAccounts);
+      AccountBusinessRules.validateDeposit(
+          account, new Money(amountEur, Currency.getInstance("EUR")), allUserAccounts);
     }
+
+    Money domainTotalAmount = new Money(amountEur, Currency.getInstance("EUR"));
+
+    Money domainPricePerUnit = null;
+    if (command.pricePerUnit() != null) {
+      BigDecimal priceInEur =
+          command.pricePerUnit().amount().multiply(eurFxRate).setScale(4, RoundingMode.HALF_EVEN);
+      domainPricePerUnit = new Money(priceInEur, Currency.getInstance("EUR"));
+    }
+
+    BigDecimal feesInEur =
+        command.fees() != null
+            ? command.fees().multiply(eurFxRate).setScale(2, RoundingMode.HALF_EVEN)
+            : BigDecimal.ZERO;
 
     Transaction transaction =
         Transaction.of(
@@ -122,11 +191,14 @@ class FinancialAccountService implements FinancialAccountUseCase {
             command.type(),
             command.ticker(),
             command.quantity(),
-            command.pricePerUnit(),
-            command.totalAmount(),
+            domainPricePerUnit,
+            domainTotalAmount,
             command.date(),
-            command.fees(),
-            command.description());
+            feesInEur,
+            command.description(),
+            currency,
+            amountEur,
+            eurFxRate);
 
     account.recordTransaction(transaction);
     repository.save(account);

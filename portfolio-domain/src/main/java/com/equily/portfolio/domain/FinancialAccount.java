@@ -216,6 +216,8 @@ public final class FinancialAccount {
             .findFirst()
             .orElseThrow(() -> new TransactionNotFoundException(id));
 
+    // amountEur for an edit: totalAmount is in EUR (controller hardcodes EUR currency for edits)
+    BigDecimal updatedAmountEur = values.totalAmount().amount();
     Transaction updated =
         Transaction.of(
             existing.id(),
@@ -226,7 +228,10 @@ public final class FinancialAccount {
             values.totalAmount(),
             values.date(),
             values.fees(),
-            values.description());
+            values.description(),
+            existing.currency(),
+            updatedAmountEur,
+            existing.eurFxRate());
 
     List<Transaction> newList =
         transactions.stream()

@@ -10,7 +10,9 @@ public record TransactionResponse(
     BigDecimal quantity,
     BigDecimal pricePerUnit,
     BigDecimal totalAmount,
-    String currency,
+    BigDecimal totalAmountNative,
+    String nativeCurrency,
     LocalDate date,
     BigDecimal fees,
+    BigDecimal feesNative,
     String description) {}

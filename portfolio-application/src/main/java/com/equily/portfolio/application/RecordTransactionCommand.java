@@ -22,4 +22,5 @@ public record RecordTransactionCommand(
     Money totalAmount,
     LocalDate date,
     BigDecimal fees,
-    String description) {}
+    String description,
+    String currency) {}

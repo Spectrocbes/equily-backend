@@ -43,7 +43,7 @@ class FinancialAccountTest {
   }
 
   private Transaction deposit(String amount) {
-    return Transaction.of(
+    return Transaction.ofEur(
         TransactionId.generate(),
         TransactionType.DEPOSIT,
         null,
@@ -56,7 +56,7 @@ class FinancialAccountTest {
   }
 
   private Transaction withdrawal(String amount) {
-    return Transaction.of(
+    return Transaction.ofEur(
         TransactionId.generate(),
         TransactionType.WITHDRAWAL,
         null,
@@ -71,7 +71,7 @@ class FinancialAccountTest {
   private Transaction buy(String qty, String price) {
     BigDecimal q = new BigDecimal(qty);
     BigDecimal p = new BigDecimal(price);
-    return Transaction.of(
+    return Transaction.ofEur(
         TransactionId.generate(),
         TransactionType.BUY,
         AAPL,
@@ -86,7 +86,7 @@ class FinancialAccountTest {
   private Transaction sell(String qty, String price) {
     BigDecimal q = new BigDecimal(qty);
     BigDecimal p = new BigDecimal(price);
-    return Transaction.of(
+    return Transaction.ofEur(
         TransactionId.generate(),
         TransactionType.SELL,
         AAPL,
@@ -329,7 +329,7 @@ class FinancialAccountTest {
   void recordTransaction_INTEREST_increases_balance() {
     FinancialAccount account = accountWith("500.00");
     Transaction interest =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.INTEREST,
             null,
@@ -347,7 +347,7 @@ class FinancialAccountTest {
   void recordTransaction_INTEREST_does_not_affect_deposit_limit() {
     FinancialAccount account = accountWith("1000.00");
     Transaction interest =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.INTEREST,
             null,

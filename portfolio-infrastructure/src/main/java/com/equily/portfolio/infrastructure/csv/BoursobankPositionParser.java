@@ -52,7 +52,7 @@ class BoursobankPositionParser extends AbstractBoursobankParser {
           Currency eur = Currency.getInstance("EUR");
 
           Transaction tx =
-              Transaction.of(
+              Transaction.ofEur(
                   TransactionId.generate(),
                   TransactionType.BUY,
                   new Ticker(isin),
@@ -84,7 +84,7 @@ class BoursobankPositionParser extends AbstractBoursobankParser {
               .reduce(BigDecimal.ZERO, BigDecimal::add);
 
       Transaction initialDeposit =
-          Transaction.of(
+          Transaction.ofEur(
               TransactionId.generate(),
               TransactionType.DEPOSIT,
               null,

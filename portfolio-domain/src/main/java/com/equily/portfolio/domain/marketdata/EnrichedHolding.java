@@ -7,6 +7,9 @@ import java.math.RoundingMode;
 public record EnrichedHolding(
     Holding holding,
     BigDecimal currentPrice,
+    BigDecimal avgCostInTarget,
+    BigDecimal totalInvestedInTarget,
+    BigDecimal totalFeesInTarget,
     String currency,
     BigDecimal marketValue,
     BigDecimal unrealizedPnl,
@@ -24,18 +27,30 @@ public record EnrichedHolding(
         quote.price().multiply(liveToTarget).setScale(2, RoundingMode.HALF_EVEN);
     BigDecimal marketValue =
         priceInTarget.multiply(holding.quantity()).setScale(2, RoundingMode.HALF_EVEN);
-    BigDecimal costInTarget =
+    BigDecimal avgCostInTarget =
+        holding
+            .averageCostPrice()
+            .amount()
+            .multiply(costToTarget)
+            .setScale(2, RoundingMode.HALF_EVEN);
+    BigDecimal totalInvestedInTarget =
         holding.totalInvested().amount().multiply(costToTarget).setScale(2, RoundingMode.HALF_EVEN);
-    BigDecimal pnl = marketValue.subtract(costInTarget).setScale(2, RoundingMode.HALF_EVEN);
+    BigDecimal totalFeesInTarget =
+        holding.totalFeesPaid().amount().multiply(costToTarget).setScale(2, RoundingMode.HALF_EVEN);
+    BigDecimal pnl =
+        marketValue.subtract(totalInvestedInTarget).setScale(2, RoundingMode.HALF_EVEN);
     BigDecimal pnlPct =
-        costInTarget.compareTo(BigDecimal.ZERO) == 0
+        totalInvestedInTarget.compareTo(BigDecimal.ZERO) == 0
             ? BigDecimal.ZERO
-            : pnl.divide(costInTarget, 4, RoundingMode.HALF_EVEN)
+            : pnl.divide(totalInvestedInTarget, 4, RoundingMode.HALF_EVEN)
                 .multiply(new BigDecimal("100"))
                 .setScale(2, RoundingMode.HALF_EVEN);
     return new EnrichedHolding(
         holding,
         priceInTarget,
+        avgCostInTarget,
+        totalInvestedInTarget,
+        totalFeesInTarget,
         targetCurrency,
         marketValue,
         pnl,
@@ -45,6 +60,17 @@ public record EnrichedHolding(
   }
 
   public static EnrichedHolding withoutPrice(Holding holding) {
-    return new EnrichedHolding(holding, null, null, null, null, null, null, false);
+    return new EnrichedHolding(
+        holding,
+        null,
+        holding.averageCostPrice().amount(),
+        holding.totalInvested().amount(),
+        holding.totalFeesPaid().amount(),
+        null,
+        null,
+        null,
+        null,
+        null,
+        false);
   }
 }
