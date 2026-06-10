@@ -936,6 +936,55 @@ class FinancialAccountServiceTest {
   }
 
   @Test
+  void updateTransaction_throws_AccountNotFoundException_when_account_not_found() {
+    FinancialAccountId id = FinancialAccountId.generate();
+    when(repository.findById(id)).thenReturn(Optional.empty());
+
+    UpdatedTransactionValues values =
+        new UpdatedTransactionValues(
+            null,
+            null,
+            new Money(new BigDecimal("500"), EUR),
+            LocalDate.of(2026, 1, 1),
+            BigDecimal.ZERO,
+            null);
+    UpdateTransactionCommand command =
+        new UpdateTransactionCommand(id, TransactionId.generate(), UserId.generate(), values);
+
+    assertThatThrownBy(() -> service.updateTransaction(command))
+        .isInstanceOf(AccountNotFoundException.class);
+  }
+
+  @Test
+  void updateTransaction_throws_TransactionNotFoundException_when_tx_not_in_account() {
+    UserId ownerId = UserId.generate();
+    FinancialAccount account =
+        FinancialAccount.open(
+            "My PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            ownerId,
+            null,
+            OPENED_AT);
+    when(repository.findById(account.id())).thenReturn(Optional.of(account));
+
+    UpdatedTransactionValues values =
+        new UpdatedTransactionValues(
+            null,
+            null,
+            new Money(new BigDecimal("500"), EUR),
+            LocalDate.of(2026, 1, 1),
+            BigDecimal.ZERO,
+            null);
+    UpdateTransactionCommand command =
+        new UpdateTransactionCommand(account.id(), TransactionId.generate(), ownerId, values);
+
+    assertThatThrownBy(() -> service.updateTransaction(command))
+        .isInstanceOf(TransactionNotFoundException.class);
+  }
+
+  @Test
   void getEnrichedHoldings_enriches_with_price_when_quote_available() {
     UserId ownerId = UserId.generate();
     FinancialAccount account =
@@ -1250,6 +1299,33 @@ class FinancialAccountServiceTest {
     // costInTarget = 1000 EUR * 1.10 = 1100 USD, marketValue = 100 USD * 10 = 1000 USD
     assertThat(result.get(0).marketValue()).isEqualByComparingTo("1000.00");
     assertThat(result.get(0).unrealizedPnl()).isEqualByComparingTo("-100.00");
+  }
+
+  @Test
+  void createAccount_initial_deposit_forces_eur_when_subtype_is_eur_only() {
+    // CRYPTO_WALLET is NOT in EUR_ONLY_TYPES, but LIVRET_A IS in EUR_ONLY_SUBTYPES.
+    // This exercises the second branch of isEurOnly: subType != null && EUR_ONLY_SUBTYPES.contains
+    UserId ownerId = UserId.generate();
+    Money initialBalance = new Money(new BigDecimal("1000"), Currency.getInstance("USD"));
+    CreateFinancialAccountCommand command =
+        new CreateFinancialAccountCommand(
+            "Test Account",
+            AccountType.CRYPTO_WALLET,
+            initialBalance,
+            "Test",
+            ownerId,
+            AccountSubType.LIVRET_A,
+            OPENED_AT,
+            "USD");
+
+    service.createAccount(command);
+
+    ArgumentCaptor<FinancialAccount> captor = ArgumentCaptor.forClass(FinancialAccount.class);
+    verify(repository, times(2)).save(captor.capture());
+    Transaction deposit = captor.getAllValues().get(1).transactions().get(0);
+    assertThat(deposit.currency()).isEqualTo("EUR");
+    assertThat(deposit.eurFxRate()).isEqualByComparingTo(BigDecimal.ONE);
+    verify(fxRatePort, never()).getRateToEur(any(), any());
   }
 
   @Test

@@ -1056,4 +1056,14 @@ class FinancialAccountControllerTest {
         // depositLimit: 22 950 EUR × 1.10 = 25 245.00 USD
         .andExpect(jsonPath("$[0].depositLimit").value(25245.00));
   }
+
+  @Test
+  void getAllAccounts_returns401_when_principal_is_not_UserId() throws Exception {
+    Authentication wrongPrincipal =
+        new UsernamePasswordAuthenticationToken("not-a-userid", null, List.of());
+
+    mockMvc
+        .perform(get("/api/v1/accounts").with(authentication(wrongPrincipal)))
+        .andExpect(status().isUnauthorized());
+  }
 }

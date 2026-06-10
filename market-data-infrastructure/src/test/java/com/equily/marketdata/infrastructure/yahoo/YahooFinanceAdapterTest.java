@@ -6,6 +6,8 @@ import static org.mockito.Mockito.when;
 
 import com.equily.portfolio.domain.marketdata.Quote;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -128,5 +130,67 @@ class YahooFinanceAdapterTest {
 
     assertThat(result).containsKey("CW8.PA");
     assertThat(result).containsKey("AAPL");
+  }
+
+  @Test
+  void getHistoricalClose_returns_rate_when_yahoo_responds_with_valid_data() {
+    String json =
+        """
+        {"chart":{"result":[{"indicators":{"quote":[{"close":[0.921500]}]}}]}}
+        """;
+    mockResponse(json);
+
+    Optional<BigDecimal> result = adapter.getHistoricalClose("USDEUR=X", LocalDate.of(2026, 1, 15));
+
+    assertThat(result).isPresent();
+    assertThat(result.get()).isEqualByComparingTo("0.921500");
+  }
+
+  @Test
+  void getHistoricalClose_returns_empty_when_result_array_is_empty() {
+    String json =
+        """
+        {"chart":{"result":[],"error":null}}
+        """;
+    mockResponse(json);
+
+    Optional<BigDecimal> result = adapter.getHistoricalClose("USDEUR=X", LocalDate.of(2026, 1, 15));
+
+    assertThat(result).isEmpty();
+  }
+
+  @Test
+  void getHistoricalClose_returns_empty_when_restclient_throws() {
+    when(restClient.get()).thenThrow(new RuntimeException("timeout"));
+
+    Optional<BigDecimal> result = adapter.getHistoricalClose("USDEUR=X", LocalDate.of(2026, 1, 15));
+
+    assertThat(result).isEmpty();
+  }
+
+  @Test
+  void getHistoricalClose_returns_empty_when_closes_array_is_empty() {
+    String json =
+        """
+        {"chart":{"result":[{"indicators":{"quote":[{"close":[]}]}}]}}
+        """;
+    mockResponse(json);
+
+    Optional<BigDecimal> result = adapter.getHistoricalClose("USDEUR=X", LocalDate.of(2026, 1, 15));
+
+    assertThat(result).isEmpty();
+  }
+
+  @Test
+  void parseHistoricalClose_skips_null_entries_and_returns_last_non_null() {
+    String json =
+        """
+        {"chart":{"result":[{"indicators":{"quote":[{"close":[null,0.915000,0.921500]}]}}]}}
+        """;
+
+    Optional<BigDecimal> result = adapter.parseHistoricalClose(json);
+
+    assertThat(result).isPresent();
+    assertThat(result.get()).isEqualByComparingTo("0.921500");
   }
 }
