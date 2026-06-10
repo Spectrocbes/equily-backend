@@ -19,19 +19,14 @@ public record Holding(
     Money totalFeesPaid) {
 
   private static final int QUANTITY_SCALE = 8;
-  private static final int MONEY_SCALE = 2;
+  private static final int MONEY_SCALE = 4;
+  private static final Currency EUR = Currency.getInstance("EUR");
 
   public static Optional<Holding> computeFrom(
       List<Transaction> transactions, AssetType assetType, AssetMetadata metadata) {
     if (transactions == null || transactions.isEmpty()) return Optional.empty();
 
     Ticker ticker = transactions.get(0).ticker();
-    Currency currency =
-        transactions.stream()
-            .filter(t -> t.totalAmount() != null)
-            .map(t -> t.totalAmount().currency())
-            .findFirst()
-            .orElseThrow(() -> new InvalidHoldingException("no transactions with a totalAmount"));
 
     BigDecimal totalQty = BigDecimal.ZERO.setScale(QUANTITY_SCALE, RoundingMode.HALF_EVEN);
     BigDecimal totalBoughtQty = BigDecimal.ZERO.setScale(QUANTITY_SCALE, RoundingMode.HALF_EVEN);
@@ -42,11 +37,12 @@ public record Holding(
     for (Transaction t : transactions) {
       if (t.type() == TransactionType.BUY) {
         BigDecimal qty = t.quantity().setScale(QUANTITY_SCALE, RoundingMode.HALF_EVEN);
-        BigDecimal price = t.pricePerUnit().amount().setScale(MONEY_SCALE, RoundingMode.HALF_EVEN);
-        BigDecimal fees = t.fees().setScale(MONEY_SCALE, RoundingMode.HALF_EVEN);
-        // averageCostPrice excludes fees — pure fiscal price
-        weightedCostSum = weightedCostSum.add(qty.multiply(price));
-        totalFees = totalFees.add(fees);
+        // Cost basis in EUR: amountEur represents the EUR-equivalent of what was paid
+        BigDecimal costEur =
+            t.amountEur().setScale(MONEY_SCALE + QUANTITY_SCALE, RoundingMode.HALF_EVEN);
+        BigDecimal feesEur = t.fees().setScale(MONEY_SCALE, RoundingMode.HALF_EVEN);
+        weightedCostSum = weightedCostSum.add(costEur);
+        totalFees = totalFees.add(feesEur);
         totalQty = totalQty.add(qty);
         totalBoughtQty = totalBoughtQty.add(qty);
       } else if (t.type() == TransactionType.SELL) {
@@ -56,7 +52,6 @@ public record Holding(
           throw new InvalidHoldingException(ticker.symbol(), qty, totalQty.add(qty));
         }
         // French fiscal rule: SELL reduces quantity but does not change averageCostPrice.
-        // fees on SELL reduce proceeds — handled at tax time, not tracked here.
       }
     }
 
@@ -69,9 +64,9 @@ public record Holding(
             ? BigDecimal.ZERO.setScale(MONEY_SCALE, RoundingMode.HALF_EVEN)
             : weightedCostSum.divide(totalBoughtQty, MONEY_SCALE, RoundingMode.HALF_EVEN);
 
-    Money averageCostPrice = new Money(avgCostAmount, currency);
+    Money averageCostPrice = new Money(avgCostAmount, EUR);
     Money totalInvested = averageCostPrice.multiply(totalQty);
-    Money totalFeesPaid = new Money(totalFees, currency);
+    Money totalFeesPaid = new Money(totalFees, EUR);
 
     return Optional.of(
         new Holding(

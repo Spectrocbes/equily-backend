@@ -123,7 +123,7 @@ class BoursobankOperationParser extends AbstractBoursobankParser {
       }
     }
 
-    return Transaction.of(
+    return Transaction.ofEur(
         TransactionId.generate(),
         type,
         ticker,

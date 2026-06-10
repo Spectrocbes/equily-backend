@@ -30,14 +30,8 @@ class TransactionJpaEntity {
   @Column(name = "price_per_unit", precision = 19, scale = 2)
   BigDecimal pricePerUnit;
 
-  @Column(name = "price_currency", length = 3)
-  String priceCurrency;
-
   @Column(name = "total_amount", nullable = false, precision = 19, scale = 2)
   BigDecimal totalAmount;
-
-  @Column(name = "total_currency", nullable = false, length = 3)
-  String totalCurrency;
 
   @Column(nullable = false)
   LocalDate date;
@@ -47,6 +41,15 @@ class TransactionJpaEntity {
 
   @Column(length = 255)
   String description;
+
+  @Column(name = "currency", nullable = false, length = 3)
+  String currency;
+
+  @Column(name = "amount_eur", nullable = false, precision = 19, scale = 4)
+  BigDecimal amountEur;
+
+  @Column(name = "eur_fx_rate", nullable = false, precision = 10, scale = 6)
+  BigDecimal eurFxRate;
 
   protected TransactionJpaEntity() {}
 }

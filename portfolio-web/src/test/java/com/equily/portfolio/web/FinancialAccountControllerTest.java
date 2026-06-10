@@ -113,7 +113,7 @@ class FinancialAccountControllerTest {
             null,
             LocalDate.of(2024, 1, 1));
     account.recordTransaction(
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -145,7 +145,7 @@ class FinancialAccountControllerTest {
             null,
             LocalDate.of(2024, 1, 1));
     account.recordTransaction(
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -238,7 +238,7 @@ class FinancialAccountControllerTest {
                 .content(
                     """
                     {"type": "DEPOSIT", "totalAmount": 500,
-                     "totalCurrency": "EUR", "date": "2026-05-24", "fees": 0}
+                     "date": "2026-05-24", "fees": 0}
                     """))
         .andExpect(status().isNoContent());
   }
@@ -261,7 +261,7 @@ class FinancialAccountControllerTest {
                 .content(
                     """
                     {"type": "WITHDRAWAL", "totalAmount": 999999,
-                     "totalCurrency": "EUR", "date": "2026-05-24", "fees": 0}
+                     "date": "2026-05-24", "fees": 0}
                     """))
         .andExpect(status().isUnprocessableEntity());
   }
@@ -278,7 +278,7 @@ class FinancialAccountControllerTest {
             null,
             LocalDate.of(2024, 1, 1));
     account.recordTransaction(
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -289,7 +289,7 @@ class FinancialAccountControllerTest {
             BigDecimal.ZERO,
             null));
     Transaction buyTx =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.BUY,
             new Ticker("AAPL"),
@@ -320,7 +320,7 @@ class FinancialAccountControllerTest {
   @Test
   void getTransactions_returns_list_with_deposit_transaction_no_ticker() throws Exception {
     Transaction depositTx =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -356,7 +356,7 @@ class FinancialAccountControllerTest {
             null,
             LocalDate.of(2024, 1, 1));
     account.recordTransaction(
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -367,7 +367,7 @@ class FinancialAccountControllerTest {
             BigDecimal.ZERO,
             null));
     account.recordTransaction(
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.BUY,
             new Ticker("AAPL"),
@@ -388,7 +388,8 @@ class FinancialAccountControllerTest {
         .andExpect(status().isOk())
         // BUY is newest (2026-01-15), DEPOSIT is older (2026-01-01) — sorted desc
         .andExpect(jsonPath("$[0].type").value("BUY"))
-        .andExpect(jsonPath("$[0].currency").value("USD"))
+        .andExpect(jsonPath("$[0].nativeCurrency").value("EUR"))
+        .andExpect(jsonPath("$[0].totalAmountNative").value(1500.00))
         .andExpect(jsonPath("$[0].pricePerUnit").value(165.00))
         .andExpect(jsonPath("$[0].totalAmount").value(1650.00))
         .andExpect(jsonPath("$[0].fees").value(5.49));
@@ -405,11 +406,10 @@ class FinancialAccountControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
-                    {"type": "BUY", "ticker": "AAPL", "quantity": 10,
-                     "pricePerUnit": 150.00, "priceCurrency": "EUR",
-                     "totalAmount": 1500.00, "totalCurrency": "EUR", "date": "2026-01-15",
-                     "fees": 4.99}
-                    """))
+{"type": "BUY", "ticker": "AAPL", "quantity": 10,
+ "pricePerUnit": 150.00,                     "totalAmount": 1500.00, "date": "2026-01-15",
+ "fees": 4.99}
+"""))
         .andExpect(status().isNoContent());
   }
 
@@ -427,8 +427,7 @@ class FinancialAccountControllerTest {
                 .content(
                     """
 {"type": "SELL", "ticker": "AAPL", "quantity": 6,
- "pricePerUnit": 110.00, "priceCurrency": "EUR",
- "totalAmount": 660.00, "totalCurrency": "EUR", "date": "2026-05-24", "fees": 0}
+ "pricePerUnit": 110.00, "totalAmount": 660.00, "date": "2026-05-24", "fees": 0}
 """))
         .andExpect(status().isUnprocessableEntity())
         .andExpect(content().string("Cannot sell 6 AAPL — you only hold 5"));
@@ -444,7 +443,7 @@ class FinancialAccountControllerTest {
                 .content(
                     """
                     {"type": "DEPOSIT", "totalAmount": 100,
-                     "totalCurrency": "EUR", "date": "9999-12-31", "fees": 0}
+                     "date": "9999-12-31", "fees": 0}
                     """))
         .andExpect(status().isBadRequest())
         .andExpect(
@@ -465,7 +464,7 @@ class FinancialAccountControllerTest {
                     String.format(
                         """
                         {"type": "DEPOSIT", "totalAmount": 100,
-                         "totalCurrency": "EUR", "date": "%s", "fees": 0}
+                         "date": "%s", "fees": 0}
                         """,
                         tomorrow)))
         .andExpect(status().isNoContent());
@@ -484,7 +483,7 @@ class FinancialAccountControllerTest {
                 .content(
                     """
                     {"type": "DEPOSIT", "totalAmount": 500,
-                     "totalCurrency": "EUR", "date": "2026-05-24", "fees": 0}
+                     "date": "2026-05-24", "fees": 0}
                     """))
         .andExpect(status().isBadRequest())
         .andExpect(content().string("bad tx"));
@@ -701,7 +700,7 @@ class FinancialAccountControllerTest {
                 .content(
                     """
                     {"type": "DEPOSIT", "totalAmount": 1000,
-                     "totalCurrency": "EUR", "date": "2026-05-30", "fees": 0}
+                     "date": "2026-05-30", "fees": 0}
                     """))
         .andExpect(status().isUnprocessableEntity())
         .andExpect(jsonPath("$.code").value("DEPOSIT_LIMIT_EXCEEDED"))
@@ -722,7 +721,7 @@ class FinancialAccountControllerTest {
             AccountSubType.LIVRET_A,
             LocalDate.of(2020, 3, 1));
     Transaction deposit =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -866,7 +865,7 @@ class FinancialAccountControllerTest {
             AccountSubType.PEA,
             LocalDate.of(2020, 1, 1));
     Transaction deposit =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -907,7 +906,7 @@ class FinancialAccountControllerTest {
             null,
             LocalDate.of(2024, 1, 1));
     pea.recordTransaction(
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -918,7 +917,7 @@ class FinancialAccountControllerTest {
             BigDecimal.ZERO,
             null));
     pea.recordTransaction(
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.BUY,
             new Ticker("AAPL"),
@@ -1000,5 +999,71 @@ class FinancialAccountControllerTest {
         .andExpect(jsonPath("$[0].unrealizedPnl").value(150.00))
         .andExpect(jsonPath("$[0].unrealizedPnlPct").value(100.00))
         .andExpect(jsonPath("$[0].priceAvailable").value(true));
+  }
+
+  @Test
+  void getAccounts_converts_totalDeposits_and_remainingCapacity_to_target_currency()
+      throws Exception {
+    FinancialAccount livretA =
+        FinancialAccount.open(
+            "Livret A",
+            AccountType.SAVINGS_ACCOUNT,
+            new Money(BigDecimal.ZERO, Currency.getInstance("EUR")),
+            "BNP",
+            testUserId,
+            AccountSubType.LIVRET_A,
+            LocalDate.of(2024, 1, 1));
+    livretA.recordTransaction(
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("10000"), Currency.getInstance("EUR")),
+            LocalDate.of(2024, 6, 1),
+            BigDecimal.ZERO,
+            null));
+    when(useCase.getAllAccounts(any())).thenReturn(List.of(livretA));
+    when(fxRatePort.getRate("EUR", "USD")).thenReturn(Optional.of(new BigDecimal("1.10")));
+
+    mockMvc
+        .perform(get("/api/v1/accounts").param("currency", "USD").with(authentication(mockAuth())))
+        .andExpect(status().isOk())
+        // totalDeposits: 10 000 EUR × 1.10 = 11 000.00 USD
+        .andExpect(jsonPath("$[0].totalDeposits").value(11000.00))
+        // remainingCapacity: (22 950 - 10 000) EUR × 1.10 = 14 245.00 USD
+        .andExpect(jsonPath("$[0].remainingCapacity").value(14245.00));
+  }
+
+  @Test
+  void getAccounts_converts_depositLimit_to_target_currency() throws Exception {
+    FinancialAccount livretA =
+        FinancialAccount.open(
+            "Livret A",
+            AccountType.SAVINGS_ACCOUNT,
+            new Money(BigDecimal.ZERO, Currency.getInstance("EUR")),
+            "BNP",
+            testUserId,
+            AccountSubType.LIVRET_A,
+            LocalDate.of(2024, 1, 1));
+    when(useCase.getAllAccounts(any())).thenReturn(List.of(livretA));
+    when(fxRatePort.getRate("EUR", "USD")).thenReturn(Optional.of(new BigDecimal("1.10")));
+
+    mockMvc
+        .perform(get("/api/v1/accounts").param("currency", "USD").with(authentication(mockAuth())))
+        .andExpect(status().isOk())
+        // depositLimit: 22 950 EUR × 1.10 = 25 245.00 USD
+        .andExpect(jsonPath("$[0].depositLimit").value(25245.00));
+  }
+
+  @Test
+  void getAllAccounts_returns401_when_principal_is_not_UserId() throws Exception {
+    Authentication wrongPrincipal =
+        new UsernamePasswordAuthenticationToken("not-a-userid", null, List.of());
+
+    mockMvc
+        .perform(get("/api/v1/accounts").with(authentication(wrongPrincipal)))
+        .andExpect(status().isUnauthorized());
   }
 }

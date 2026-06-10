@@ -46,7 +46,7 @@ class AccountBusinessRulesTest {
   }
 
   private Transaction deposit(String amount) {
-    return Transaction.of(
+    return Transaction.ofEur(
         TransactionId.generate(),
         TransactionType.DEPOSIT,
         null,
@@ -59,7 +59,7 @@ class AccountBusinessRulesTest {
   }
 
   private Transaction withdrawal(String amount) {
-    return Transaction.of(
+    return Transaction.ofEur(
         TransactionId.generate(),
         TransactionType.WITHDRAWAL,
         null,
@@ -72,7 +72,7 @@ class AccountBusinessRulesTest {
   }
 
   private Transaction dividend(String amount) {
-    return Transaction.of(
+    return Transaction.ofEur(
         TransactionId.generate(),
         TransactionType.DIVIDEND,
         null,

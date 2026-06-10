@@ -66,7 +66,9 @@ public class AuthController {
 
   @GetMapping("/me")
   ResponseEntity<AuthResponse> me(Authentication authentication) {
-    UserId userId = (UserId) authentication.getPrincipal();
+    if (authentication == null || !(authentication.getPrincipal() instanceof UserId userId)) {
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+    }
     User user = userRepository.findById(userId).orElseThrow();
     return ResponseEntity.ok(new AuthResponse(null, null, user.email(), user.displayName()));
   }

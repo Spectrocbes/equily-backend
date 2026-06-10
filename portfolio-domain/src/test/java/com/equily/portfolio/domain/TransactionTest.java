@@ -19,7 +19,7 @@ class TransactionTest {
   @Test
   void buy_with_valid_fields_is_created() {
     Transaction t =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.BUY,
             AAPL,
@@ -35,10 +35,113 @@ class TransactionTest {
   }
 
   @Test
-  void buy_with_null_ticker_throws() {
+  void ofEur_sets_eur_defaults() {
+    Money total = new Money(new BigDecimal("1500.00"), EUR);
+    Transaction t =
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.BUY,
+            AAPL,
+            new BigDecimal("10"),
+            new Money(new BigDecimal("150.00"), EUR),
+            total,
+            TODAY,
+            null,
+            null);
+    assertThat(t.currency()).isEqualTo("EUR");
+    assertThat(t.eurFxRate()).isEqualByComparingTo(BigDecimal.ONE);
+    assertThat(t.amountEur()).isEqualByComparingTo(new BigDecimal("1500.00"));
+  }
+
+  @Test
+  void of_stores_currency_fxRate_and_amountEur() {
+    BigDecimal fxRate = new BigDecimal("0.920000");
+    BigDecimal totalUsd = new BigDecimal("1000.00");
+    BigDecimal expectedEur = new BigDecimal("920.0000");
+    Transaction t =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.BUY,
+            AAPL,
+            new BigDecimal("10"),
+            new Money(new BigDecimal("100.00"), Currency.getInstance("USD")),
+            new Money(totalUsd, Currency.getInstance("USD")),
+            TODAY,
+            BigDecimal.ZERO,
+            null,
+            "USD",
+            expectedEur,
+            fxRate);
+    assertThat(t.currency()).isEqualTo("USD");
+    assertThat(t.eurFxRate()).isEqualByComparingTo(fxRate);
+    assertThat(t.amountEur()).isEqualByComparingTo(expectedEur);
+  }
+
+  @Test
+  void of_with_null_currency_throws() {
     assertThatThrownBy(
             () ->
                 Transaction.of(
+                    TransactionId.generate(),
+                    TransactionType.DEPOSIT,
+                    null,
+                    null,
+                    null,
+                    new Money(new BigDecimal("1000.00"), EUR),
+                    TODAY,
+                    null,
+                    null,
+                    null,
+                    new BigDecimal("1000.00"),
+                    BigDecimal.ONE))
+        .isInstanceOf(InvalidTransactionException.class);
+  }
+
+  @Test
+  void of_with_negative_amountEur_throws() {
+    assertThatThrownBy(
+            () ->
+                Transaction.of(
+                    TransactionId.generate(),
+                    TransactionType.DEPOSIT,
+                    null,
+                    null,
+                    null,
+                    new Money(new BigDecimal("1000.00"), EUR),
+                    TODAY,
+                    null,
+                    null,
+                    "EUR",
+                    new BigDecimal("-1"),
+                    BigDecimal.ONE))
+        .isInstanceOf(InvalidTransactionException.class);
+  }
+
+  @Test
+  void of_with_zero_eurFxRate_throws() {
+    assertThatThrownBy(
+            () ->
+                Transaction.of(
+                    TransactionId.generate(),
+                    TransactionType.DEPOSIT,
+                    null,
+                    null,
+                    null,
+                    new Money(new BigDecimal("1000.00"), EUR),
+                    TODAY,
+                    null,
+                    null,
+                    "EUR",
+                    new BigDecimal("1000.00"),
+                    BigDecimal.ZERO))
+        .isInstanceOf(InvalidTransactionException.class);
+  }
+
+  @Test
+  void buy_with_null_ticker_throws() {
+    assertThatThrownBy(
+            () ->
+                Transaction.ofEur(
                     TransactionId.generate(),
                     TransactionType.BUY,
                     null,
@@ -55,7 +158,7 @@ class TransactionTest {
   void buy_with_zero_quantity_throws() {
     assertThatThrownBy(
             () ->
-                Transaction.of(
+                Transaction.ofEur(
                     TransactionId.generate(),
                     TransactionType.BUY,
                     AAPL,
@@ -72,7 +175,7 @@ class TransactionTest {
   void buy_with_negative_quantity_throws() {
     assertThatThrownBy(
             () ->
-                Transaction.of(
+                Transaction.ofEur(
                     TransactionId.generate(),
                     TransactionType.BUY,
                     AAPL,
@@ -89,7 +192,7 @@ class TransactionTest {
   void deposit_with_null_totalAmount_throws() {
     assertThatThrownBy(
             () ->
-                Transaction.of(
+                Transaction.ofEur(
                     TransactionId.generate(),
                     TransactionType.DEPOSIT,
                     null,
@@ -106,7 +209,7 @@ class TransactionTest {
   void deposit_with_non_null_quantity_throws() {
     assertThatThrownBy(
             () ->
-                Transaction.of(
+                Transaction.ofEur(
                     TransactionId.generate(),
                     TransactionType.DEPOSIT,
                     null,

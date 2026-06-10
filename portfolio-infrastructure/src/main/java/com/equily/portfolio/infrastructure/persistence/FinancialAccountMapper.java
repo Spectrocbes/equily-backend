@@ -84,13 +84,13 @@ class FinancialAccountMapper {
     tx.ticker = t.ticker() != null ? t.ticker().symbol() : null;
     tx.quantity = t.quantity();
     tx.pricePerUnit = t.pricePerUnit() != null ? t.pricePerUnit().amount() : null;
-    tx.priceCurrency =
-        t.pricePerUnit() != null ? t.pricePerUnit().currency().getCurrencyCode() : null;
     tx.totalAmount = t.totalAmount().amount();
-    tx.totalCurrency = t.totalAmount().currency().getCurrencyCode();
     tx.date = t.date();
     tx.fees = t.fees();
     tx.description = t.description();
+    tx.currency = t.currency();
+    tx.amountEur = t.amountEur();
+    tx.eurFxRate = t.eurFxRate();
     return tx;
   }
 
@@ -99,13 +99,22 @@ class FinancialAccountMapper {
     TransactionType type = TransactionType.valueOf(tx.type);
     Ticker ticker = tx.ticker != null ? new Ticker(tx.ticker) : null;
     Money pricePerUnit =
-        (tx.pricePerUnit != null && tx.priceCurrency != null)
-            ? new Money(tx.pricePerUnit, Currency.getInstance(tx.priceCurrency))
-            : null;
-    Money totalAmount = new Money(tx.totalAmount, Currency.getInstance(tx.totalCurrency));
+        tx.pricePerUnit != null ? new Money(tx.pricePerUnit, Currency.getInstance("EUR")) : null;
+    Money totalAmount = new Money(tx.totalAmount, Currency.getInstance("EUR"));
     // Canonical record constructor: data comes from DB and was validated on write.
     return new Transaction(
-        id, type, ticker, tx.quantity, pricePerUnit, totalAmount, tx.date, tx.fees, tx.description);
+        id,
+        type,
+        ticker,
+        tx.quantity,
+        pricePerUnit,
+        totalAmount,
+        tx.date,
+        tx.fees,
+        tx.description,
+        tx.currency,
+        tx.amountEur,
+        tx.eurFxRate);
   }
 
   private FinancialAccountMapper() {}

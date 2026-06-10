@@ -16,7 +16,10 @@ public record Transaction(
     Money totalAmount,
     LocalDate date,
     BigDecimal fees,
-    String description) {
+    String description,
+    String currency,
+    BigDecimal amountEur,
+    BigDecimal eurFxRate) {
 
   private static final Set<TransactionType> ASSET_TYPES =
       EnumSet.of(TransactionType.BUY, TransactionType.SELL);
@@ -25,8 +28,7 @@ public record Transaction(
 
   public Transaction {
     // validation is enforced in the static factory of(...); direct construction is intentionally
-    // left open
-    // for the record's canonical form used by computeFrom/infrastructure mappers
+    // left open for the record's canonical form used by computeFrom/infrastructure mappers
   }
 
   public static Transaction of(
@@ -38,7 +40,10 @@ public record Transaction(
       Money totalAmount,
       LocalDate date,
       BigDecimal fees,
-      String description) {
+      String description,
+      String currency,
+      BigDecimal amountEur,
+      BigDecimal eurFxRate) {
     if (type == null) throw new InvalidTransactionException("type must not be null");
     if (date == null) throw new InvalidTransactionException("date must not be null");
     if (totalAmount == null) throw new InvalidTransactionException("totalAmount must not be null");
@@ -66,7 +71,51 @@ public record Transaction(
     }
     BigDecimal safeFees = fees != null ? fees : BigDecimal.ZERO;
 
+    if (currency == null || currency.isBlank())
+      throw new InvalidTransactionException("currency must not be null or blank");
+    if (amountEur == null || amountEur.compareTo(BigDecimal.ZERO) < 0)
+      throw new InvalidTransactionException("amountEur must not be null and must be >= 0");
+    if (eurFxRate == null || eurFxRate.compareTo(BigDecimal.ZERO) <= 0)
+      throw new InvalidTransactionException("eurFxRate must be > 0");
+
     return new Transaction(
-        id, type, ticker, quantity, pricePerUnit, totalAmount, date, safeFees, description);
+        id,
+        type,
+        ticker,
+        quantity,
+        pricePerUnit,
+        totalAmount,
+        date,
+        safeFees,
+        description,
+        currency,
+        amountEur,
+        eurFxRate);
+  }
+
+  /** Convenience factory for EUR transactions — eurFxRate=1.0, amountEur=totalAmount. */
+  public static Transaction ofEur(
+      TransactionId id,
+      TransactionType type,
+      Ticker ticker,
+      BigDecimal quantity,
+      Money pricePerUnit,
+      Money totalAmount,
+      LocalDate date,
+      BigDecimal fees,
+      String description) {
+    return Transaction.of(
+        id,
+        type,
+        ticker,
+        quantity,
+        pricePerUnit,
+        totalAmount,
+        date,
+        fees,
+        description,
+        "EUR",
+        totalAmount != null ? totalAmount.amount() : null,
+        BigDecimal.ONE);
   }
 }

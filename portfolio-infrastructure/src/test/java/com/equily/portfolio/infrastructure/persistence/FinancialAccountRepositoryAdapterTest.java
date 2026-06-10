@@ -93,7 +93,7 @@ class FinancialAccountRepositoryAdapterTest {
             LocalDate.of(2024, 1, 1));
 
     Transaction deposit =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -106,7 +106,7 @@ class FinancialAccountRepositoryAdapterTest {
     account.recordTransaction(deposit);
 
     Transaction buy =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.BUY,
             new Ticker("AAPL"),
@@ -237,7 +237,7 @@ class FinancialAccountRepositoryAdapterTest {
             LocalDate.of(2024, 1, 1));
 
     Transaction deposit =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.DEPOSIT,
             null,
@@ -250,7 +250,7 @@ class FinancialAccountRepositoryAdapterTest {
     account.recordTransaction(deposit);
 
     Transaction buy =
-        Transaction.of(
+        Transaction.ofEur(
             TransactionId.generate(),
             TransactionType.BUY,
             new Ticker("MSFT"),
