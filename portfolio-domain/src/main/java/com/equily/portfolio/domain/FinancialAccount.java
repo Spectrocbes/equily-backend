@@ -1,7 +1,9 @@
 package com.equily.portfolio.domain;
 
 import com.equily.identity.domain.UserId;
+import com.equily.portfolio.domain.account.AccountStatus;
 import com.equily.portfolio.domain.account.AccountSubType;
+import com.equily.portfolio.domain.exception.AccountClosedException;
 import com.equily.portfolio.domain.exception.InsufficientFundsException;
 import com.equily.portfolio.domain.exception.InvalidFinancialAccountException;
 import com.equily.portfolio.domain.exception.InvalidHoldingException;
@@ -40,6 +42,8 @@ public final class FinancialAccount {
   private final UserId ownerId;
   private final AccountSubType subType;
   private final LocalDate openedAt;
+  private AccountStatus status;
+  private LocalDate closedAt;
 
   private FinancialAccount(
       FinancialAccountId id,
@@ -78,10 +82,14 @@ public final class FinancialAccount {
       String broker,
       UserId ownerId,
       AccountSubType subType,
-      LocalDate openedAt) {
+      LocalDate openedAt,
+      AccountStatus status,
+      LocalDate closedAt) {
     FinancialAccount account =
         new FinancialAccount(id, name, accountType, balance, broker, ownerId, subType, openedAt);
     account.transactions.addAll(transactions);
+    account.status = status != null ? status : AccountStatus.ACTIVE;
+    account.closedAt = closedAt;
     return account;
   }
 
@@ -109,11 +117,25 @@ public final class FinancialAccount {
     Objects.requireNonNull(openedAt, "openedAt must not be null");
     // Account always starts at zero — initial balance is recorded as a DEPOSIT transaction
     Money zero = new Money(BigDecimal.ZERO, initialBalance.currency());
-    return new FinancialAccount(
-        FinancialAccountId.generate(), name, accountType, zero, broker, ownerId, subType, openedAt);
+    FinancialAccount account =
+        new FinancialAccount(
+            FinancialAccountId.generate(),
+            name,
+            accountType,
+            zero,
+            broker,
+            ownerId,
+            subType,
+            openedAt);
+    account.status = AccountStatus.ACTIVE;
+    account.closedAt = null;
+    return account;
   }
 
   public void recordTransaction(Transaction t) {
+    if (isClosed()) {
+      throw new AccountClosedException(this.id());
+    }
     switch (t.type()) {
       case DEPOSIT, DIVIDEND, INTEREST -> balance = balance.add(t.totalAmount());
       case SELL -> {
@@ -209,6 +231,26 @@ public final class FinancialAccount {
     return openedAt;
   }
 
+  public AccountStatus status() {
+    return status;
+  }
+
+  public LocalDate closedAt() {
+    return closedAt;
+  }
+
+  public boolean isClosed() {
+    return status == AccountStatus.CLOSED;
+  }
+
+  public void close(LocalDate closedAt) {
+    if (this.status == AccountStatus.CLOSED) {
+      throw new IllegalStateException("Account is already closed");
+    }
+    this.status = AccountStatus.CLOSED;
+    this.closedAt = closedAt;
+  }
+
   public void updateTransaction(TransactionId id, UpdatedTransactionValues values) {
     Transaction existing =
         transactions.stream()
@@ -231,7 +273,9 @@ public final class FinancialAccount {
             values.description(),
             existing.currency(),
             updatedAmountEur,
-            existing.eurFxRate());
+            existing.eurFxRate(),
+            existing.liquidationValueAtWithdrawal(),
+            existing.grossWithdrawalAmount());
 
     List<Transaction> newList =
         transactions.stream()

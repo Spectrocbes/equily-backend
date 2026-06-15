@@ -5,6 +5,9 @@ import com.equily.identity.domain.exception.InvalidCredentialsException;
 import com.equily.identity.domain.exception.InvalidTokenException;
 import com.equily.identity.domain.exception.UserAlreadyExistsException;
 import com.equily.portfolio.application.exception.CsvParsingException;
+import com.equily.portfolio.application.exception.PeaClosureException;
+import com.equily.portfolio.domain.exception.AccountCardinalityException;
+import com.equily.portfolio.domain.exception.AccountClosedException;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
 import com.equily.portfolio.domain.exception.DepositLimitExceededException;
 import com.equily.portfolio.domain.exception.InsufficientFundsException;
@@ -95,6 +98,21 @@ class GlobalExceptionHandler {
   @ExceptionHandler(InvalidTokenException.class)
   ResponseEntity<String> handleInvalidToken(InvalidTokenException ex) {
     return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
+  }
+
+  @ExceptionHandler(AccountCardinalityException.class)
+  ResponseEntity<String> handleAccountCardinality(AccountCardinalityException ex) {
+    return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(ex.getMessage());
+  }
+
+  @ExceptionHandler(AccountClosedException.class)
+  ResponseEntity<String> handleAccountClosed(AccountClosedException ex) {
+    return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(ex.getMessage());
+  }
+
+  @ExceptionHandler(PeaClosureException.class)
+  ResponseEntity<String> handlePeaClosure(PeaClosureException ex) {
+    return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(ex.getMessage());
   }
 
   @ExceptionHandler(DepositLimitExceededException.class)

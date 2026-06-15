@@ -1,5 +1,6 @@
 package com.equily.portfolio.infrastructure.persistence;
 
+import com.equily.portfolio.domain.account.AccountStatus;
 import com.equily.portfolio.domain.account.AccountSubType;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
@@ -42,6 +43,13 @@ class FinancialAccountJpaEntity implements Persistable<UUID> {
 
   @Column(name = "opened_at", nullable = false)
   LocalDate openedAt;
+
+  @Column(name = "status", nullable = false, length = 20)
+  @Enumerated(EnumType.STRING)
+  AccountStatus status;
+
+  @Column(name = "closed_at")
+  LocalDate closedAt;
 
   @OneToMany(
       mappedBy = "account",

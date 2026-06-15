@@ -51,5 +51,11 @@ class TransactionJpaEntity {
   @Column(name = "eur_fx_rate", nullable = false, precision = 10, scale = 6)
   BigDecimal eurFxRate;
 
+  @Column(name = "liquidation_value_at_withdrawal", precision = 19, scale = 4)
+  BigDecimal liquidationValueAtWithdrawal;
+
+  @Column(name = "gross_withdrawal_amount", precision = 19, scale = 4)
+  BigDecimal grossWithdrawalAmount;
+
   protected TransactionJpaEntity() {}
 }

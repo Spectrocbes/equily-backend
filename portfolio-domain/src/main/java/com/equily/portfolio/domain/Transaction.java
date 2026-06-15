@@ -19,7 +19,9 @@ public record Transaction(
     String description,
     String currency,
     BigDecimal amountEur,
-    BigDecimal eurFxRate) {
+    BigDecimal eurFxRate,
+    BigDecimal liquidationValueAtWithdrawal,
+    BigDecimal grossWithdrawalAmount) {
 
   private static final Set<TransactionType> ASSET_TYPES =
       EnumSet.of(TransactionType.BUY, TransactionType.SELL);
@@ -43,7 +45,9 @@ public record Transaction(
       String description,
       String currency,
       BigDecimal amountEur,
-      BigDecimal eurFxRate) {
+      BigDecimal eurFxRate,
+      BigDecimal liquidationValueAtWithdrawal,
+      BigDecimal grossWithdrawalAmount) {
     if (type == null) throw new InvalidTransactionException("type must not be null");
     if (date == null) throw new InvalidTransactionException("date must not be null");
     if (totalAmount == null) throw new InvalidTransactionException("totalAmount must not be null");
@@ -90,7 +94,9 @@ public record Transaction(
         description,
         currency,
         amountEur,
-        eurFxRate);
+        eurFxRate,
+        liquidationValueAtWithdrawal,
+        grossWithdrawalAmount);
   }
 
   /** Convenience factory for EUR transactions — eurFxRate=1.0, amountEur=totalAmount. */
@@ -116,6 +122,8 @@ public record Transaction(
         description,
         "EUR",
         totalAmount != null ? totalAmount.amount() : null,
-        BigDecimal.ONE);
+        BigDecimal.ONE,
+        null,
+        null);
   }
 }

@@ -3,6 +3,7 @@ package com.equily.portfolio.domain;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 import com.equily.identity.domain.UserId;
+import com.equily.portfolio.domain.account.AccountStatus;
 import com.equily.portfolio.domain.account.AccountSubType;
 import com.equily.shared.Money;
 import com.tngtech.archunit.core.importer.ImportOption;
@@ -34,6 +35,8 @@ class CrossLayerArchitectureTest {
               String.class,
               UserId.class,
               AccountSubType.class,
+              LocalDate.class,
+              AccountStatus.class,
               LocalDate.class)
           .as("reconstruct() must only be called from portfolio-infrastructure or domain tests");
 }
