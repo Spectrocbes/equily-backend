@@ -4,10 +4,12 @@ import com.equily.identity.domain.UserId;
 import com.equily.portfolio.domain.FinancialAccount;
 import com.equily.portfolio.domain.FinancialAccountId;
 import com.equily.portfolio.domain.Holding;
+import com.equily.portfolio.domain.PeaWithdrawalSimulation;
 import com.equily.portfolio.domain.TransactionId;
 import com.equily.portfolio.domain.TransactionType;
 import com.equily.portfolio.domain.csv.CsvImportResult;
 import com.equily.portfolio.domain.marketdata.EnrichedHolding;
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -76,4 +78,19 @@ public interface FinancialAccountUseCase {
    */
   TransactionType getTransactionType(
       FinancialAccountId accountId, TransactionId transactionId, UserId userId);
+
+  /**
+   * Simulates the tax impact of a PEA withdrawal. Fetches live portfolio value via MarketDataPort
+   * then delegates to PeaClosureUseCase. Read-only.
+   *
+   * @param withdrawalAmount requested withdrawal amount (null → full closure / liquidationValue)
+   */
+  PeaWithdrawalSimulation simulatePeaClosure(
+      FinancialAccountId id, UserId userId, BigDecimal withdrawalAmount);
+
+  /**
+   * Closes a PEA account. Fetches live portfolio value via MarketDataPort, creates withdrawal
+   * transactions (net amount + flat tax), then marks the account CLOSED.
+   */
+  void closePea(FinancialAccountId id, UserId userId);
 }

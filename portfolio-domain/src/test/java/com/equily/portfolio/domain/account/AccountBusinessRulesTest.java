@@ -9,6 +9,7 @@ import com.equily.portfolio.domain.FinancialAccount;
 import com.equily.portfolio.domain.Transaction;
 import com.equily.portfolio.domain.TransactionId;
 import com.equily.portfolio.domain.TransactionType;
+import com.equily.portfolio.domain.exception.AccountCardinalityException;
 import com.equily.portfolio.domain.exception.DepositLimitExceededException;
 import com.equily.shared.Money;
 import java.math.BigDecimal;
@@ -398,6 +399,275 @@ class AccountBusinessRulesTest {
             () -> AccountBusinessRules.validateDepositAfterEdit(peaPmeAccount, allAccounts))
         .isInstanceOf(DepositLimitExceededException.class)
         .hasMessageContaining("PEA_PME");
+  }
+
+  @Test
+  void validateDeposit_pea_over_5y_withdrawal_liberates_capacity() {
+    // PEA opened 2019-01-01 (>5y from any date in 2026+). Deposit 140000 on 2020-01-01, then
+    // withdraw 30000 after the 5y anniversary (2024-01-01). The Loi Pacte replay algorithm:
+    // replay in date order → deposit 140000, then withdrawal reduces runningDeposits by 30000
+    // → used = 110000. Trying to add 45000 → 155000 > 150000 → throws.
+    // But adding 40000 → 150000 == limit → passes.
+    LocalDate openedAt = LocalDate.of(2019, 1, 1);
+    FinancialAccount peaAccount =
+        FinancialAccount.open(
+            "PEA Account",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            UserId.generate(),
+            AccountSubType.PEA,
+            openedAt);
+    // Deposit dated before 5y anniversary — must come first chronologically for correct replay
+    Transaction depositTx =
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("140000"), EUR),
+            LocalDate.of(2020, 1, 1),
+            null,
+            null);
+    peaAccount.recordTransaction(depositTx);
+    // Withdrawal dated after 5y anniversary (2024-01-01) — store liqValue=140000 (no gain),
+    // gross=30000 so the exact Loi Pacte formula gives withdrawnCapital=30000 (capitalRatio=1)
+    Transaction withdrawalAfter5y =
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.WITHDRAWAL,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("30000"), EUR),
+            LocalDate.of(2024, 6, 1),
+            BigDecimal.ZERO,
+            "PEA withdrawal",
+            "EUR",
+            new BigDecimal("30000"),
+            BigDecimal.ONE,
+            new BigDecimal("140000"),
+            new BigDecimal("30000"));
+    peaAccount.recordTransaction(withdrawalAfter5y);
+
+    // used = 110000 → 40000 more → 150000 == limit → OK
+    AccountBusinessRules.validateDeposit(
+        peaAccount, new Money(new BigDecimal("40000"), EUR), List.of(peaAccount));
+
+    // 45000 would put it at 155000 > 150000 → should throw
+    assertThatThrownBy(
+            () ->
+                AccountBusinessRules.validateDeposit(
+                    peaAccount, new Money(new BigDecimal("45000"), EUR), List.of(peaAccount)))
+        .isInstanceOf(DepositLimitExceededException.class);
+  }
+
+  @Test
+  void validateDeposit_pea_under_5y_withdrawal_does_not_liberate_capacity() {
+    // PEA opened 2024-01-01 (<5y from 2026). Deposit 140000, withdraw 60000 → balance 80000.
+    // Cumulative deposits = 140000, so 15000 more → 155000 > 150000 → throws.
+    LocalDate openedAt = LocalDate.of(2024, 1, 1);
+    FinancialAccount peaAccount =
+        FinancialAccount.open(
+            "PEA Account",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            UserId.generate(),
+            AccountSubType.PEA,
+            openedAt);
+    peaAccount.recordTransaction(deposit("140000"));
+    peaAccount.recordTransaction(withdrawal("60000")); // balance = 80000
+
+    assertThatThrownBy(
+            () ->
+                AccountBusinessRules.validateDeposit(
+                    peaAccount, new Money(new BigDecimal("15000"), EUR), List.of(peaAccount)))
+        .isInstanceOf(DepositLimitExceededException.class)
+        .hasMessageContaining("PEA");
+  }
+
+  @Test
+  void pea_capacity_over_5y_withdrawal_reduces_versements_counter() {
+    // PEA opened 2019-01-01 (>5y). Deposit 140000 on 2020-01-01, withdraw 30000 after 5y.
+    // Loi Pacte replay: runningDeposits=140000 → withdrawal reduces by 30000 → 110000.
+    // remainingCapacity = 150000 - 110000 = 40000.
+    LocalDate openedAt = LocalDate.of(2019, 1, 1);
+    FinancialAccount peaAccount =
+        FinancialAccount.open(
+            "PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            UserId.generate(),
+            AccountSubType.PEA,
+            openedAt);
+    peaAccount.recordTransaction(
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("140000"), EUR),
+            LocalDate.of(2020, 1, 1),
+            null,
+            null));
+    // liqValue=140000 (no gain) → capitalRatio=1 → withdrawnCapital=30000 → remaining=40000
+    peaAccount.recordTransaction(
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.WITHDRAWAL,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("30000"), EUR),
+            LocalDate.of(2024, 6, 1),
+            BigDecimal.ZERO,
+            "PEA withdrawal",
+            "EUR",
+            new BigDecimal("30000"),
+            BigDecimal.ONE,
+            new BigDecimal("140000"),
+            new BigDecimal("30000")));
+
+    Optional<Money> remaining =
+        AccountBusinessRules.remainingCapacity(peaAccount, List.of(peaAccount));
+
+    assertThat(remaining).isPresent();
+    assertThat(remaining.get().amount()).isEqualByComparingTo(new BigDecimal("40000"));
+  }
+
+  @Test
+  void pea_capacity_under_5y_withdrawal_does_not_reduce_capacity() {
+    // PEA opened 2024-01-01 (<5y). Deposit 140000, withdraw 60000.
+    // Cumulative deposits = 140000 (withdrawal has no effect on capacity).
+    // remainingCapacity = 150000 - 140000 = 10000.
+    LocalDate openedAt = LocalDate.of(2024, 1, 1);
+    FinancialAccount peaAccount =
+        FinancialAccount.open(
+            "PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            UserId.generate(),
+            AccountSubType.PEA,
+            openedAt);
+    peaAccount.recordTransaction(deposit("140000"));
+    peaAccount.recordTransaction(withdrawal("60000")); // balance = 80000, but deposits = 140000
+
+    Optional<Money> remaining =
+        AccountBusinessRules.remainingCapacity(peaAccount, List.of(peaAccount));
+
+    assertThat(remaining).isPresent();
+    assertThat(remaining.get().amount()).isEqualByComparingTo(new BigDecimal("10000"));
+  }
+
+  @Test
+  void computeAdjustedTotalDeposits_spec_scenario() {
+    // deposits=100000, liqValue=106000, gross=30000
+    // capitalRatio = 100000/106000 = 0.943396 (6dp)
+    // withdrawnCapital = 30000 × 0.943396 = 28301.88
+    // adjustedDeposits = 100000 - 28301.88 = 71698.12
+    // remainingCapacity = 150000 - 71698.12 = 78301.88
+    LocalDate openedAt = LocalDate.of(2019, 1, 1);
+    FinancialAccount pea =
+        FinancialAccount.open(
+            "PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            UserId.generate(),
+            AccountSubType.PEA,
+            openedAt);
+    pea.recordTransaction(
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("100000"), EUR),
+            LocalDate.of(2020, 1, 1),
+            null,
+            null));
+    pea.recordTransaction(
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.WITHDRAWAL,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("29684.15"), EUR),
+            LocalDate.of(2025, 1, 1),
+            BigDecimal.ZERO,
+            "PEA withdrawal (after PS)",
+            "EUR",
+            new BigDecimal("29684.15"),
+            BigDecimal.ONE,
+            new BigDecimal("106000"),
+            new BigDecimal("30000")));
+
+    java.math.BigDecimal adjusted = AccountBusinessRules.computeAdjustedTotalDeposits(pea);
+
+    assertThat(adjusted).isEqualByComparingTo(new BigDecimal("71698.12"));
+
+    Optional<Money> remaining = AccountBusinessRules.remainingCapacity(pea, List.of(pea));
+    assertThat(remaining).isPresent();
+    assertThat(remaining.get().amount()).isEqualByComparingTo(new BigDecimal("78301.88"));
+  }
+
+  @Test
+  void validateCardinality_throws_when_livret_a_already_exists() {
+    FinancialAccount existing = openAccount(AccountSubType.LIVRET_A);
+    assertThatThrownBy(
+            () ->
+                AccountBusinessRules.validateCardinality(
+                    AccountSubType.LIVRET_A, List.of(existing)))
+        .isInstanceOf(AccountCardinalityException.class)
+        .hasMessageContaining("LIVRET_A");
+  }
+
+  @Test
+  void validateCardinality_throws_when_pea_already_exists() {
+    FinancialAccount existing = openPeaAccount(AccountSubType.PEA);
+    assertThatThrownBy(
+            () -> AccountBusinessRules.validateCardinality(AccountSubType.PEA, List.of(existing)))
+        .isInstanceOf(AccountCardinalityException.class)
+        .hasMessageContaining("PEA");
+  }
+
+  @Test
+  void validateCardinality_allows_pea_and_pea_pme_together() {
+    FinancialAccount existingPea = openPeaAccount(AccountSubType.PEA);
+    // PEA_PME is a different sub-type — should not be blocked by existing PEA
+    AccountBusinessRules.validateCardinality(AccountSubType.PEA_PME, List.of(existingPea));
+  }
+
+  @Test
+  void validateCardinality_throws_when_pea_pme_already_exists() {
+    FinancialAccount existing = openPeaAccount(AccountSubType.PEA_PME);
+    assertThatThrownBy(
+            () ->
+                AccountBusinessRules.validateCardinality(AccountSubType.PEA_PME, List.of(existing)))
+        .isInstanceOf(AccountCardinalityException.class)
+        .hasMessageContaining("PEA_PME");
+  }
+
+  @Test
+  void validateCardinality_ignores_closed_accounts() {
+    FinancialAccount closed = openAccount(AccountSubType.LIVRET_A);
+    closed.close(TODAY);
+    // Closed account must not count toward the cardinality limit
+    AccountBusinessRules.validateCardinality(AccountSubType.LIVRET_A, List.of(closed));
+  }
+
+  @Test
+  void validateCardinality_no_limit_for_assurance_vie() {
+    FinancialAccount existing = openAccount(AccountSubType.ASSURANCE_VIE);
+    // ASSURANCE_VIE is not in the single-instance set — multiple are allowed
+    AccountBusinessRules.validateCardinality(AccountSubType.ASSURANCE_VIE, List.of(existing));
   }
 
   @Test

@@ -208,7 +208,9 @@ class HoldingTest {
             null,
             "USD",
             new BigDecimal("920.0000"),
-            fxRate);
+            fxRate,
+            null,
+            null);
     Optional<Holding> result = Holding.computeFrom(List.of(usdBuy), STOCK, META);
 
     assertThat(result).isPresent();

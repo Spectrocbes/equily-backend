@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.equily.identity.domain.UserId;
+import com.equily.portfolio.domain.account.AccountStatus;
+import com.equily.portfolio.domain.exception.AccountClosedException;
 import com.equily.portfolio.domain.exception.InsufficientFundsException;
 import com.equily.portfolio.domain.exception.InvalidFinancialAccountException;
 import com.equily.portfolio.domain.exception.InvalidHoldingException;
@@ -411,6 +413,31 @@ class FinancialAccountTest {
 
     assertThatThrownBy(() -> account.updateTransaction(second.id(), values))
         .isInstanceOf(InsufficientFundsException.class);
+  }
+
+  @Test
+  void close_sets_status_to_CLOSED_and_closedAt() {
+    FinancialAccount account = accountWith("0");
+    account.close(TODAY);
+    assertThat(account.status()).isEqualTo(AccountStatus.CLOSED);
+    assertThat(account.closedAt()).isEqualTo(TODAY);
+    assertThat(account.isClosed()).isTrue();
+  }
+
+  @Test
+  void close_throws_when_already_closed() {
+    FinancialAccount account = accountWith("0");
+    account.close(TODAY);
+    assertThatThrownBy(() -> account.close(TODAY)).isInstanceOf(IllegalStateException.class);
+  }
+
+  @Test
+  void recordTransaction_throws_AccountClosedException_when_closed() {
+    FinancialAccount account = accountWith("1000.00");
+    account.close(TODAY);
+    assertThatThrownBy(() -> account.recordTransaction(deposit("500.00")))
+        .isInstanceOf(AccountClosedException.class)
+        .hasMessageContaining("closed");
   }
 
   @Test

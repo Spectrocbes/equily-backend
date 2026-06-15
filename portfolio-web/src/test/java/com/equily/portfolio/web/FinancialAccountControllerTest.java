@@ -24,6 +24,7 @@ import com.equily.portfolio.domain.AssetType;
 import com.equily.portfolio.domain.FinancialAccount;
 import com.equily.portfolio.domain.FinancialAccountId;
 import com.equily.portfolio.domain.Holding;
+import com.equily.portfolio.domain.PeaWithdrawalSimulation;
 import com.equily.portfolio.domain.Ticker;
 import com.equily.portfolio.domain.Transaction;
 import com.equily.portfolio.domain.TransactionId;
@@ -1065,5 +1066,52 @@ class FinancialAccountControllerTest {
     mockMvc
         .perform(get("/api/v1/accounts").with(authentication(wrongPrincipal)))
         .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void getPeaClosureSimulation_returns200_with_simulation() throws Exception {
+    FinancialAccountId id = testAccount.id();
+    // totalDeposits=8000, liquidationValue=10000, gain=2000 (<5y)
+    // irTax=256 (2000×12.8%), psTax=372 (2000×18.6%), totalTax=628, netAmount=9372
+    PeaWithdrawalSimulation sim =
+        new PeaWithdrawalSimulation(
+            new BigDecimal("10000.00"), // liquidationValue
+            new BigDecimal("8000.00"), // totalDeposits
+            new BigDecimal("2000.00"), // netGain
+            new BigDecimal("0.200000"), // gainRatio
+            false, // atLoss
+            false, // peaOlderThan5Years
+            new BigDecimal("10000.00"), // withdrawalAmount
+            new BigDecimal("2000.00"), // taxableGain
+            new BigDecimal("256.00"), // irTax
+            new BigDecimal("372.00"), // psTax
+            new BigDecimal("628.00"), // totalTax
+            new BigDecimal("9372.00")); // netAmount
+
+    when(useCase.simulatePeaClosure(eq(id), any(), any())).thenReturn(sim);
+
+    mockMvc
+        .perform(
+            get("/api/v1/accounts/{id}/pea-closure-simulation", id.value().toString())
+                .with(authentication(mockAuth())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.taxableGain").value(2000.00))
+        .andExpect(jsonPath("$.irTax").value(256.00))
+        .andExpect(jsonPath("$.psTax").value(372.00))
+        .andExpect(jsonPath("$.totalTax").value(628.00))
+        .andExpect(jsonPath("$.netAmount").value(9372.00))
+        .andExpect(jsonPath("$.atLoss").value(false))
+        .andExpect(jsonPath("$.peaOlderThan5Years").value(false));
+  }
+
+  @Test
+  void closePea_returns204() throws Exception {
+    FinancialAccountId id = testAccount.id();
+
+    mockMvc
+        .perform(
+            post("/api/v1/accounts/{id}/close", id.value().toString())
+                .with(authentication(mockAuth())))
+        .andExpect(status().isNoContent());
   }
 }

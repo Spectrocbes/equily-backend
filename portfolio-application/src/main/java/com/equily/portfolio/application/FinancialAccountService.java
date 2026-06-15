@@ -8,6 +8,7 @@ import com.equily.portfolio.domain.FinancialAccount;
 import com.equily.portfolio.domain.FinancialAccountId;
 import com.equily.portfolio.domain.FinancialAccountRepository;
 import com.equily.portfolio.domain.Holding;
+import com.equily.portfolio.domain.PeaWithdrawalSimulation;
 import com.equily.portfolio.domain.Ticker;
 import com.equily.portfolio.domain.Transaction;
 import com.equily.portfolio.domain.TransactionId;
@@ -59,6 +60,9 @@ class FinancialAccountService implements FinancialAccountUseCase {
           AccountType.ASSURANCE_VIE,
           AccountType.COMPTE_TITRES);
 
+  private static final BigDecimal PS_RATE = new BigDecimal("0.186");
+  private static final Currency EUR = Currency.getInstance("EUR");
+
   private static final Set<AccountSubType> EUR_ONLY_SUBTYPES =
       Set.of(
           AccountSubType.PEA,
@@ -90,16 +94,25 @@ class FinancialAccountService implements FinancialAccountUseCase {
   private final FinancialAccountRepository repository;
   private final MarketDataPort marketDataPort;
   private final FxRatePort fxRatePort;
+  private final PeaClosureUseCase peaClosureUseCase;
 
   FinancialAccountService(
-      FinancialAccountRepository repository, MarketDataPort marketDataPort, FxRatePort fxRatePort) {
+      FinancialAccountRepository repository,
+      MarketDataPort marketDataPort,
+      FxRatePort fxRatePort,
+      PeaClosureUseCase peaClosureUseCase) {
     this.repository = repository;
     this.marketDataPort = marketDataPort;
     this.fxRatePort = fxRatePort;
+    this.peaClosureUseCase = peaClosureUseCase;
   }
 
   @Override
   public FinancialAccountId createAccount(CreateFinancialAccountCommand command) {
+    List<FinancialAccount> existingAccounts = repository.findAllByOwnerId(command.ownerId());
+
+    AccountBusinessRules.validateCardinality(command.subType(), existingAccounts);
+
     // Domain balance is always EUR — pass EUR zero so open() initialises the balance in EUR.
     // The native currency of the initial deposit is handled separately below.
     FinancialAccount account =
@@ -111,7 +124,6 @@ class FinancialAccountService implements FinancialAccountUseCase {
             command.ownerId(),
             command.subType(),
             command.openedAt());
-    repository.save(account);
 
     if (command.initialBalance().amount().compareTo(BigDecimal.ZERO) > 0) {
       String currency = isEurOnly(account) ? "EUR" : command.currency();
@@ -121,6 +133,14 @@ class FinancialAccountService implements FinancialAccountUseCase {
               : fxRatePort.getRateToEur(currency, LocalDate.now()).orElse(BigDecimal.ONE);
       BigDecimal amountEur =
           command.initialBalance().amount().multiply(eurFxRate).setScale(4, RoundingMode.HALF_EVEN);
+
+      if (account.subType() != null) {
+        List<FinancialAccount> accountsForValidation = new ArrayList<>(existingAccounts);
+        accountsForValidation.add(account);
+        AccountBusinessRules.validateDeposit(
+            account, new Money(amountEur, EUR), accountsForValidation);
+      }
+
       Money domainAmount = new Money(amountEur, Currency.getInstance("EUR"));
       Transaction initialDeposit =
           Transaction.of(
@@ -135,11 +155,13 @@ class FinancialAccountService implements FinancialAccountUseCase {
               "Initial deposit",
               currency,
               amountEur,
-              eurFxRate);
+              eurFxRate,
+              null,
+              null);
       account.recordTransaction(initialDeposit);
-      repository.save(account);
     }
 
+    repository.save(account);
     return account.id();
   }
 
@@ -152,6 +174,13 @@ class FinancialAccountService implements FinancialAccountUseCase {
 
     if (!account.ownerId().equals(command.userId())) {
       throw new AccountNotFoundException(command.accountId());
+    }
+
+    if (command.type() == TransactionType.WITHDRAWAL
+        && isPeaAccount(account)
+        && AccountBusinessRules.isPeaOlderThan5Years(account)) {
+      applyPeaWithdrawalOver5Years(account, command);
+      return;
     }
 
     String currency =
@@ -198,7 +227,9 @@ class FinancialAccountService implements FinancialAccountUseCase {
             command.description(),
             currency,
             amountEur,
-            eurFxRate);
+            eurFxRate,
+            null,
+            null);
 
     account.recordTransaction(transaction);
     repository.save(account);
@@ -444,6 +475,104 @@ class FinancialAccountService implements FinancialAccountUseCase {
                 .setScale(2, RoundingMode.HALF_EVEN);
 
     return new AccountPortfolioSummary(account.id(), liveValue, costValue, pnl, pnlPct, allPrices);
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public PeaWithdrawalSimulation simulatePeaClosure(
+      FinancialAccountId id, UserId userId, BigDecimal withdrawalAmount) {
+    FinancialAccount account = getAccountById(id, userId);
+    BigDecimal livePortfolioValue = computeLivePortfolioValue(account);
+    return peaClosureUseCase.simulate(id, userId, withdrawalAmount, livePortfolioValue);
+  }
+
+  @Override
+  public void closePea(FinancialAccountId id, UserId userId) {
+    FinancialAccount account = getAccountById(id, userId);
+    BigDecimal livePortfolioValue = computeLivePortfolioValue(account);
+    peaClosureUseCase.closePea(id, userId, livePortfolioValue);
+  }
+
+  private static boolean isPeaAccount(FinancialAccount account) {
+    return account.subType() == AccountSubType.PEA || account.subType() == AccountSubType.PEA_PME;
+  }
+
+  private void applyPeaWithdrawalOver5Years(
+      FinancialAccount account, RecordTransactionCommand command) {
+
+    BigDecimal withdrawalAmount = command.totalAmount().amount();
+    BigDecimal livePortfolioValue = computeLivePortfolioValue(account);
+    BigDecimal liquidationValue =
+        livePortfolioValue.add(account.balance().amount()).setScale(2, RoundingMode.HALF_EVEN);
+
+    BigDecimal totalDeposits = AccountBusinessRules.computeAdjustedTotalDeposits(account);
+
+    BigDecimal gainGlobal = liquidationValue.subtract(totalDeposits).max(BigDecimal.ZERO);
+    BigDecimal gainRatio =
+        liquidationValue.compareTo(BigDecimal.ZERO) == 0
+            ? BigDecimal.ZERO
+            : gainGlobal.divide(liquidationValue, 6, RoundingMode.HALF_EVEN);
+
+    BigDecimal taxableGain =
+        withdrawalAmount.multiply(gainRatio).setScale(2, RoundingMode.HALF_EVEN);
+    BigDecimal psTax = taxableGain.multiply(PS_RATE).setScale(2, RoundingMode.HALF_EVEN);
+    BigDecimal netAmount = withdrawalAmount.subtract(psTax);
+
+    BigDecimal feesInEur = command.fees() != null ? command.fees() : BigDecimal.ZERO;
+
+    // Store liquidationValue and grossWithdrawalAmount so subsequent simulations can replay
+    // the Loi Pacte versements counter correctly without approximation.
+    account.recordTransaction(
+        Transaction.of(
+            TransactionId.generate(),
+            TransactionType.WITHDRAWAL,
+            null,
+            null,
+            null,
+            new Money(netAmount, EUR),
+            command.date(),
+            feesInEur,
+            command.description() != null ? command.description() : "PEA withdrawal (after PS)",
+            "EUR",
+            netAmount,
+            BigDecimal.ONE,
+            liquidationValue,
+            withdrawalAmount));
+
+    if (psTax.compareTo(BigDecimal.ZERO) > 0) {
+      account.recordTransaction(
+          Transaction.ofEur(
+              TransactionId.generate(),
+              TransactionType.WITHDRAWAL,
+              null,
+              null,
+              null,
+              new Money(psTax, EUR),
+              command.date(),
+              BigDecimal.ZERO,
+              String.format(
+                  "PS tax on PEA withdrawal (%.2f%% of %.2f€ gain)",
+                  gainRatio.multiply(BigDecimal.valueOf(100)), taxableGain)));
+    }
+
+    repository.save(account);
+  }
+
+  private BigDecimal computeLivePortfolioValue(FinancialAccount account) {
+    List<Holding> holdings = Holding.computeFrom(account.transactions());
+    if (holdings.isEmpty()) return BigDecimal.ZERO;
+
+    List<String> symbols = holdings.stream().map(h -> h.ticker().symbol()).distinct().toList();
+    Map<String, Quote> quotes = marketDataPort.getQuotes(symbols);
+
+    return holdings.stream()
+        .map(
+            h -> {
+              Quote q = quotes.get(h.ticker().symbol());
+              BigDecimal price = q != null ? q.price() : h.averageCostPrice().amount();
+              return price.multiply(h.quantity()).setScale(2, RoundingMode.HALF_EVEN);
+            })
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
   }
 
   private String duplicateKey(LocalDate date, Ticker ticker, BigDecimal amount) {

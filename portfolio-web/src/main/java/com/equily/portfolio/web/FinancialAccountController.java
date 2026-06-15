@@ -12,6 +12,7 @@ import com.equily.portfolio.domain.AccountType;
 import com.equily.portfolio.domain.FinancialAccount;
 import com.equily.portfolio.domain.FinancialAccountId;
 import com.equily.portfolio.domain.Holding;
+import com.equily.portfolio.domain.PeaWithdrawalSimulation;
 import com.equily.portfolio.domain.Ticker;
 import com.equily.portfolio.domain.Transaction;
 import com.equily.portfolio.domain.TransactionId;
@@ -295,6 +296,25 @@ class FinancialAccountController {
             peaPme != null ? peaPme.id().value().toString() : null));
   }
 
+  @GetMapping("/{id}/pea-closure-simulation")
+  ResponseEntity<PeaWithdrawalSimulationResponse> getPeaClosureSimulation(
+      @PathVariable String id,
+      @RequestParam(required = false) BigDecimal withdrawalAmount,
+      Authentication authentication) {
+    UserId userId = extractUserId(authentication);
+    PeaWithdrawalSimulation sim =
+        useCase.simulatePeaClosure(
+            new FinancialAccountId(UUID.fromString(id)), userId, withdrawalAmount);
+    return ResponseEntity.ok(toSimulationResponse(sim));
+  }
+
+  @PostMapping("/{id}/close")
+  ResponseEntity<Void> closePea(@PathVariable String id, Authentication authentication) {
+    UserId userId = extractUserId(authentication);
+    useCase.closePea(new FinancialAccountId(UUID.fromString(id)), userId);
+    return ResponseEntity.noContent().build();
+  }
+
   @GetMapping("/{id}/transactions")
   ResponseEntity<List<TransactionResponse>> getTransactions(
       @PathVariable String id,
@@ -405,7 +425,25 @@ class FinancialAccountController {
         totalDeposits,
         remainingCapacity,
         account.openedAt(),
-        convertedPortfolioValue);
+        convertedPortfolioValue,
+        account.status() != null ? account.status().name() : "ACTIVE",
+        account.closedAt());
+  }
+
+  private PeaWithdrawalSimulationResponse toSimulationResponse(PeaWithdrawalSimulation sim) {
+    return new PeaWithdrawalSimulationResponse(
+        sim.liquidationValue(),
+        sim.totalDeposits(),
+        sim.netGain(),
+        sim.gainRatio(),
+        sim.atLoss(),
+        sim.peaOlderThan5Years(),
+        sim.withdrawalAmount(),
+        sim.taxableGain(),
+        sim.irTax(),
+        sim.psTax(),
+        sim.totalTax(),
+        sim.netAmount());
   }
 
   private BigDecimal computePortfolioValue(FinancialAccount account) {

@@ -16,4 +16,6 @@ public record FinancialAccountResponse(
     BigDecimal totalDeposits,
     BigDecimal remainingCapacity,
     LocalDate openedAt,
-    BigDecimal portfolioValue) {}
+    BigDecimal portfolioValue,
+    String status,
+    LocalDate closedAt) {}

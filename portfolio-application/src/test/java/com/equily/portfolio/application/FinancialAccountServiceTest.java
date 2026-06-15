@@ -22,6 +22,7 @@ import com.equily.portfolio.domain.TransactionType;
 import com.equily.portfolio.domain.UpdatedTransactionValues;
 import com.equily.portfolio.domain.account.AccountSubType;
 import com.equily.portfolio.domain.csv.CsvImportResult;
+import com.equily.portfolio.domain.exception.AccountCardinalityException;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
 import com.equily.portfolio.domain.exception.DepositLimitExceededException;
 import com.equily.portfolio.domain.exception.TransactionNotFoundException;
@@ -50,6 +51,7 @@ class FinancialAccountServiceTest {
   @Mock private FinancialAccountRepository repository;
   @Mock private MarketDataPort marketDataPort;
   @Mock private FxRatePort fxRatePort;
+  @Mock private PeaClosureUseCase peaClosureUseCase;
 
   @InjectMocks private FinancialAccountService service;
 
@@ -103,7 +105,7 @@ class FinancialAccountServiceTest {
 
     service.createAccount(command);
 
-    verify(repository, times(2)).save(any(FinancialAccount.class));
+    verify(repository, times(1)).save(any(FinancialAccount.class));
   }
 
   @Test
@@ -1321,8 +1323,8 @@ class FinancialAccountServiceTest {
     service.createAccount(command);
 
     ArgumentCaptor<FinancialAccount> captor = ArgumentCaptor.forClass(FinancialAccount.class);
-    verify(repository, times(2)).save(captor.capture());
-    Transaction deposit = captor.getAllValues().get(1).transactions().get(0);
+    verify(repository, times(1)).save(captor.capture());
+    Transaction deposit = captor.getAllValues().get(0).transactions().get(0);
     assertThat(deposit.currency()).isEqualTo("EUR");
     assertThat(deposit.eurFxRate()).isEqualByComparingTo(BigDecimal.ONE);
     verify(fxRatePort, never()).getRateToEur(any(), any());
@@ -1348,8 +1350,8 @@ class FinancialAccountServiceTest {
     service.createAccount(command);
 
     ArgumentCaptor<FinancialAccount> captor = ArgumentCaptor.forClass(FinancialAccount.class);
-    verify(repository, times(2)).save(captor.capture());
-    Transaction deposit = captor.getAllValues().get(1).transactions().get(0);
+    verify(repository, times(1)).save(captor.capture());
+    Transaction deposit = captor.getAllValues().get(0).transactions().get(0);
     assertThat(deposit.currency()).isEqualTo("USD");
     assertThat(deposit.eurFxRate()).isEqualByComparingTo(new BigDecimal("0.920000"));
     assertThat(deposit.amountEur()).isEqualByComparingTo(new BigDecimal("460.0000"));
@@ -1374,8 +1376,8 @@ class FinancialAccountServiceTest {
     service.createAccount(command);
 
     ArgumentCaptor<FinancialAccount> captor = ArgumentCaptor.forClass(FinancialAccount.class);
-    verify(repository, times(2)).save(captor.capture());
-    Transaction deposit = captor.getAllValues().get(1).transactions().get(0);
+    verify(repository, times(1)).save(captor.capture());
+    Transaction deposit = captor.getAllValues().get(0).transactions().get(0);
     assertThat(deposit.currency()).isEqualTo("EUR");
     assertThat(deposit.eurFxRate()).isEqualByComparingTo(BigDecimal.ONE);
     verify(fxRatePort, never()).getRateToEur(any(), any());
@@ -1788,6 +1790,295 @@ class FinancialAccountServiceTest {
     assertThat(recorded.totalAmount().amount()).isEqualByComparingTo(new BigDecimal("920.0000"));
     assertThat(recorded.totalAmount().currency()).isEqualTo(EUR);
     assertThat(recorded.currency()).isEqualTo("USD");
+  }
+
+  // --- PEA ≥5y WITHDRAWAL fiscal split tests ---
+
+  private static final LocalDate OVER_5Y_AGO = LocalDate.of(2019, 1, 1);
+
+  private FinancialAccount openPeaOver5y() {
+    UserId ownerId = UserId.generate();
+    return FinancialAccount.open(
+        "Mon PEA",
+        AccountType.PEA,
+        new Money(BigDecimal.ZERO, EUR),
+        "Fortuneo",
+        ownerId,
+        AccountSubType.PEA,
+        OVER_5Y_AGO);
+  }
+
+  @Test
+  void recordTransaction_pea_over5y_withdrawal_applies_ps_tax() {
+    // totalDeposits=100000, dividend=6000 → balance=106000, no holdings → liquidationValue=106000
+    // gainGlobal=6000, gainRatio=6000/106000=0.056604
+    // withdrawal=10000, taxableGain=566.04, psTax=105.28, netAmount=9894.72
+    FinancialAccount account = openPeaOver5y();
+    account.recordTransaction(
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("100000"), EUR),
+            OVER_5Y_AGO,
+            BigDecimal.ZERO,
+            null));
+    account.recordTransaction(
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DIVIDEND,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("6000"), EUR),
+            OVER_5Y_AGO,
+            BigDecimal.ZERO,
+            null));
+    when(repository.findById(account.id())).thenReturn(Optional.of(account));
+
+    RecordTransactionCommand command =
+        new RecordTransactionCommand(
+            account.id(),
+            account.ownerId(),
+            TransactionType.WITHDRAWAL,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("10000"), EUR),
+            LocalDate.of(2026, 6, 12),
+            BigDecimal.ZERO,
+            null,
+            "EUR");
+
+    service.recordTransaction(command);
+
+    List<Transaction> withdrawals =
+        account.transactions().stream()
+            .filter(t -> t.type() == TransactionType.WITHDRAWAL)
+            .toList();
+    assertThat(withdrawals).hasSize(2);
+    BigDecimal totalWithdrawn =
+        withdrawals.stream()
+            .map(t -> t.totalAmount().amount())
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    assertThat(totalWithdrawn).isEqualByComparingTo(new BigDecimal("10000.00"));
+    assertThat(account.balance().amount()).isEqualByComparingTo(new BigDecimal("96000.00"));
+    verify(repository).save(account);
+  }
+
+  @Test
+  void recordTransaction_pea_over5y_withdrawal_no_tax_when_at_loss() {
+    // totalDeposits=100000, withdrawal=20000 pre-existing → balance=80000 < totalDeposits → atLoss
+    // gainGlobal=max(-20000,0)=0 → psTax=0 → only 1 new WITHDRAWAL (no tax split)
+    FinancialAccount account = openPeaOver5y();
+    account.recordTransaction(
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("100000"), EUR),
+            OVER_5Y_AGO,
+            BigDecimal.ZERO,
+            null));
+    account.recordTransaction(
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.WITHDRAWAL,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("20000"), EUR),
+            OVER_5Y_AGO,
+            BigDecimal.ZERO,
+            null));
+    when(repository.findById(account.id())).thenReturn(Optional.of(account));
+
+    RecordTransactionCommand command =
+        new RecordTransactionCommand(
+            account.id(),
+            account.ownerId(),
+            TransactionType.WITHDRAWAL,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("5000"), EUR),
+            LocalDate.of(2026, 6, 12),
+            BigDecimal.ZERO,
+            null,
+            "EUR");
+
+    service.recordTransaction(command);
+
+    // Pre-existing manual withdrawal + 1 from service (no tax split because atLoss)
+    long withdrawalCount =
+        account.transactions().stream().filter(t -> t.type() == TransactionType.WITHDRAWAL).count();
+    assertThat(withdrawalCount).isEqualTo(2L);
+    assertThat(account.balance().amount()).isEqualByComparingTo(new BigDecimal("75000.00"));
+  }
+
+  @Test
+  void recordTransaction_pea_under5y_withdrawal_no_automatic_tax() {
+    // PEA <5y → isPeaOlderThan5Years=false → normal WITHDRAWAL path, no fiscal split
+    UserId ownerId = UserId.generate();
+    FinancialAccount account =
+        FinancialAccount.open(
+            "Mon PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            ownerId,
+            AccountSubType.PEA,
+            OPENED_AT); // 2024-01-01 — under 5 years
+    account.recordTransaction(
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("10000"), EUR),
+            OPENED_AT,
+            BigDecimal.ZERO,
+            null));
+    when(repository.findById(account.id())).thenReturn(Optional.of(account));
+
+    RecordTransactionCommand command =
+        new RecordTransactionCommand(
+            account.id(),
+            ownerId,
+            TransactionType.WITHDRAWAL,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("3000"), EUR),
+            LocalDate.of(2026, 6, 12),
+            BigDecimal.ZERO,
+            null,
+            "EUR");
+
+    service.recordTransaction(command);
+
+    // Exactly 1 WITHDRAWAL recorded (full amount, no PS tax split)
+    long withdrawalCount =
+        account.transactions().stream().filter(t -> t.type() == TransactionType.WITHDRAWAL).count();
+    assertThat(withdrawalCount).isEqualTo(1L);
+    assertThat(account.transactions().get(account.transactions().size() - 1).totalAmount().amount())
+        .isEqualByComparingTo(new BigDecimal("3000"));
+  }
+
+  @Test
+  void createAccount_throws_when_initial_deposit_exceeds_livret_a_cap() {
+    UserId ownerId = UserId.generate();
+    when(repository.findAllByOwnerId(ownerId)).thenReturn(List.of());
+
+    // 25 000 EUR initial deposit exceeds Livret A cap of 22 950 EUR
+    CreateFinancialAccountCommand command =
+        new CreateFinancialAccountCommand(
+            "Mon Livret A",
+            AccountType.SAVINGS_ACCOUNT,
+            new Money(new BigDecimal("25000"), EUR),
+            "BNP",
+            ownerId,
+            AccountSubType.LIVRET_A,
+            OPENED_AT,
+            "EUR");
+
+    assertThatThrownBy(() -> service.createAccount(command))
+        .isInstanceOf(DepositLimitExceededException.class);
+  }
+
+  @Test
+  void createAccount_throws_when_duplicate_livret_a() {
+    UserId ownerId = UserId.generate();
+    FinancialAccount existing =
+        FinancialAccount.open(
+            "Livret A",
+            AccountType.SAVINGS_ACCOUNT,
+            new Money(BigDecimal.ZERO, EUR),
+            "BNP",
+            ownerId,
+            AccountSubType.LIVRET_A,
+            OPENED_AT);
+    when(repository.findAllByOwnerId(ownerId)).thenReturn(List.of(existing));
+
+    CreateFinancialAccountCommand command =
+        new CreateFinancialAccountCommand(
+            "Deuxième Livret A",
+            AccountType.SAVINGS_ACCOUNT,
+            new Money(BigDecimal.ZERO, EUR),
+            "BNP",
+            ownerId,
+            AccountSubType.LIVRET_A,
+            OPENED_AT,
+            "EUR");
+
+    assertThatThrownBy(() -> service.createAccount(command))
+        .isInstanceOf(AccountCardinalityException.class)
+        .hasMessageContaining("LIVRET_A");
+  }
+
+  @Test
+  void createAccount_allows_pea_and_pea_pme() {
+    UserId ownerId = UserId.generate();
+    FinancialAccount existingPea =
+        FinancialAccount.open(
+            "PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            ownerId,
+            AccountSubType.PEA,
+            OPENED_AT);
+    when(repository.findAllByOwnerId(ownerId)).thenReturn(List.of(existingPea));
+
+    CreateFinancialAccountCommand command =
+        new CreateFinancialAccountCommand(
+            "PEA-PME",
+            AccountType.PEA_PME,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            ownerId,
+            AccountSubType.PEA_PME,
+            OPENED_AT,
+            "EUR");
+
+    FinancialAccountId result = service.createAccount(command);
+
+    assertThat(result).isNotNull();
+  }
+
+  @Test
+  void createAccount_throws_when_second_pea() {
+    UserId ownerId = UserId.generate();
+    FinancialAccount existingPea =
+        FinancialAccount.open(
+            "PEA existant",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            ownerId,
+            AccountSubType.PEA,
+            OPENED_AT);
+    when(repository.findAllByOwnerId(ownerId)).thenReturn(List.of(existingPea));
+
+    CreateFinancialAccountCommand command =
+        new CreateFinancialAccountCommand(
+            "Second PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            ownerId,
+            AccountSubType.PEA,
+            OPENED_AT,
+            "EUR");
+
+    assertThatThrownBy(() -> service.createAccount(command))
+        .isInstanceOf(AccountCardinalityException.class)
+        .hasMessageContaining("PEA");
   }
 
   @Test

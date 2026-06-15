@@ -8,6 +8,7 @@ import com.equily.portfolio.domain.Ticker;
 import com.equily.portfolio.domain.Transaction;
 import com.equily.portfolio.domain.TransactionId;
 import com.equily.portfolio.domain.TransactionType;
+import com.equily.portfolio.domain.account.AccountStatus;
 import com.equily.shared.Money;
 import java.util.ArrayList;
 import java.util.Currency;
@@ -42,6 +43,8 @@ class FinancialAccountMapper {
     entity.userId = account.ownerId().value();
     entity.subType = account.subType();
     entity.openedAt = account.openedAt();
+    entity.status = account.status() != null ? account.status() : AccountStatus.ACTIVE;
+    entity.closedAt = account.closedAt();
 
     List<TransactionJpaEntity> txEntities =
         account.transactions().stream().map(t -> toJpaTransaction(t, entity)).toList();
@@ -63,6 +66,7 @@ class FinancialAccountMapper {
     // reconstruct() not open(): open() generates a new random ID and ignores any prior
     // transactions. reconstruct() bypasses recordTransaction() so the persisted balance
     // is used directly without re-deriving it from the transaction log.
+    AccountStatus status = entity.status != null ? entity.status : AccountStatus.ACTIVE;
     return FinancialAccount.reconstruct(
         id,
         entity.name,
@@ -72,7 +76,9 @@ class FinancialAccountMapper {
         entity.broker,
         ownerId,
         entity.subType,
-        entity.openedAt);
+        entity.openedAt,
+        status,
+        entity.closedAt);
   }
 
   private static TransactionJpaEntity toJpaTransaction(
@@ -91,6 +97,8 @@ class FinancialAccountMapper {
     tx.currency = t.currency();
     tx.amountEur = t.amountEur();
     tx.eurFxRate = t.eurFxRate();
+    tx.liquidationValueAtWithdrawal = t.liquidationValueAtWithdrawal();
+    tx.grossWithdrawalAmount = t.grossWithdrawalAmount();
     return tx;
   }
 
@@ -114,7 +122,9 @@ class FinancialAccountMapper {
         tx.description,
         tx.currency,
         tx.amountEur,
-        tx.eurFxRate);
+        tx.eurFxRate,
+        tx.liquidationValueAtWithdrawal,
+        tx.grossWithdrawalAmount);
   }
 
   private FinancialAccountMapper() {}

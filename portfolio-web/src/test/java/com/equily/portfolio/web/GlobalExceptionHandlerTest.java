@@ -4,7 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 import com.equily.portfolio.application.exception.CsvParsingException;
+import com.equily.portfolio.application.exception.PeaClosureException;
+import com.equily.portfolio.domain.FinancialAccountId;
 import com.equily.portfolio.domain.TransactionId;
+import com.equily.portfolio.domain.exception.AccountCardinalityException;
+import com.equily.portfolio.domain.exception.AccountClosedException;
 import com.equily.portfolio.domain.exception.TransactionNotFoundException;
 import com.equily.shared.exception.CurrencyMismatchException;
 import java.util.Currency;
@@ -57,6 +61,33 @@ class GlobalExceptionHandlerTest {
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     assertThat(response.getBody()).containsEntry("myField", "Invalid value");
+  }
+
+  @Test
+  void handleAccountCardinality_returns_422_with_message() {
+    AccountCardinalityException ex =
+        new AccountCardinalityException(
+            "You already have a LIVRET_A account. "
+                + "French regulation allows only one LIVRET_A per person.");
+    ResponseEntity<String> response = handler.handleAccountCardinality(ex);
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+    assertThat(response.getBody()).contains("LIVRET_A");
+  }
+
+  @Test
+  void handleAccountClosed_returns_422_with_message() {
+    AccountClosedException ex = new AccountClosedException(FinancialAccountId.generate());
+    ResponseEntity<String> response = handler.handleAccountClosed(ex);
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+    assertThat(response.getBody()).contains("closed");
+  }
+
+  @Test
+  void handlePeaClosure_returns_422_with_message() {
+    PeaClosureException ex = new PeaClosureException("Cannot close PEA with open holdings.");
+    ResponseEntity<String> response = handler.handlePeaClosure(ex);
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+    assertThat(response.getBody()).isEqualTo("Cannot close PEA with open holdings.");
   }
 
   @Test

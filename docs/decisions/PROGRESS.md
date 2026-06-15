@@ -449,6 +449,48 @@
   anonymous authentication.
 - 372 tests, 10/10 modules green.
 
+## 2026-06-12 — Session B: PEA closure rules (Loi Pacte algorithms)
+
+- `AccountStatus` enum (`OPEN`, `CLOSED`) added to `portfolio-domain`; `AccountClosedException` in
+  `portfolio-domain/exception` → 422 in `GlobalExceptionHandler`.
+- Flyway V23: `status VARCHAR(20) NOT NULL DEFAULT 'OPEN'` + `closed_at TIMESTAMPTZ` on
+  `portfolio.financial_account`.
+- `FinancialAccount`: `status` and `closedAt` fields added; `reconstruct()` updated; `close()` method marks
+  account `CLOSED` with `closedAt = now()`; `recordTransaction()` guards against recording on a closed account.
+- `PeaWithdrawalSimulation` value object in `portfolio-domain` (zero framework deps): all fields in English —
+  `liquidationValue`, `totalDeposits`, `gainRatio`, `taxableGain`, `irTax`, `psTax`, `totalTax`, `netAmount`,
+  `withdrawalAmount`, `atLoss`.
+- Tax formulas (Loi Pacte):
+  - PEA < 5 years: flat tax 31.4% on full gain (`IR 12.8% + PS 18.6%`)
+  - PEA ≥ 5 years: PS 18.6% only on the gain portion of the withdrawal (`IR exempt`)
+  - `gainRatio = 1 - (totalDeposits / liquidationValue)`
+  - `taxableGain = withdrawalAmount × gainRatio`
+- `AccountBusinessRules` Loi Pacte capacity formula: `withdrawnCapital = withdrawal × (totalDeposits /
+  liquidationValue)`; `newTotalDeposits = totalDeposits - withdrawnCapital`.
+- `PeaClosureUseCase` (input port) + `PeaClosureService` (`@Service @Transactional`, package-private) in
+  `portfolio-application`: `simulate()` fetches live portfolio value via `MarketDataPort`; `closePea()` records
+  two WITHDRAWAL transactions (`netAmount` + `taxAmount`) and marks the account `CLOSED` so balance reaches 0.
+- `PeaClosureException` in `portfolio-application/exception` → 422 in `GlobalExceptionHandler`.
+- 2 new REST endpoints on `FinancialAccountController`:
+  - `GET /{id}/pea-closure-simulation?montantRetrait=` — returns `PeaClosureSimulationResponse`
+  - `POST /{id}/close` — executes PEA closure, returns 204
+- `FinancialAccountResponse`: `status` and `closedAt` fields added.
+- 451 tests, 0 failures, 10/10 modules green.
+
+## 2026-06-15 — Account creation validation rules
+
+- Account cardinality: `AccountBusinessRules.validateCardinality()` enforces max 1 non-closed account
+  per person for `LIVRET_A`, `LDDS`, `LEP`, `LIVRET_JEUNE`, `PEA`, `PEA_PME`; `PEA + PEA_PME`
+  coexistence allowed (different sub-types, each capped at 1 independently); closed accounts ignored.
+- `AccountCardinalityException` in `portfolio-domain/exception` → 422 in `GlobalExceptionHandler`.
+- Initial deposit cap validation: `FinancialAccountService.createAccount()` now validates the initial
+  deposit against `AccountBusinessRules.validateDeposit()` before persisting — the new account is
+  included in `accountsForValidation` so the combined PEA + PEA-PME rule fires correctly at creation
+  time. Throws `DepositLimitExceededException` (existing exception, existing 422 handler).
+- `createAccount()` restructured to a single `repository.save()` at the end (was: save once before
+  deposit, save again after) — cardinality check and deposit cap check both run before any persistence.
+- 473 tests, 0 failures, 10/10 modules green, Spotless clean.
+
 ## Architecture Decisions
 
 - Lombok is forbidden everywhere. Java 21 records replace POJOs; explicit methods replace generated ones.
