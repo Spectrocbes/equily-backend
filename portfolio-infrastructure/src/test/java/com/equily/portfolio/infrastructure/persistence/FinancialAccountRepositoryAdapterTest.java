@@ -225,6 +225,89 @@ class FinancialAccountRepositoryAdapterTest {
   }
 
   @Test
+  void save_update_removes_deleted_transaction() {
+    FinancialAccount account =
+        FinancialAccount.open(
+            "PEA Account",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            testUserId,
+            null,
+            LocalDate.of(2024, 1, 1));
+
+    Transaction tx1 =
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("1000.00"), EUR),
+            LocalDate.of(2024, 1, 1),
+            BigDecimal.ZERO,
+            "deposit 1");
+    Transaction tx2 =
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("500.00"), EUR),
+            LocalDate.of(2024, 1, 2),
+            BigDecimal.ZERO,
+            "deposit 2");
+    account.recordTransaction(tx1);
+    account.recordTransaction(tx2);
+    adapter.save(account);
+
+    account.deleteTransaction(tx2.id());
+    adapter.save(account);
+    testEntityManager.flush();
+    testEntityManager.clear();
+
+    FinancialAccount reloaded = adapter.findById(account.id()).orElseThrow();
+    assertThat(reloaded.transactions()).hasSize(1);
+    assertThat(reloaded.transactions().get(0).id()).isEqualTo(tx1.id());
+  }
+
+  @Test
+  void save_update_preserves_unchanged_transactions() {
+    FinancialAccount account =
+        FinancialAccount.open(
+            "Compte-Titres",
+            AccountType.COMPTE_TITRES,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            testUserId,
+            null,
+            LocalDate.of(2024, 1, 1));
+
+    Transaction tx =
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("1000.00"), EUR),
+            LocalDate.of(2024, 1, 1),
+            BigDecimal.ZERO,
+            "original description");
+    account.recordTransaction(tx);
+    adapter.save(account);
+
+    adapter.save(account);
+    testEntityManager.flush();
+    testEntityManager.clear();
+
+    FinancialAccount reloaded = adapter.findById(account.id()).orElseThrow();
+    assertThat(reloaded.transactions()).hasSize(1);
+    assertThat(reloaded.transactions().get(0).description()).isEqualTo("original description");
+  }
+
+  @Test
   void save_account_with_multiple_transactions_preserves_order() {
     FinancialAccount account =
         FinancialAccount.open(

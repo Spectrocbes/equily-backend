@@ -36,16 +36,7 @@ class FinancialAccountMapper {
   static FinancialAccountJpaEntity toJpa(FinancialAccount account) {
     FinancialAccountJpaEntity entity = new FinancialAccountJpaEntity();
     entity.id = account.id().value();
-    entity.name = account.name();
-    entity.accountType = account.accountType().name();
-    entity.currency = account.balance().currency().getCurrencyCode();
-    entity.balance = account.balance().amount();
-    entity.broker = account.broker();
-    entity.userId = account.ownerId().value();
-    entity.subType = account.subType();
-    entity.openedAt = account.openedAt();
-    entity.status = account.status() != null ? account.status() : AccountStatus.ACTIVE;
-    entity.closedAt = account.closedAt();
+    applyAccountFields(entity, account);
 
     List<TransactionJpaEntity> txEntities =
         account.transactions().stream().map(t -> toJpaTransaction(t, entity)).toList();
@@ -83,16 +74,7 @@ class FinancialAccountMapper {
   }
 
   static void updateJpaEntity(FinancialAccountJpaEntity entity, FinancialAccount account) {
-    entity.name = account.name();
-    entity.accountType = account.accountType().name();
-    entity.currency = account.balance().currency().getCurrencyCode();
-    entity.balance = account.balance().amount();
-    entity.broker = account.broker();
-    entity.userId = account.ownerId().value();
-    entity.subType = account.subType();
-    entity.openedAt = account.openedAt();
-    entity.status = account.status() != null ? account.status() : AccountStatus.ACTIVE;
-    entity.closedAt = account.closedAt();
+    applyAccountFields(entity, account);
 
     entity.transactions.removeIf(
         existingTx ->
@@ -108,6 +90,20 @@ class FinancialAccountMapper {
         entity.transactions.add(toJpaTransaction(domainTx, entity));
       }
     }
+  }
+
+  private static void applyAccountFields(
+      FinancialAccountJpaEntity entity, FinancialAccount account) {
+    entity.name = account.name();
+    entity.accountType = account.accountType().name();
+    entity.currency = account.balance().currency().getCurrencyCode();
+    entity.balance = account.balance().amount();
+    entity.broker = account.broker();
+    entity.userId = account.ownerId().value();
+    entity.subType = account.subType();
+    entity.openedAt = account.openedAt();
+    entity.status = account.status() != null ? account.status() : AccountStatus.ACTIVE;
+    entity.closedAt = account.closedAt();
   }
 
   private static void applyTransactionFields(
