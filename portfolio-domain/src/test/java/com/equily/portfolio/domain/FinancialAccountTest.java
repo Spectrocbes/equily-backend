@@ -458,4 +458,76 @@ class FinancialAccountTest {
     assertThat(holdings.get(0).averageCostPrice().amount())
         .isEqualByComparingTo(new BigDecimal("150.00"));
   }
+
+  @Test
+  void deleteTransaction_removes_transaction_successfully() {
+    FinancialAccount account = accountWith("1000.00");
+    Transaction second = deposit("500.00");
+    account.recordTransaction(second);
+    // balance = 1000 + 500 = 1500, 2 transactions
+
+    account.deleteTransaction(second.id());
+
+    assertThat(account.transactions()).hasSize(1);
+    assertThat(account.balance()).isEqualTo(new Money(new BigDecimal("1000.00"), EUR));
+  }
+
+  @Test
+  void deleteTransaction_allows_removal_of_last_transaction() {
+    FinancialAccount account = accountWith("0");
+    Transaction d = deposit("1000.00");
+    account.recordTransaction(d);
+
+    account.deleteTransaction(d.id());
+
+    assertThat(account.transactions()).isEmpty();
+    assertThat(account.balance().amount()).isEqualByComparingTo(BigDecimal.ZERO);
+  }
+
+  @Test
+  void deleteTransaction_throws_when_account_closed() {
+    FinancialAccount account = accountWith("1000.00");
+    Transaction d = deposit("500.00");
+    account.recordTransaction(d);
+    account.close(TODAY);
+
+    assertThatThrownBy(() -> account.deleteTransaction(d.id()))
+        .isInstanceOf(AccountClosedException.class)
+        .hasMessageContaining("closed");
+  }
+
+  @Test
+  void deleteTransaction_throws_when_transaction_not_found() {
+    FinancialAccount account = accountWith("1000.00");
+
+    assertThatThrownBy(() -> account.deleteTransaction(TransactionId.generate()))
+        .isInstanceOf(TransactionNotFoundException.class);
+  }
+
+  @Test
+  void deleteTransaction_throws_when_would_cause_negative_balance() {
+    FinancialAccount account = accountWith("1000.00");
+    Transaction second = deposit("500.00");
+    account.recordTransaction(second);
+    account.recordTransaction(withdrawal("1200.00")); // balance = 1000 + 500 - 1200 = 300
+
+    // deleting second deposit (500) → remaining: [deposit 1000, withdrawal 1200]
+    // replay: 1000 - 1200 = -200 → throws
+    assertThatThrownBy(() -> account.deleteTransaction(second.id()))
+        .isInstanceOf(InsufficientFundsException.class);
+  }
+
+  @Test
+  void deleteTransaction_allows_buy_removal_even_with_subsequent_sell() {
+    FinancialAccount account = accountWith("2000.00");
+    Transaction buyTx = buy("10", "150.00"); // -1500, balance = 500
+    account.recordTransaction(buyTx);
+    account.recordTransaction(sell("4", "180.00")); // +720, balance = 1220
+
+    // deleting the buy: remaining = [deposit 2000, sell 720]
+    // replay: +2000, +720 = 2720 — never negative
+    account.deleteTransaction(buyTx.id());
+
+    assertThat(account.transactions()).hasSize(2); // original deposit + sell
+  }
 }
