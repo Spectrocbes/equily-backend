@@ -55,7 +55,7 @@ class FinancialAccountJpaEntity implements Persistable<UUID> {
       mappedBy = "account",
       cascade = CascadeType.ALL,
       fetch = FetchType.EAGER,
-      orphanRemoval = false)
+      orphanRemoval = true)
   @OrderBy("date ASC")
   List<TransactionJpaEntity> transactions = new ArrayList<>();
 

@@ -19,14 +19,14 @@ class FinancialAccountRepositoryAdapter implements FinancialAccountRepository {
 
   @Override
   public void save(FinancialAccount account) {
-    FinancialAccountJpaEntity entity = FinancialAccountMapper.toJpa(account);
-    // existsById check lets Persistable.isNew() signal persist() vs merge() correctly.
-    // Without it, toJpa() always creates isNew=true and re-saving an existing account
-    // would attempt a duplicate INSERT.
-    if (jpaRepository.existsById(account.id().value())) {
-      entity.markAsExisting();
+    Optional<FinancialAccountJpaEntity> existing = jpaRepository.findById(account.id().value());
+    if (existing.isPresent()) {
+      FinancialAccountJpaEntity entity = existing.get();
+      FinancialAccountMapper.updateJpaEntity(entity, account);
+      jpaRepository.save(entity);
+    } else {
+      jpaRepository.save(FinancialAccountMapper.toJpa(account));
     }
-    jpaRepository.save(entity);
   }
 
   @Override

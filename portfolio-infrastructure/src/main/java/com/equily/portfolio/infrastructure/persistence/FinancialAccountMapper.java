@@ -13,6 +13,7 @@ import com.equily.shared.Money;
 import java.util.ArrayList;
 import java.util.Currency;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Maps between FinancialAccount (domain) and FinancialAccountJpaEntity (JPA). This is the
@@ -79,6 +80,50 @@ class FinancialAccountMapper {
         entity.openedAt,
         status,
         entity.closedAt);
+  }
+
+  static void updateJpaEntity(FinancialAccountJpaEntity entity, FinancialAccount account) {
+    entity.name = account.name();
+    entity.accountType = account.accountType().name();
+    entity.currency = account.balance().currency().getCurrencyCode();
+    entity.balance = account.balance().amount();
+    entity.broker = account.broker();
+    entity.userId = account.ownerId().value();
+    entity.subType = account.subType();
+    entity.openedAt = account.openedAt();
+    entity.status = account.status() != null ? account.status() : AccountStatus.ACTIVE;
+    entity.closedAt = account.closedAt();
+
+    entity.transactions.removeIf(
+        existingTx ->
+            account.transactions().stream()
+                .noneMatch(domainTx -> domainTx.id().value().equals(existingTx.id)));
+
+    for (Transaction domainTx : account.transactions()) {
+      Optional<TransactionJpaEntity> existing =
+          entity.transactions.stream().filter(t -> t.id.equals(domainTx.id().value())).findFirst();
+      if (existing.isPresent()) {
+        updateJpaTransaction(existing.get(), domainTx);
+      } else {
+        entity.transactions.add(toJpaTransaction(domainTx, entity));
+      }
+    }
+  }
+
+  private static void updateJpaTransaction(TransactionJpaEntity tx, Transaction domain) {
+    tx.type = domain.type().name();
+    tx.ticker = domain.ticker() != null ? domain.ticker().symbol() : null;
+    tx.quantity = domain.quantity();
+    tx.pricePerUnit = domain.pricePerUnit() != null ? domain.pricePerUnit().amount() : null;
+    tx.totalAmount = domain.totalAmount().amount();
+    tx.date = domain.date();
+    tx.fees = domain.fees();
+    tx.description = domain.description();
+    tx.currency = domain.currency();
+    tx.amountEur = domain.amountEur();
+    tx.eurFxRate = domain.eurFxRate();
+    tx.liquidationValueAtWithdrawal = domain.liquidationValueAtWithdrawal();
+    tx.grossWithdrawalAmount = domain.grossWithdrawalAmount();
   }
 
   private static TransactionJpaEntity toJpaTransaction(
