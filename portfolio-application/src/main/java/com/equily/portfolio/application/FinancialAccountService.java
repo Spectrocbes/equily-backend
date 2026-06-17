@@ -345,6 +345,15 @@ class FinancialAccountService implements FinancialAccountUseCase {
 
   @Override
   @Transactional
+  public void deleteTransaction(
+      FinancialAccountId accountId, TransactionId transactionId, UserId userId) {
+    FinancialAccount account = getAccountById(accountId, userId);
+    account.deleteTransaction(transactionId);
+    repository.save(account);
+  }
+
+  @Override
+  @Transactional
   public void updateTransaction(UpdateTransactionCommand command) {
     FinancialAccount account =
         repository

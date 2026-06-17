@@ -65,6 +65,13 @@ public interface FinancialAccountUseCase {
   List<AccountPortfolioSummary> getPortfolioSummaries(UserId userId, String targetCurrency);
 
   /**
+   * Deletes a transaction from an account. Validates that the account is not closed, the
+   * transaction exists and belongs to the account, and that removal does not leave the account with
+   * a negative balance at any point in the remaining chronology.
+   */
+  void deleteTransaction(FinancialAccountId accountId, TransactionId transactionId, UserId userId);
+
+  /**
    * Updates an existing transaction's mutable fields. Type and ticker cannot be changed. Throws
    * AccountNotFoundException if the account does not exist or is not owned by the requesting user.
    * Throws TransactionNotFoundException if no transaction with the given id exists.

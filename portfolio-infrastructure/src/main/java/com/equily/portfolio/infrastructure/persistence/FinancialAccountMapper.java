@@ -13,6 +13,7 @@ import com.equily.shared.Money;
 import java.util.ArrayList;
 import java.util.Currency;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Maps between FinancialAccount (domain) and FinancialAccountJpaEntity (JPA). This is the
@@ -35,16 +36,7 @@ class FinancialAccountMapper {
   static FinancialAccountJpaEntity toJpa(FinancialAccount account) {
     FinancialAccountJpaEntity entity = new FinancialAccountJpaEntity();
     entity.id = account.id().value();
-    entity.name = account.name();
-    entity.accountType = account.accountType().name();
-    entity.currency = account.balance().currency().getCurrencyCode();
-    entity.balance = account.balance().amount();
-    entity.broker = account.broker();
-    entity.userId = account.ownerId().value();
-    entity.subType = account.subType();
-    entity.openedAt = account.openedAt();
-    entity.status = account.status() != null ? account.status() : AccountStatus.ACTIVE;
-    entity.closedAt = account.closedAt();
+    applyAccountFields(entity, account);
 
     List<TransactionJpaEntity> txEntities =
         account.transactions().stream().map(t -> toJpaTransaction(t, entity)).toList();
@@ -81,24 +73,67 @@ class FinancialAccountMapper {
         entity.closedAt);
   }
 
+  static void updateJpaEntity(FinancialAccountJpaEntity entity, FinancialAccount account) {
+    applyAccountFields(entity, account);
+
+    entity.transactions.removeIf(
+        existingTx ->
+            account.transactions().stream()
+                .noneMatch(domainTx -> domainTx.id().value().equals(existingTx.id)));
+
+    for (Transaction domainTx : account.transactions()) {
+      Optional<TransactionJpaEntity> existing =
+          entity.transactions.stream().filter(t -> t.id.equals(domainTx.id().value())).findFirst();
+      if (existing.isPresent()) {
+        updateJpaTransaction(existing.get(), domainTx, entity);
+      } else {
+        entity.transactions.add(toJpaTransaction(domainTx, entity));
+      }
+    }
+  }
+
+  private static void applyAccountFields(
+      FinancialAccountJpaEntity entity, FinancialAccount account) {
+    entity.name = account.name();
+    entity.accountType = account.accountType().name();
+    entity.currency = account.balance().currency().getCurrencyCode();
+    entity.balance = account.balance().amount();
+    entity.broker = account.broker();
+    entity.userId = account.ownerId().value();
+    entity.subType = account.subType();
+    entity.openedAt = account.openedAt();
+    entity.status = account.status() != null ? account.status() : AccountStatus.ACTIVE;
+    entity.closedAt = account.closedAt();
+  }
+
+  private static void applyTransactionFields(
+      TransactionJpaEntity tx, Transaction domain, FinancialAccountJpaEntity accountEntity) {
+    tx.account = accountEntity;
+    tx.type = domain.type().name();
+    tx.ticker = domain.ticker() != null ? domain.ticker().symbol() : null;
+    tx.quantity = domain.quantity();
+    tx.pricePerUnit = domain.pricePerUnit() != null ? domain.pricePerUnit().amount() : null;
+    tx.totalAmount = domain.totalAmount().amount();
+    tx.date = domain.date();
+    tx.fees = domain.fees();
+    tx.description = domain.description();
+    tx.currency = domain.currency();
+    tx.amountEur = domain.amountEur();
+    tx.eurFxRate = domain.eurFxRate();
+    tx.liquidationValueAtWithdrawal = domain.liquidationValueAtWithdrawal();
+    tx.grossWithdrawalAmount = domain.grossWithdrawalAmount();
+  }
+
+  private static void updateJpaTransaction(
+      TransactionJpaEntity tx, Transaction domain, FinancialAccountJpaEntity accountEntity) {
+    applyTransactionFields(tx, domain, accountEntity);
+  }
+
   private static TransactionJpaEntity toJpaTransaction(
       Transaction t, FinancialAccountJpaEntity accountEntity) {
     TransactionJpaEntity tx = new TransactionJpaEntity();
     tx.id = t.id().value();
-    tx.account = accountEntity;
-    tx.type = t.type().name();
-    tx.ticker = t.ticker() != null ? t.ticker().symbol() : null;
-    tx.quantity = t.quantity();
-    tx.pricePerUnit = t.pricePerUnit() != null ? t.pricePerUnit().amount() : null;
-    tx.totalAmount = t.totalAmount().amount();
-    tx.date = t.date();
-    tx.fees = t.fees();
-    tx.description = t.description();
-    tx.currency = t.currency();
-    tx.amountEur = t.amountEur();
-    tx.eurFxRate = t.eurFxRate();
-    tx.liquidationValueAtWithdrawal = t.liquidationValueAtWithdrawal();
-    tx.grossWithdrawalAmount = t.grossWithdrawalAmount();
+    applyTransactionFields(tx, t, accountEntity);
     return tx;
   }
 

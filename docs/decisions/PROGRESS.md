@@ -491,6 +491,23 @@
   deposit, save again after) — cardinality check and deposit cap check both run before any persistence.
 - 473 tests, 0 failures, 10/10 modules green, Spotless clean.
 
+## 2026-06-17 — feat/delete-transaction: delete transaction endpoint
+
+- `DELETE /api/v1/accounts/{accountId}/transactions/{transactionId}` — 204 on success
+- `FinancialAccount.deleteTransaction()`: validates account not CLOSED, transaction exists,
+  replays remaining transactions chronologically to ensure no intermediate balance goes negative
+- Fix: `orphanRemoval = true` on `@OneToMany` transactions in `FinancialAccountJpaEntity`
+  (was `false` — Hibernate never issued DELETE for removed child rows)
+- Fix: `FinancialAccountRepositoryAdapter.save()` now uses load-and-update-in-place:
+  `findById()` returns the managed entity, `FinancialAccountMapper.updateJpaEntity()` syncs scalar
+  fields and the transaction collection in-place, Hibernate dirty-tracking + orphan removal does the rest.
+  Replaces the old create-new-entity + `markAsExisting()` pattern which prevented Hibernate from
+  tracking collection mutations.
+- `FinancialAccountMapper.updateJpaEntity()` + `updateJpaTransaction()` added — update a managed
+  JPA entity in-place without constructing a detached one
+- `AccountClosedException` → 422; `TransactionNotFoundException` → 404 (existing handlers, no change)
+- 485 tests, 0 failures, 10/10 modules green
+
 ## Architecture Decisions
 
 - Lombok is forbidden everywhere. Java 21 records replace POJOs; explicit methods replace generated ones.

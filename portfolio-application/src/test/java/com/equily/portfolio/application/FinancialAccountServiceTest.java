@@ -2082,6 +2082,50 @@ class FinancialAccountServiceTest {
   }
 
   @Test
+  void deleteTransaction_delegates_to_domain_and_saves() {
+    UserId ownerId = UserId.generate();
+    FinancialAccount account =
+        FinancialAccount.open(
+            "My PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            ownerId,
+            null,
+            OPENED_AT);
+    Transaction deposit =
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("1000"), EUR),
+            OPENED_AT,
+            BigDecimal.ZERO,
+            null);
+    account.recordTransaction(deposit);
+    when(repository.findById(account.id())).thenReturn(Optional.of(account));
+
+    service.deleteTransaction(account.id(), deposit.id(), ownerId);
+
+    assertThat(account.transactions()).isEmpty();
+    verify(repository).save(account);
+  }
+
+  @Test
+  void deleteTransaction_throws_when_account_not_owned_by_user() {
+    FinancialAccount account = openAccount("My PEA", "1000");
+    when(repository.findById(account.id())).thenReturn(Optional.of(account));
+
+    assertThatThrownBy(
+            () ->
+                service.deleteTransaction(
+                    account.id(), TransactionId.generate(), UserId.generate()))
+        .isInstanceOf(AccountNotFoundException.class);
+  }
+
+  @Test
   void recordTransaction_eur_fees_correctly_converted() {
     UserId ownerId = UserId.generate();
     FinancialAccount account =

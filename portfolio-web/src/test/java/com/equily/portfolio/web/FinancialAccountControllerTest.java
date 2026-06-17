@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -31,6 +32,7 @@ import com.equily.portfolio.domain.TransactionId;
 import com.equily.portfolio.domain.TransactionType;
 import com.equily.portfolio.domain.account.AccountSubType;
 import com.equily.portfolio.domain.csv.CsvImportResult;
+import com.equily.portfolio.domain.exception.AccountClosedException;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
 import com.equily.portfolio.domain.exception.DepositLimitExceededException;
 import com.equily.portfolio.domain.exception.InsufficientFundsException;
@@ -1113,5 +1115,73 @@ class FinancialAccountControllerTest {
             post("/api/v1/accounts/{id}/close", id.value().toString())
                 .with(authentication(mockAuth())))
         .andExpect(status().isNoContent());
+  }
+
+  @Test
+  void deleteTransaction_returns_204_on_success() throws Exception {
+    UUID txId = UUID.randomUUID();
+
+    mockMvc
+        .perform(
+            delete(
+                    "/api/v1/accounts/{id}/transactions/{txId}",
+                    testAccount.id().value().toString(),
+                    txId.toString())
+                .with(authentication(mockAuth())))
+        .andExpect(status().isNoContent());
+  }
+
+  @Test
+  void deleteTransaction_returns_404_when_account_not_found() throws Exception {
+    UUID txId = UUID.randomUUID();
+    doThrow(new AccountNotFoundException(testAccount.id()))
+        .when(useCase)
+        .deleteTransaction(any(), any(), any());
+
+    mockMvc
+        .perform(
+            delete(
+                    "/api/v1/accounts/{id}/transactions/{txId}",
+                    testAccount.id().value().toString(),
+                    txId.toString())
+                .with(authentication(mockAuth())))
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
+  void deleteTransaction_returns_422_when_would_cause_negative_balance() throws Exception {
+    UUID txId = UUID.randomUUID();
+    doThrow(
+            new InsufficientFundsException(
+                new Money(BigDecimal.valueOf(1000), Currency.getInstance("EUR")),
+                new Money(BigDecimal.ZERO, Currency.getInstance("EUR"))))
+        .when(useCase)
+        .deleteTransaction(any(), any(), any());
+
+    mockMvc
+        .perform(
+            delete(
+                    "/api/v1/accounts/{id}/transactions/{txId}",
+                    testAccount.id().value().toString(),
+                    txId.toString())
+                .with(authentication(mockAuth())))
+        .andExpect(status().isUnprocessableEntity());
+  }
+
+  @Test
+  void deleteTransaction_returns_422_when_account_closed() throws Exception {
+    UUID txId = UUID.randomUUID();
+    doThrow(new AccountClosedException(testAccount.id()))
+        .when(useCase)
+        .deleteTransaction(any(), any(), any());
+
+    mockMvc
+        .perform(
+            delete(
+                    "/api/v1/accounts/{id}/transactions/{txId}",
+                    testAccount.id().value().toString(),
+                    txId.toString())
+                .with(authentication(mockAuth())))
+        .andExpect(status().isUnprocessableEntity());
   }
 }

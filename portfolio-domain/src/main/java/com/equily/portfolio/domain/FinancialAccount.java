@@ -251,6 +251,27 @@ public final class FinancialAccount {
     this.closedAt = closedAt;
   }
 
+  public void deleteTransaction(TransactionId transactionId) {
+    if (isClosed()) {
+      throw new AccountClosedException(this.id());
+    }
+
+    transactions.stream()
+        .filter(t -> t.id().equals(transactionId))
+        .findFirst()
+        .orElseThrow(() -> new TransactionNotFoundException(transactionId));
+
+    List<Transaction> remaining =
+        transactions.stream()
+            .filter(t -> !t.id().equals(transactionId))
+            .collect(Collectors.toCollection(ArrayList::new));
+
+    validateChronology(remaining);
+
+    this.transactions = remaining;
+    this.balance = computeBalanceFrom(remaining);
+  }
+
   public void updateTransaction(TransactionId id, UpdatedTransactionValues values) {
     Transaction existing =
         transactions.stream()
