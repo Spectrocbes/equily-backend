@@ -10,6 +10,7 @@ import com.equily.portfolio.domain.exception.AccountClosedException;
 import com.equily.portfolio.domain.exception.InsufficientFundsException;
 import com.equily.portfolio.domain.exception.InvalidFinancialAccountException;
 import com.equily.portfolio.domain.exception.InvalidHoldingException;
+import com.equily.portfolio.domain.exception.InvalidTransactionException;
 import com.equily.portfolio.domain.exception.TransactionNotFoundException;
 import com.equily.shared.Country;
 import com.equily.shared.Money;
@@ -570,6 +571,90 @@ class FinancialAccountTest {
 
     assertThatNoException().isThrownBy(() -> pea.recordTransaction(incomingTransfer("1000.00")));
     assertThat(pea.balance().amount()).isEqualByComparingTo(new BigDecimal("1000.00"));
+  }
+
+  @Test
+  void recordTransaction_throws_when_date_before_openedAt() {
+    FinancialAccount account = accountWith("0");
+    Transaction t =
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("100"), EUR),
+            TODAY.minusDays(1),
+            null,
+            null);
+    assertThatThrownBy(() -> account.recordTransaction(t))
+        .isInstanceOf(InvalidTransactionException.class)
+        .hasMessageContaining(TODAY.minusDays(1).toString())
+        .hasMessageContaining(TODAY.toString());
+  }
+
+  @Test
+  void recordTransaction_allows_date_equal_to_openedAt() {
+    FinancialAccount account = accountWith("0");
+    Transaction t =
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("100"), EUR),
+            TODAY,
+            null,
+            null);
+    assertThatNoException().isThrownBy(() -> account.recordTransaction(t));
+  }
+
+  @Test
+  void recordTransaction_allows_date_after_openedAt() {
+    FinancialAccount account = accountWith("0");
+    Transaction t =
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("100"), EUR),
+            TODAY.plusDays(1),
+            null,
+            null);
+    assertThatNoException().isThrownBy(() -> account.recordTransaction(t));
+  }
+
+  @Test
+  void recordTransaction_allows_any_date_when_openedAt_null() {
+    FinancialAccount account =
+        FinancialAccount.reconstruct(
+            FinancialAccountId.generate(),
+            "Test",
+            AccountType.CASH_ACCOUNT,
+            new Money(BigDecimal.ZERO, EUR),
+            new java.util.ArrayList<>(),
+            "BNP",
+            UserId.generate(),
+            null,
+            null,
+            AccountStatus.ACTIVE,
+            null,
+            null);
+    Transaction t =
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("100"), EUR),
+            LocalDate.of(1990, 1, 1),
+            null,
+            null);
+    assertThatNoException().isThrownBy(() -> account.recordTransaction(t));
   }
 
   @Test

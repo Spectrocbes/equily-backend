@@ -144,6 +144,7 @@ public final class FinancialAccount {
       throw new AccountClosedException(this.id());
     }
     validateTransactionTypeForAccount(t.type());
+    validateTransactionDate(t.date());
     switch (t.type()) {
       case DEPOSIT, DIVIDEND, INTEREST -> balance = balance.add(t.totalAmount());
       case SELL -> {
@@ -182,6 +183,13 @@ public final class FinancialAccount {
       }
     }
     transactions.add(t);
+  }
+
+  private void validateTransactionDate(LocalDate date) {
+    if (openedAt != null && date.isBefore(openedAt)) {
+      throw new InvalidTransactionException(
+          "Transaction date " + date + " cannot be before account opening date " + openedAt);
+    }
   }
 
   private void validateTransactionTypeForAccount(TransactionType type) {

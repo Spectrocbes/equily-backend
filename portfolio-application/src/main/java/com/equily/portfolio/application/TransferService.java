@@ -13,12 +13,14 @@ import com.equily.portfolio.domain.TransferRoutingRules;
 import com.equily.portfolio.domain.account.AccountBusinessRules;
 import com.equily.portfolio.domain.account.AccountSubType;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
+import com.equily.portfolio.domain.exception.InvalidTransactionException;
 import com.equily.portfolio.domain.marketdata.FxRatePort;
 import com.equily.portfolio.domain.marketdata.MarketDataPort;
 import com.equily.portfolio.domain.marketdata.Quote;
 import com.equily.shared.Money;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.util.Currency;
 import java.util.List;
 import java.util.Map;
@@ -51,6 +53,7 @@ class TransferService implements TransferUseCase {
         command.toAccountId() != null ? getAccount(command.toAccountId(), command.userId()) : null;
 
     TransferRoutingRules.validate(from, to);
+    validateTransferDate(from, to, command.date());
 
     String currency = command.currency() != null ? command.currency() : "EUR";
     BigDecimal eurFxRate =
@@ -233,6 +236,30 @@ class TransferService implements TransferUseCase {
 
   private BigDecimal computeAdjustedTotalDeposits(FinancialAccount account) {
     return AccountBusinessRules.computeAdjustedTotalDepositsForCapacity(account);
+  }
+
+  private void validateTransferDate(FinancialAccount from, FinancialAccount to, LocalDate date) {
+    LocalDate minDate = from.openedAt();
+
+    if (to != null && to.openedAt() != null) {
+      if (minDate == null) {
+        minDate = to.openedAt();
+      } else {
+        minDate = minDate.isAfter(to.openedAt()) ? minDate : to.openedAt();
+      }
+    }
+
+    if (minDate != null && date.isBefore(minDate)) {
+      String msg =
+          to != null
+              ? "Transfer date "
+                  + date
+                  + " cannot be before the most recent account opening date ("
+                  + minDate
+                  + ")"
+              : "Transaction date " + date + " cannot be before account opening date " + minDate;
+      throw new InvalidTransactionException(msg);
+    }
   }
 
   private FinancialAccount getAccount(FinancialAccountId id, UserId userId) {
