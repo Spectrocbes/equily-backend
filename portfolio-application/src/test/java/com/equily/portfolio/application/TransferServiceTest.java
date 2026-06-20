@@ -1,6 +1,7 @@
 package com.equily.portfolio.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
@@ -17,6 +18,7 @@ import com.equily.portfolio.domain.TransferDirection;
 import com.equily.portfolio.domain.account.AccountStatus;
 import com.equily.portfolio.domain.account.AccountSubType;
 import com.equily.portfolio.domain.exception.AccountNotFoundException;
+import com.equily.portfolio.domain.exception.InvalidTransactionException;
 import com.equily.portfolio.domain.exception.TransferRoutingException;
 import com.equily.portfolio.domain.marketdata.FxRatePort;
 import com.equily.portfolio.domain.marketdata.MarketDataPort;
@@ -240,6 +242,143 @@ class TransferServiceTest {
 
     assertThatThrownBy(() -> service.executeTransfer(cmd))
         .isInstanceOf(AccountNotFoundException.class);
+  }
+
+  @Test
+  void executeTransfer_throws_when_date_before_from_openedAt() {
+    UserId userId = UserId.generate();
+    LocalDate fromOpenedAt = LocalDate.of(2026, 1, 10);
+    LocalDate transferDate = LocalDate.of(2026, 1, 5);
+
+    FinancialAccount from =
+        FinancialAccount.reconstruct(
+            FinancialAccountId.generate(),
+            "Checking",
+            AccountType.CASH_ACCOUNT,
+            new Money(new BigDecimal("5000"), EUR),
+            List.of(),
+            "BNP",
+            userId,
+            AccountSubType.CASH_ACCOUNT,
+            fromOpenedAt,
+            AccountStatus.ACTIVE,
+            null,
+            null);
+    FinancialAccount to = savingsAccount(userId);
+
+    when(repository.findById(from.id())).thenReturn(Optional.of(from));
+    when(repository.findById(to.id())).thenReturn(Optional.of(to));
+
+    TransferCommand cmd =
+        new TransferCommand(
+            from.id(), to.id(), userId, new BigDecimal("100"), "EUR", transferDate, null, null);
+
+    assertThatThrownBy(() -> service.executeTransfer(cmd))
+        .isInstanceOf(InvalidTransactionException.class)
+        .hasMessageContaining(transferDate.toString())
+        .hasMessageContaining(fromOpenedAt.toString());
+  }
+
+  @Test
+  void executeTransfer_throws_when_date_before_to_openedAt() {
+    UserId userId = UserId.generate();
+    LocalDate toOpenedAt = LocalDate.of(2026, 1, 10);
+    LocalDate transferDate = LocalDate.of(2026, 1, 5);
+
+    FinancialAccount from = cashAccount(userId);
+    FinancialAccount to =
+        FinancialAccount.reconstruct(
+            FinancialAccountId.generate(),
+            "Livret A",
+            AccountType.SAVINGS_ACCOUNT,
+            new Money(new BigDecimal("1000"), EUR),
+            List.of(),
+            "BNP",
+            userId,
+            AccountSubType.LIVRET_A,
+            toOpenedAt,
+            AccountStatus.ACTIVE,
+            null,
+            null);
+
+    when(repository.findById(from.id())).thenReturn(Optional.of(from));
+    when(repository.findById(to.id())).thenReturn(Optional.of(to));
+
+    TransferCommand cmd =
+        new TransferCommand(
+            from.id(), to.id(), userId, new BigDecimal("100"), "EUR", transferDate, null, null);
+
+    assertThatThrownBy(() -> service.executeTransfer(cmd))
+        .isInstanceOf(InvalidTransactionException.class)
+        .hasMessageContaining(transferDate.toString())
+        .hasMessageContaining(toOpenedAt.toString());
+  }
+
+  @Test
+  void executeTransfer_uses_most_recent_openedAt_as_min_date() {
+    UserId userId = UserId.generate();
+    LocalDate toOpenedAt = LocalDate.of(2026, 1, 15);
+    LocalDate transferDate = LocalDate.of(2026, 1, 10);
+
+    FinancialAccount from = cashAccount(userId);
+    FinancialAccount to =
+        FinancialAccount.reconstruct(
+            FinancialAccountId.generate(),
+            "Livret A",
+            AccountType.SAVINGS_ACCOUNT,
+            new Money(new BigDecimal("1000"), EUR),
+            List.of(),
+            "BNP",
+            userId,
+            AccountSubType.LIVRET_A,
+            toOpenedAt,
+            AccountStatus.ACTIVE,
+            null,
+            null);
+
+    when(repository.findById(from.id())).thenReturn(Optional.of(from));
+    when(repository.findById(to.id())).thenReturn(Optional.of(to));
+
+    TransferCommand cmd =
+        new TransferCommand(
+            from.id(), to.id(), userId, new BigDecimal("100"), "EUR", transferDate, null, null);
+
+    assertThatThrownBy(() -> service.executeTransfer(cmd))
+        .isInstanceOf(InvalidTransactionException.class)
+        .hasMessageContaining(toOpenedAt.toString());
+  }
+
+  @Test
+  void executeTransfer_allows_date_equal_to_max_openedAt() {
+    UserId userId = UserId.generate();
+    LocalDate toOpenedAt = LocalDate.of(2026, 1, 15);
+    LocalDate transferDate = LocalDate.of(2026, 1, 15);
+
+    FinancialAccount from = cashAccount(userId);
+    FinancialAccount to =
+        FinancialAccount.reconstruct(
+            FinancialAccountId.generate(),
+            "Livret A",
+            AccountType.SAVINGS_ACCOUNT,
+            new Money(new BigDecimal("1000"), EUR),
+            List.of(),
+            "BNP",
+            userId,
+            AccountSubType.LIVRET_A,
+            toOpenedAt,
+            AccountStatus.ACTIVE,
+            null,
+            null);
+
+    when(repository.findById(from.id())).thenReturn(Optional.of(from));
+    when(repository.findById(to.id())).thenReturn(Optional.of(to));
+    when(repository.findAllByOwnerId(userId)).thenReturn(List.of(from, to));
+
+    TransferCommand cmd =
+        new TransferCommand(
+            from.id(), to.id(), userId, new BigDecimal("100"), "EUR", transferDate, null, null);
+
+    assertThatNoException().isThrownBy(() -> service.executeTransfer(cmd));
   }
 
   @Test
