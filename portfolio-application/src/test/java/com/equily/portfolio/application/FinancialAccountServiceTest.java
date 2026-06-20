@@ -1825,7 +1825,8 @@ class FinancialAccountServiceTest {
 
   @Test
   void recordTransaction_pea_over5y_withdrawal_applies_ps_tax() {
-    // totalDeposits=100000, dividend=6000 â†’ balance=106000, no holdings â†’ liquidationValue=106000
+    // totalDeposits=100000, dividend=6000 â†’ balance=106000, no holdings â†’
+    // liquidationValue=106000
     // gainGlobal=6000, gainRatio=6000/106000=0.056604
     // withdrawal=10000, taxableGain=566.04, psTax=105.28, netAmount=9894.72
     FinancialAccount account = openPeaOver5y();
@@ -1886,7 +1887,8 @@ class FinancialAccountServiceTest {
 
   @Test
   void recordTransaction_pea_over5y_withdrawal_no_tax_when_at_loss() {
-    // totalDeposits=100000, withdrawal=20000 pre-existing â†’ balance=80000 < totalDeposits â†’ atLoss
+    // totalDeposits=100000, withdrawal=20000 pre-existing â†’ balance=80000 < totalDeposits â†’
+    // atLoss
     // gainGlobal=max(-20000,0)=0 â†’ psTax=0 â†’ only 1 new WITHDRAWAL (no tax split)
     FinancialAccount account = openPeaOver5y();
     account.recordTransaction(

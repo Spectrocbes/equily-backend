@@ -14,7 +14,7 @@ class TransactionAmountValidatorTest {
 
   private RecordTransactionRequest req(String type, BigDecimal amount) {
     return new RecordTransactionRequest(
-        type, null, null, null, amount, VALID_DATE, BigDecimal.ZERO, null, "EUR");
+        type, null, null, null, amount, VALID_DATE, BigDecimal.ZERO, null, "EUR", null);
   }
 
   @Test
