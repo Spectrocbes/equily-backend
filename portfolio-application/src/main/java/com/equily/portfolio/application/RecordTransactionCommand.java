@@ -23,4 +23,5 @@ public record RecordTransactionCommand(
     LocalDate date,
     BigDecimal fees,
     String description,
-    String currency) {}
+    String currency,
+    String externalAddress) {}

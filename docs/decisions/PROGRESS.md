@@ -508,6 +508,43 @@
 - `AccountClosedException` → 422; `TransactionNotFoundException` → 404 (existing handlers, no change)
 - 485 tests, 0 failures, 10/10 modules green
 
+## 2026-06-18 — feat/transfer-between-accounts Sprint 1: TRANSFER backend
+
+- Flyway V25: `linked_checking_account_id UUID` nullable FK on `portfolio.financial_account` — links a PEA/savings
+  account to its associated checking account for hub-and-spoke transfers.
+- Flyway V26: `transfer_id UUID`, `linked_account_id UUID`, `external_address VARCHAR(255)` added to
+  `portfolio.transaction` — links the two legs of an internal transfer and records external payment destinations.
+- `TransactionType`: `TRANSFER` (internal account-to-account move) and `PAYMENT` (outbound to external address)
+  added to the enum.
+- `Transaction`: `transferId`, `linkedAccountId`, `externalAddress` fields added; `of()` + `reconstruct()` updated.
+- `FinancialAccount`: `linkedCheckingAccountId` field added; `allowedTransactionTypes()` method returns the set of
+  permitted transaction types per account sub-type.
+- `TransferRoutingRules` pure domain service (zero framework deps): enforces hub-and-spoke model — transfers must
+  flow through a checking account; direct savings-to-savings or PEA-to-savings transfers are rejected.
+- `TransferService` in `portfolio-application` (`@Service @Transactional`, package-private): two transfer modes —
+  standard transfer (debit source, credit destination, two linked TRANSFER transactions in one atomic commit) and
+  PEA fiscal transfer (three atomic transactions: WITHDRAWAL from PEA, DEPOSIT to checking, optional onward
+  TRANSFER to destination).
+- `POST /api/v1/transfers` endpoint in `FinancialAccountController`; `TransferRequest` DTO in `portfolio-web`.
+- `TransferRoutingException` in `portfolio-domain/exception` → 422 Unprocessable Entity in
+  `GlobalExceptionHandler`.
+- 509 tests, 0 failures, 10/10 modules green.
+
+## 2026-06-20 — feat/transfer-between-accounts: backend complete
+
+- Flyway V27: `transfer_direction VARCHAR(20)` (`INCOMING`/`OUTGOING`) added to `portfolio.transaction` — disambiguates
+  the two legs of a transfer without joining on `transfer_id`.
+- `AccountBusinessRules`: `TRANSFER INCOMING` counted as a deposit for regulatory capacity checks — PEA/PEA-PME combined
+  ceiling enforced on inbound fiscal transfers.
+- `FinancialAccountController`: `totalDeposits` now includes `TRANSFER INCOMING` transactions alongside `DEPOSIT`
+  transactions in the response.
+- V25 (`linked_checking_account_id`), V26 (`transfer_id`, `linked_account_id`, `external_address`), V27
+  (`transfer_direction`) form the complete transfer persistence model.
+- `TransactionType.TRANSFER` + `PAYMENT` (added in Sprint 1), `TransferRoutingRules` hub-and-spoke domain service
+  (CHECKING as mandatory hub), `TransferService` (standard transfer + PEA fiscal transfer as 3 atomic transactions),
+  `POST /api/v1/transfers` endpoint — all complete.
+- 514 tests, 0 failures, 10/10 modules green.
+
 ## Architecture Decisions
 
 - Lombok is forbidden everywhere. Java 21 records replace POJOs; explicit methods replace generated ones.

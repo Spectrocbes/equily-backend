@@ -79,7 +79,11 @@ class PeaClosureService implements PeaClosureUseCase {
               sim.netAmount(),
               BigDecimal.ONE,
               sim.liquidationValue(),
-              sim.withdrawalAmount()));
+              sim.withdrawalAmount(),
+              null,
+              null,
+              null,
+              null));
     }
 
     // Transaction 2: flat tax collected (only if taxes > 0)

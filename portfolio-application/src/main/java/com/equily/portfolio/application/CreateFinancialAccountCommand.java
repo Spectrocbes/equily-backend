@@ -5,6 +5,7 @@ import com.equily.portfolio.domain.AccountType;
 import com.equily.portfolio.domain.account.AccountSubType;
 import com.equily.shared.Money;
 import java.time.LocalDate;
+import java.util.UUID;
 
 public record CreateFinancialAccountCommand(
     String name,
@@ -14,4 +15,5 @@ public record CreateFinancialAccountCommand(
     UserId ownerId,
     AccountSubType subType,
     LocalDate openedAt,
-    String currency) {}
+    String currency,
+    UUID linkedCheckingAccountId) {}

@@ -3,6 +3,7 @@ package com.equily.portfolio.domain.account;
 import com.equily.portfolio.domain.FinancialAccount;
 import com.equily.portfolio.domain.Transaction;
 import com.equily.portfolio.domain.TransactionType;
+import com.equily.portfolio.domain.TransferDirection;
 import com.equily.portfolio.domain.exception.AccountCardinalityException;
 import com.equily.portfolio.domain.exception.DepositLimitExceededException;
 import com.equily.shared.Money;
@@ -211,7 +212,11 @@ public final class AccountBusinessRules {
 
   private static Money sumDeposits(FinancialAccount account) {
     return account.transactions().stream()
-        .filter(t -> t.type() == TransactionType.DEPOSIT)
+        .filter(
+            t ->
+                t.type() == TransactionType.DEPOSIT
+                    || (t.type() == TransactionType.TRANSFER
+                        && t.transferDirection() == TransferDirection.INCOMING))
         .map(Transaction::totalAmount)
         .reduce(
             new Money(BigDecimal.ZERO, Currency.getInstance("EUR")),
@@ -230,6 +235,11 @@ public final class AccountBusinessRules {
    * <p>For each such post-anniversary withdrawal: capitalRatio = runningDeposits / liqValue;
    * withdrawnCapital = grossAmount × capitalRatio; runningDeposits -= withdrawnCapital.
    */
+  /** Public alias used by TransferService for Loi Pacte capacity replay. */
+  public static BigDecimal computeAdjustedTotalDepositsForCapacity(FinancialAccount account) {
+    return computeAdjustedTotalDeposits(account);
+  }
+
   public static BigDecimal computeAdjustedTotalDeposits(FinancialAccount account) {
     LocalDate fiveYearDate =
         account.openedAt() != null ? account.openedAt().plusYears(5) : LocalDate.MIN;
@@ -241,6 +251,8 @@ public final class AccountBusinessRules {
             .filter(
                 t ->
                     t.type() == TransactionType.DEPOSIT
+                        || (t.type() == TransactionType.TRANSFER
+                            && t.transferDirection() == TransferDirection.INCOMING)
                         || (t.type() == TransactionType.WITHDRAWAL
                             && t.liquidationValueAtWithdrawal() != null
                             && t.grossWithdrawalAmount() != null))
@@ -248,7 +260,9 @@ public final class AccountBusinessRules {
             .toList();
 
     for (Transaction tx : sorted) {
-      if (tx.type() == TransactionType.DEPOSIT) {
+      if (tx.type() == TransactionType.DEPOSIT
+          || (tx.type() == TransactionType.TRANSFER
+              && tx.transferDirection() == TransferDirection.INCOMING)) {
         runningDeposits = runningDeposits.add(tx.amountEur());
       } else if (tx.type() == TransactionType.WITHDRAWAL && !tx.date().isBefore(fiveYearDate)) {
         BigDecimal liqValue = tx.liquidationValueAtWithdrawal();

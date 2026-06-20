@@ -1,6 +1,7 @@
 package com.equily.portfolio.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.equily.identity.domain.UserId;
@@ -17,6 +18,7 @@ import java.time.LocalDate;
 import java.util.Currency;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class FinancialAccountTest {
@@ -27,7 +29,25 @@ class FinancialAccountTest {
   private static final AssetMetadata AAPL_META =
       new AssetMetadata("Apple Inc.", "US0378331005", new Country("US"));
 
+  /** General-purpose helper using CASH_ACCOUNT which allows all transaction types. */
   private FinancialAccount accountWith(String balance) {
+    FinancialAccount account =
+        FinancialAccount.open(
+            "Mon Compte",
+            AccountType.CASH_ACCOUNT,
+            new Money(BigDecimal.ZERO, EUR),
+            "BNP",
+            UserId.generate(),
+            null,
+            TODAY);
+    BigDecimal amount = new BigDecimal(balance);
+    if (amount.compareTo(BigDecimal.ZERO) > 0) {
+      account.recordTransaction(deposit(balance));
+    }
+    return account;
+  }
+
+  private FinancialAccount peaAccountWithBalance(String balance) {
     FinancialAccount account =
         FinancialAccount.open(
             "Mon PEA",
@@ -39,7 +59,7 @@ class FinancialAccountTest {
             TODAY);
     BigDecimal amount = new BigDecimal(balance);
     if (amount.compareTo(BigDecimal.ZERO) > 0) {
-      account.recordTransaction(deposit(balance));
+      account.recordTransaction(incomingTransfer(balance));
     }
     return account;
   }
@@ -68,6 +88,20 @@ class FinancialAccountTest {
         TODAY,
         null,
         null);
+  }
+
+  private Transaction incomingTransfer(String amount) {
+    return Transaction.ofTransfer(
+        TransactionId.generate(),
+        new Money(new BigDecimal(amount), EUR),
+        TODAY,
+        "Transfer in",
+        UUID.randomUUID(),
+        null,
+        null,
+        new BigDecimal(amount),
+        BigDecimal.ONE,
+        TransferDirection.INCOMING);
   }
 
   private Transaction buy(String qty, String price) {
@@ -324,7 +358,7 @@ class FinancialAccountTest {
     } catch (InvalidHoldingException ignored) {
     }
 
-    assertThat(account.transactions()).hasSize(2); // deposit (from helper) + 1 successful buy
+    assertThat(account.transactions()).hasSize(2); // deposit + buy
   }
 
   @Test
@@ -366,7 +400,6 @@ class FinancialAccountTest {
             .filter(t -> t.type() == TransactionType.DEPOSIT)
             .map(t -> t.totalAmount().amount())
             .reduce(BigDecimal.ZERO, BigDecimal::add);
-    // only the 1000 from accountWith counts — INTEREST does not count as a deposit
     assertThat(depositTotal).isEqualByComparingTo(new BigDecimal("1000.00"));
     assertThat(account.balance().amount()).isEqualByComparingTo(new BigDecimal("1050.00"));
   }
@@ -376,14 +409,12 @@ class FinancialAccountTest {
     FinancialAccount account = accountWith("1000.00");
     Transaction second = deposit("500.00");
     account.recordTransaction(second);
-    // balance = 1000 + 500 = 1500
 
     UpdatedTransactionValues values =
         new UpdatedTransactionValues(
             null, null, new Money(new BigDecimal("200.00"), EUR), TODAY, BigDecimal.ZERO, null);
     account.updateTransaction(second.id(), values);
 
-    // balance recomputed: 1000 + 200 = 1200
     assertThat(account.balance()).isEqualTo(new Money(new BigDecimal("1200.00"), EUR));
     assertThat(account.transactions()).hasSize(2);
   }
@@ -404,9 +435,8 @@ class FinancialAccountTest {
     FinancialAccount account = accountWith("1000.00");
     Transaction second = deposit("500.00");
     account.recordTransaction(second);
-    account.recordTransaction(withdrawal("1200.00")); // balance = 1000 + 500 - 1200 = 300
+    account.recordTransaction(withdrawal("1200.00"));
 
-    // reducing second deposit to 100 → replay: 1000 + 100 - 1200 = -100 → throws
     UpdatedTransactionValues values =
         new UpdatedTransactionValues(
             null, null, new Money(new BigDecimal("100.00"), EUR), TODAY, BigDecimal.ZERO, null);
@@ -446,7 +476,6 @@ class FinancialAccountTest {
     account.recordTransaction(buy("10", "150.00"));
     account.recordTransaction(sell("4", "180.00"));
 
-    // balance: 2000 - 1500 + 720 = 1220
     assertThat(account.balance()).isEqualTo(new Money(new BigDecimal("1220.00"), EUR));
 
     Map<Ticker, FinancialAccount.AssetInfo> info =
@@ -464,7 +493,6 @@ class FinancialAccountTest {
     FinancialAccount account = accountWith("1000.00");
     Transaction second = deposit("500.00");
     account.recordTransaction(second);
-    // balance = 1000 + 500 = 1500, 2 transactions
 
     account.deleteTransaction(second.id());
 
@@ -499,7 +527,6 @@ class FinancialAccountTest {
   @Test
   void deleteTransaction_throws_when_transaction_not_found() {
     FinancialAccount account = accountWith("1000.00");
-
     assertThatThrownBy(() -> account.deleteTransaction(TransactionId.generate()))
         .isInstanceOf(TransactionNotFoundException.class);
   }
@@ -509,10 +536,8 @@ class FinancialAccountTest {
     FinancialAccount account = accountWith("1000.00");
     Transaction second = deposit("500.00");
     account.recordTransaction(second);
-    account.recordTransaction(withdrawal("1200.00")); // balance = 1000 + 500 - 1200 = 300
+    account.recordTransaction(withdrawal("1200.00"));
 
-    // deleting second deposit (500) → remaining: [deposit 1000, withdrawal 1200]
-    // replay: 1000 - 1200 = -200 → throws
     assertThatThrownBy(() -> account.deleteTransaction(second.id()))
         .isInstanceOf(InsufficientFundsException.class);
   }
@@ -520,14 +545,59 @@ class FinancialAccountTest {
   @Test
   void deleteTransaction_allows_buy_removal_even_with_subsequent_sell() {
     FinancialAccount account = accountWith("2000.00");
-    Transaction buyTx = buy("10", "150.00"); // -1500, balance = 500
+    Transaction buyTx = buy("10", "150.00");
     account.recordTransaction(buyTx);
-    account.recordTransaction(sell("4", "180.00")); // +720, balance = 1220
+    account.recordTransaction(sell("4", "180.00"));
 
-    // deleting the buy: remaining = [deposit 2000, sell 720]
-    // replay: +2000, +720 = 2720 — never negative
     account.deleteTransaction(buyTx.id());
 
-    assertThat(account.transactions()).hasSize(2); // original deposit + sell
+    assertThat(account.transactions()).hasSize(2);
+  }
+
+  // ---- new tests: transaction type validation ----
+
+  @Test
+  void recordTransaction_allows_transfer_on_pea() {
+    FinancialAccount pea =
+        FinancialAccount.open(
+            "Mon PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            UserId.generate(),
+            null,
+            TODAY);
+
+    assertThatNoException().isThrownBy(() -> pea.recordTransaction(incomingTransfer("1000.00")));
+    assertThat(pea.balance().amount()).isEqualByComparingTo(new BigDecimal("1000.00"));
+  }
+
+  @Test
+  void recordTransaction_allows_interest_on_savings() {
+    FinancialAccount savings =
+        FinancialAccount.open(
+            "Livret A",
+            AccountType.SAVINGS_ACCOUNT,
+            new Money(BigDecimal.ZERO, EUR),
+            "BNP",
+            UserId.generate(),
+            null,
+            TODAY);
+    savings.recordTransaction(incomingTransfer("1000.00"));
+
+    Transaction interest =
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.INTEREST,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("10.00"), EUR),
+            TODAY,
+            BigDecimal.ZERO,
+            "Interest");
+
+    assertThatNoException().isThrownBy(() -> savings.recordTransaction(interest));
+    assertThat(savings.balance().amount()).isEqualByComparingTo(new BigDecimal("1010.00"));
   }
 }

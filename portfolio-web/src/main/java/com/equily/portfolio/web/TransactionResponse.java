@@ -15,4 +15,8 @@ public record TransactionResponse(
     LocalDate date,
     BigDecimal fees,
     BigDecimal feesNative,
-    String description) {}
+    String description,
+    String transferId,
+    String linkedAccountId,
+    String externalAddress,
+    String transferDirection) {}

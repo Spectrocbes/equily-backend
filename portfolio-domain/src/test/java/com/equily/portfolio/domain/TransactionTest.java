@@ -73,6 +73,10 @@ class TransactionTest {
             expectedEur,
             fxRate,
             null,
+            null,
+            null,
+            null,
+            null,
             null);
     assertThat(t.currency()).isEqualTo("USD");
     assertThat(t.eurFxRate()).isEqualByComparingTo(fxRate);
@@ -97,6 +101,10 @@ class TransactionTest {
                     new BigDecimal("1000.00"),
                     BigDecimal.ONE,
                     null,
+                    null,
+                    null,
+                    null,
+                    null,
                     null))
         .isInstanceOf(InvalidTransactionException.class);
   }
@@ -119,6 +127,10 @@ class TransactionTest {
                     new BigDecimal("-1"),
                     BigDecimal.ONE,
                     null,
+                    null,
+                    null,
+                    null,
+                    null,
                     null))
         .isInstanceOf(InvalidTransactionException.class);
   }
@@ -140,6 +152,10 @@ class TransactionTest {
                     "EUR",
                     new BigDecimal("1000.00"),
                     BigDecimal.ZERO,
+                    null,
+                    null,
+                    null,
+                    null,
                     null,
                     null))
         .isInstanceOf(InvalidTransactionException.class);

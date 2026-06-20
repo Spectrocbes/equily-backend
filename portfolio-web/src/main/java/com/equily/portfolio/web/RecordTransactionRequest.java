@@ -20,7 +20,8 @@ public record RecordTransactionRequest(
     @DecimalMin(value = "0.0", message = "Brokerage fees cannot be negative") BigDecimal fees,
     String description,
     @Pattern(regexp = "EUR|USD|GBP|CHF", message = "Currency must be one of: EUR, USD, GBP, CHF")
-        String currency) {
+        String currency,
+    String externalAddress) {
 
   public RecordTransactionRequest {
     if (currency == null) currency = "EUR";

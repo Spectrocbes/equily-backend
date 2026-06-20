@@ -9,6 +9,7 @@ import com.equily.portfolio.domain.FinancialAccount;
 import com.equily.portfolio.domain.Transaction;
 import com.equily.portfolio.domain.TransactionId;
 import com.equily.portfolio.domain.TransactionType;
+import com.equily.portfolio.domain.TransferDirection;
 import com.equily.portfolio.domain.exception.AccountCardinalityException;
 import com.equily.portfolio.domain.exception.DepositLimitExceededException;
 import com.equily.shared.Money;
@@ -17,6 +18,7 @@ import java.time.LocalDate;
 import java.util.Currency;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class AccountBusinessRulesTest {
@@ -448,7 +450,11 @@ class AccountBusinessRulesTest {
             new BigDecimal("30000"),
             BigDecimal.ONE,
             new BigDecimal("140000"),
-            new BigDecimal("30000"));
+            new BigDecimal("30000"),
+            null,
+            null,
+            null,
+            null);
     peaAccount.recordTransaction(withdrawalAfter5y);
 
     // used = 110000 → 40000 more → 150000 == limit → OK
@@ -530,7 +536,11 @@ class AccountBusinessRulesTest {
             new BigDecimal("30000"),
             BigDecimal.ONE,
             new BigDecimal("140000"),
-            new BigDecimal("30000")));
+            new BigDecimal("30000"),
+            null,
+            null,
+            null,
+            null));
 
     Optional<Money> remaining =
         AccountBusinessRules.remainingCapacity(peaAccount, List.of(peaAccount));
@@ -607,7 +617,11 @@ class AccountBusinessRulesTest {
             new BigDecimal("29684.15"),
             BigDecimal.ONE,
             new BigDecimal("106000"),
-            new BigDecimal("30000")));
+            new BigDecimal("30000"),
+            null,
+            null,
+            null,
+            null));
 
     java.math.BigDecimal adjusted = AccountBusinessRules.computeAdjustedTotalDeposits(pea);
 
@@ -668,6 +682,76 @@ class AccountBusinessRulesTest {
     FinancialAccount existing = openAccount(AccountSubType.ASSURANCE_VIE);
     // ASSURANCE_VIE is not in the single-instance set — multiple are allowed
     AccountBusinessRules.validateCardinality(AccountSubType.ASSURANCE_VIE, List.of(existing));
+  }
+
+  private Transaction incomingTransfer(String amount) {
+    return Transaction.ofTransfer(
+        TransactionId.generate(),
+        new Money(new BigDecimal(amount), EUR),
+        TODAY,
+        "Transfer in",
+        UUID.randomUUID(),
+        UUID.randomUUID(),
+        null,
+        new BigDecimal(amount),
+        BigDecimal.ONE,
+        TransferDirection.INCOMING);
+  }
+
+  private Transaction outgoingTransfer(String amount) {
+    return Transaction.ofTransfer(
+        TransactionId.generate(),
+        new Money(new BigDecimal(amount), EUR),
+        TODAY,
+        "Transfer out",
+        UUID.randomUUID(),
+        UUID.randomUUID(),
+        null,
+        new BigDecimal(amount),
+        BigDecimal.ONE,
+        TransferDirection.OUTGOING);
+  }
+
+  @Test
+  void sumDeposits_counts_transfer_in_as_deposit() {
+    // PEA: 50 000 explicit deposit + 10 000 INCOMING transfer = 60 000 used.
+    // remainingCapacity = 150 000 - 60 000 = 90 000.
+    FinancialAccount pea = openPeaAccount(AccountSubType.PEA);
+    pea.recordTransaction(deposit("50000"));
+    pea.recordTransaction(incomingTransfer("10000"));
+
+    Optional<Money> remaining = AccountBusinessRules.remainingCapacity(pea, List.of(pea));
+    assertThat(remaining).isPresent();
+    assertThat(remaining.get().amount()).isEqualByComparingTo(new BigDecimal("90000"));
+  }
+
+  @Test
+  void sumDeposits_does_not_count_transfer_out() {
+    // PEA: 50 000 deposit + OUTGOING transfer (should NOT affect deposit counter).
+    // remainingCapacity = 150 000 - 50 000 = 100 000.
+    FinancialAccount pea = openPeaAccount(AccountSubType.PEA);
+    pea.recordTransaction(deposit("50000"));
+    pea.recordTransaction(outgoingTransfer("5000"));
+
+    Optional<Money> remaining = AccountBusinessRules.remainingCapacity(pea, List.of(pea));
+    assertThat(remaining).isPresent();
+    assertThat(remaining.get().amount()).isEqualByComparingTo(new BigDecimal("100000"));
+  }
+
+  @Test
+  void pea_capacity_updated_after_transfer_in_from_checking() {
+    // Without the fix, TRANSFER INCOMING is invisible → 140 000 used → 15 000 allowed.
+    // With the fix, 140 000 deposit + 20 000 transfer-in = 160 000 > 150 000 → throws.
+    FinancialAccount pea = openPeaAccount(AccountSubType.PEA);
+    pea.recordTransaction(deposit("140000"));
+    pea.recordTransaction(incomingTransfer("20000"));
+
+    assertThatThrownBy(
+            () ->
+                AccountBusinessRules.validateDeposit(
+                    pea, new Money(new BigDecimal("1"), EUR), List.of(pea)))
+        .isInstanceOf(DepositLimitExceededException.class)
+        .hasMessageContaining("PEA");
   }
 
   @Test

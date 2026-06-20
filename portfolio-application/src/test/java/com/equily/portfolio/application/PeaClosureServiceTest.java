@@ -366,7 +366,11 @@ class PeaClosureServiceTest {
             new BigDecimal("29684.15"),
             BigDecimal.ONE,
             new BigDecimal("106000"),
-            new BigDecimal("30000")));
+            new BigDecimal("30000"),
+            null,
+            null,
+            null,
+            null));
     // Prior PS tax transaction — no liqValue stored, not counted in replay
     account.recordTransaction(
         Transaction.ofEur(
