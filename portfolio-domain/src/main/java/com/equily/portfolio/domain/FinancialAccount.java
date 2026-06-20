@@ -7,6 +7,7 @@ import com.equily.portfolio.domain.exception.AccountClosedException;
 import com.equily.portfolio.domain.exception.InsufficientFundsException;
 import com.equily.portfolio.domain.exception.InvalidFinancialAccountException;
 import com.equily.portfolio.domain.exception.InvalidHoldingException;
+import com.equily.portfolio.domain.exception.InvalidTransactionException;
 import com.equily.portfolio.domain.exception.TransactionNotFoundException;
 import com.equily.shared.Money;
 import java.math.BigDecimal;
@@ -14,10 +15,13 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 public final class FinancialAccount {
@@ -27,7 +31,9 @@ public final class FinancialAccount {
   private static final Map<TransactionType, Integer> TYPE_PRIORITY =
       Map.of(
           TransactionType.DEPOSIT, 1,
+          TransactionType.TRANSFER, 1,
           TransactionType.WITHDRAWAL, 2,
+          TransactionType.PAYMENT, 2,
           TransactionType.DIVIDEND, 3,
           TransactionType.INTEREST, 3,
           TransactionType.BUY, 4,
@@ -44,6 +50,7 @@ public final class FinancialAccount {
   private final LocalDate openedAt;
   private AccountStatus status;
   private LocalDate closedAt;
+  private UUID linkedCheckingAccountId;
 
   private FinancialAccount(
       FinancialAccountId id,
@@ -69,9 +76,7 @@ public final class FinancialAccount {
    * Rebuilds a FinancialAccount from persisted state (DB round-trip). Does NOT replay transactions
    * through recordTransaction() — the stored balance is authoritative.
    *
-   * <p><strong>FOR INFRASTRUCTURE USE ONLY.</strong> Must only be called from {@code
-   * portfolio-infrastructure} repository adapters. Never call this from application or web layers —
-   * use {@link #open} instead.
+   * <p><strong>FOR INFRASTRUCTURE USE ONLY.</strong>
    */
   public static FinancialAccount reconstruct(
       FinancialAccountId id,
@@ -84,12 +89,14 @@ public final class FinancialAccount {
       AccountSubType subType,
       LocalDate openedAt,
       AccountStatus status,
-      LocalDate closedAt) {
+      LocalDate closedAt,
+      UUID linkedCheckingAccountId) {
     FinancialAccount account =
         new FinancialAccount(id, name, accountType, balance, broker, ownerId, subType, openedAt);
     account.transactions.addAll(transactions);
     account.status = status != null ? status : AccountStatus.ACTIVE;
     account.closedAt = closedAt;
+    account.linkedCheckingAccountId = linkedCheckingAccountId;
     return account;
   }
 
@@ -115,7 +122,6 @@ public final class FinancialAccount {
     }
     Objects.requireNonNull(ownerId, "ownerId must not be null");
     Objects.requireNonNull(openedAt, "openedAt must not be null");
-    // Account always starts at zero — initial balance is recorded as a DEPOSIT transaction
     Money zero = new Money(BigDecimal.ZERO, initialBalance.currency());
     FinancialAccount account =
         new FinancialAccount(
@@ -129,6 +135,7 @@ public final class FinancialAccount {
             openedAt);
     account.status = AccountStatus.ACTIVE;
     account.closedAt = null;
+    account.linkedCheckingAccountId = null;
     return account;
   }
 
@@ -136,6 +143,7 @@ public final class FinancialAccount {
     if (isClosed()) {
       throw new AccountClosedException(this.id());
     }
+    validateTransactionTypeForAccount(t.type());
     switch (t.type()) {
       case DEPOSIT, DIVIDEND, INTEREST -> balance = balance.add(t.totalAmount());
       case SELL -> {
@@ -147,7 +155,7 @@ public final class FinancialAccount {
         }
         balance = balance.add(t.totalAmount());
       }
-      case WITHDRAWAL -> {
+      case WITHDRAWAL, PAYMENT -> {
         Money newBalance = balance.subtract(t.totalAmount());
         if (newBalance.amount().compareTo(BigDecimal.ZERO) < 0) {
           throw new InsufficientFundsException(t.totalAmount(), balance);
@@ -161,8 +169,33 @@ public final class FinancialAccount {
         }
         balance = newBalance;
       }
+      case TRANSFER -> {
+        if (t.transferDirection() == TransferDirection.INCOMING) {
+          balance = balance.add(t.totalAmount());
+        } else {
+          Money newBalance = balance.subtract(t.totalAmount());
+          if (newBalance.amount().compareTo(BigDecimal.ZERO) < 0) {
+            throw new InsufficientFundsException(t.totalAmount(), balance);
+          }
+          balance = newBalance;
+        }
+      }
     }
     transactions.add(t);
+  }
+
+  private void validateTransactionTypeForAccount(TransactionType type) {
+    if (!allowedTransactionTypes().contains(type)) {
+      throw new InvalidTransactionException(
+          "Transaction type " + type + " is not allowed for account type " + this.accountType());
+    }
+  }
+
+  private Set<TransactionType> allowedTransactionTypes() {
+    return switch (this.accountType) {
+      case CASH_ACCOUNT, REAL_ESTATE -> EnumSet.allOf(TransactionType.class);
+      default -> EnumSet.complementOf(EnumSet.of(TransactionType.PAYMENT));
+    };
   }
 
   private BigDecimal computeNetQuantity(Ticker ticker) {
@@ -175,8 +208,6 @@ public final class FinancialAccount {
     return qty;
   }
 
-  // TODO: AssetInfo will be injected from MarketDataContext once that bounded context exists.
-  // The Map<Ticker, AssetInfo> parameter is a deliberate temporary coupling.
   public List<Holding> getHoldings(Map<Ticker, AssetInfo> assetInfoByTicker) {
     Map<Ticker, List<Transaction>> byTicker =
         transactions.stream()
@@ -239,6 +270,14 @@ public final class FinancialAccount {
     return closedAt;
   }
 
+  public UUID linkedCheckingAccountId() {
+    return linkedCheckingAccountId;
+  }
+
+  public void linkCheckingAccount(UUID id) {
+    this.linkedCheckingAccountId = id;
+  }
+
   public boolean isClosed() {
     return status == AccountStatus.CLOSED;
   }
@@ -279,7 +318,6 @@ public final class FinancialAccount {
             .findFirst()
             .orElseThrow(() -> new TransactionNotFoundException(id));
 
-    // amountEur for an edit: totalAmount is in EUR (controller hardcodes EUR currency for edits)
     BigDecimal updatedAmountEur = values.totalAmount().amount();
     Transaction updated =
         Transaction.of(
@@ -296,7 +334,11 @@ public final class FinancialAccount {
             updatedAmountEur,
             existing.eurFxRate(),
             existing.liquidationValueAtWithdrawal(),
-            existing.grossWithdrawalAmount());
+            existing.grossWithdrawalAmount(),
+            existing.transferId(),
+            existing.linkedAccountId(),
+            existing.externalAddress(),
+            existing.transferDirection());
 
     List<Transaction> newList =
         transactions.stream()
@@ -340,7 +382,11 @@ public final class FinancialAccount {
   private Money applyToBalance(Money bal, Transaction tx) {
     return switch (tx.type()) {
       case DEPOSIT, DIVIDEND, INTEREST, SELL -> bal.add(tx.totalAmount());
-      case WITHDRAWAL, BUY -> bal.subtract(tx.totalAmount());
+      case WITHDRAWAL, BUY, PAYMENT -> bal.subtract(tx.totalAmount());
+      case TRANSFER ->
+          tx.transferDirection() == TransferDirection.INCOMING
+              ? bal.add(tx.totalAmount())
+              : bal.subtract(tx.totalAmount());
     };
   }
 }

@@ -17,6 +17,7 @@ import com.equily.portfolio.domain.Ticker;
 import com.equily.portfolio.domain.Transaction;
 import com.equily.portfolio.domain.TransactionId;
 import com.equily.portfolio.domain.TransactionType;
+import com.equily.portfolio.domain.TransferDirection;
 import com.equily.portfolio.domain.UpdatedTransactionValues;
 import com.equily.portfolio.domain.account.AccountBusinessRules;
 import com.equily.portfolio.domain.account.AccountSubType;
@@ -108,11 +109,6 @@ class FinancialAccountController {
         useCase.getAccountById(new FinancialAccountId(UUID.fromString(id)), userId);
     List<FinancialAccount> allUserAccounts = useCase.getAllAccounts(userId);
     BigDecimal eurToTarget = eurToTarget(currency);
-    log.info(
-        "getAccount balance: {} eurToTarget: {} converted: {}",
-        account.balance().amount(),
-        eurToTarget,
-        account.balance().amount().multiply(eurToTarget));
     return ResponseEntity.ok(toAccountResponse(account, allUserAccounts, eurToTarget, currency));
   }
 
@@ -132,7 +128,8 @@ class FinancialAccountController {
             userId,
             subType,
             openedAt,
-            request.currency());
+            request.currency(),
+            request.linkedCheckingAccountId());
     FinancialAccountId id = useCase.createAccount(command);
     return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("id", id.value().toString()));
   }
@@ -162,7 +159,8 @@ class FinancialAccountController {
             request.date(),
             request.fees(),
             request.description(),
-            request.currency());
+            request.currency(),
+            request.externalAddress());
     useCase.recordTransaction(command);
     return ResponseEntity.noContent().build();
   }
@@ -406,7 +404,11 @@ class FinancialAccountController {
             : null;
     BigDecimal totalDeposits =
         account.transactions().stream()
-            .filter(t -> t.type() == TransactionType.DEPOSIT)
+            .filter(
+                t ->
+                    t.type() == TransactionType.DEPOSIT
+                        || (t.type() == TransactionType.TRANSFER
+                            && t.transferDirection() == TransferDirection.INCOMING))
             .map(t -> t.totalAmount().amount())
             .reduce(BigDecimal.ZERO, BigDecimal::add)
             .multiply(eurToTarget)
@@ -441,7 +443,8 @@ class FinancialAccountController {
         account.openedAt(),
         convertedPortfolioValue,
         account.status() != null ? account.status().name() : "ACTIVE",
-        account.closedAt());
+        account.closedAt(),
+        account.linkedCheckingAccountId());
   }
 
   private PeaWithdrawalSimulationResponse toSimulationResponse(PeaWithdrawalSimulation sim) {
@@ -497,6 +500,10 @@ class FinancialAccountController {
         tx.date(),
         feesDisplay,
         feesNative,
-        tx.description());
+        tx.description(),
+        tx.transferId() != null ? tx.transferId().toString() : null,
+        tx.linkedAccountId() != null ? tx.linkedAccountId().toString() : null,
+        tx.externalAddress(),
+        tx.transferDirection() != null ? tx.transferDirection().name() : null);
   }
 }

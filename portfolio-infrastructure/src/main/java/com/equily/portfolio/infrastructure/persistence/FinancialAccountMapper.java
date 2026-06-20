@@ -8,6 +8,7 @@ import com.equily.portfolio.domain.Ticker;
 import com.equily.portfolio.domain.Transaction;
 import com.equily.portfolio.domain.TransactionId;
 import com.equily.portfolio.domain.TransactionType;
+import com.equily.portfolio.domain.TransferDirection;
 import com.equily.portfolio.domain.account.AccountStatus;
 import com.equily.shared.Money;
 import java.util.ArrayList;
@@ -16,20 +17,8 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Maps between FinancialAccount (domain) and FinancialAccountJpaEntity (JPA). This is the
- * anti-corruption layer: the domain never knows about JPA. Static methods only — no state, no
- * Spring bean.
- *
- * <p>Mapping decisions:
- *
- * <ul>
- *   <li>AccountType enum ↔ String: AccountType.name() / AccountType.valueOf()
- *   <li>Money ↔ two columns: NUMERIC amount + CHAR(3) currency code
- *   <li>Ticker ↔ String (nullable — null for DEPOSIT / WITHDRAWAL / DIVIDEND)
- *   <li>TransactionType enum ↔ String: TransactionType.name() / TransactionType.valueOf()
- *   <li>FinancialAccountId / TransactionId ↔ UUID: via .value() and new XxxId(uuid)
- *   <li>UserId ↔ UUID: via .value() and new UserId(uuid)
- * </ul>
+ * Maps between FinancialAccount (domain) and FinancialAccountJpaEntity (JPA). Anti-corruption
+ * layer: the domain never knows about JPA. Static methods only.
  */
 class FinancialAccountMapper {
 
@@ -55,9 +44,6 @@ class FinancialAccountMapper {
     List<Transaction> transactions =
         entity.transactions.stream().map(FinancialAccountMapper::toDomainTransaction).toList();
 
-    // reconstruct() not open(): open() generates a new random ID and ignores any prior
-    // transactions. reconstruct() bypasses recordTransaction() so the persisted balance
-    // is used directly without re-deriving it from the transaction log.
     AccountStatus status = entity.status != null ? entity.status : AccountStatus.ACTIVE;
     return FinancialAccount.reconstruct(
         id,
@@ -70,7 +56,8 @@ class FinancialAccountMapper {
         entity.subType,
         entity.openedAt,
         status,
-        entity.closedAt);
+        entity.closedAt,
+        entity.linkedCheckingAccountId);
   }
 
   static void updateJpaEntity(FinancialAccountJpaEntity entity, FinancialAccount account) {
@@ -104,6 +91,7 @@ class FinancialAccountMapper {
     entity.openedAt = account.openedAt();
     entity.status = account.status() != null ? account.status() : AccountStatus.ACTIVE;
     entity.closedAt = account.closedAt();
+    entity.linkedCheckingAccountId = account.linkedCheckingAccountId();
   }
 
   private static void applyTransactionFields(
@@ -122,6 +110,11 @@ class FinancialAccountMapper {
     tx.eurFxRate = domain.eurFxRate();
     tx.liquidationValueAtWithdrawal = domain.liquidationValueAtWithdrawal();
     tx.grossWithdrawalAmount = domain.grossWithdrawalAmount();
+    tx.transferId = domain.transferId();
+    tx.linkedAccountId = domain.linkedAccountId();
+    tx.externalAddress = domain.externalAddress();
+    tx.transferDirection =
+        domain.transferDirection() != null ? domain.transferDirection().name() : null;
   }
 
   private static void updateJpaTransaction(
@@ -144,7 +137,8 @@ class FinancialAccountMapper {
     Money pricePerUnit =
         tx.pricePerUnit != null ? new Money(tx.pricePerUnit, Currency.getInstance("EUR")) : null;
     Money totalAmount = new Money(tx.totalAmount, Currency.getInstance("EUR"));
-    // Canonical record constructor: data comes from DB and was validated on write.
+    TransferDirection direction =
+        tx.transferDirection != null ? TransferDirection.valueOf(tx.transferDirection) : null;
     return new Transaction(
         id,
         type,
@@ -159,7 +153,11 @@ class FinancialAccountMapper {
         tx.amountEur,
         tx.eurFxRate,
         tx.liquidationValueAtWithdrawal,
-        tx.grossWithdrawalAmount);
+        tx.grossWithdrawalAmount,
+        tx.transferId,
+        tx.linkedAccountId,
+        tx.externalAddress,
+        direction);
   }
 
   private FinancialAccountMapper() {}

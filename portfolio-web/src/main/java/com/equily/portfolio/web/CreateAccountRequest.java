@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.UUID;
 
 public record CreateAccountRequest(
     @NotBlank String name,
@@ -12,4 +13,5 @@ public record CreateAccountRequest(
     @NotBlank String currency,
     @NotBlank String broker,
     String subType,
-    LocalDate openedAt) {}
+    LocalDate openedAt,
+    UUID linkedCheckingAccountId) {}

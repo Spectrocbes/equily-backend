@@ -12,6 +12,7 @@ import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 @AnalyzeClasses(packages = "com.equily", importOptions = ImportOption.DoNotIncludeTests.class)
 class CrossLayerArchitectureTest {
@@ -37,6 +38,7 @@ class CrossLayerArchitectureTest {
               AccountSubType.class,
               LocalDate.class,
               AccountStatus.class,
-              LocalDate.class)
+              LocalDate.class,
+              UUID.class)
           .as("reconstruct() must only be called from portfolio-infrastructure or domain tests");
 }

@@ -51,6 +51,9 @@ class FinancialAccountJpaEntity implements Persistable<UUID> {
   @Column(name = "closed_at")
   LocalDate closedAt;
 
+  @Column(name = "linked_checking_account_id")
+  UUID linkedCheckingAccountId;
+
   @OneToMany(
       mappedBy = "account",
       cascade = CascadeType.ALL,

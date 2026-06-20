@@ -14,6 +14,7 @@ import com.equily.portfolio.domain.exception.InsufficientFundsException;
 import com.equily.portfolio.domain.exception.InvalidHoldingException;
 import com.equily.portfolio.domain.exception.InvalidTransactionException;
 import com.equily.portfolio.domain.exception.TransactionNotFoundException;
+import com.equily.portfolio.domain.exception.TransferRoutingException;
 import com.equily.shared.exception.CurrencyMismatchException;
 import java.math.BigDecimal;
 import java.util.Map;
@@ -112,6 +113,11 @@ class GlobalExceptionHandler {
 
   @ExceptionHandler(PeaClosureException.class)
   ResponseEntity<String> handlePeaClosure(PeaClosureException ex) {
+    return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(ex.getMessage());
+  }
+
+  @ExceptionHandler(TransferRoutingException.class)
+  ResponseEntity<String> handleTransferRouting(TransferRoutingException ex) {
     return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(ex.getMessage());
   }
 

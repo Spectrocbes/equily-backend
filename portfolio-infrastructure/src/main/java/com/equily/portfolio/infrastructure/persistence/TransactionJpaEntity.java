@@ -57,5 +57,17 @@ class TransactionJpaEntity {
   @Column(name = "gross_withdrawal_amount", precision = 19, scale = 4)
   BigDecimal grossWithdrawalAmount;
 
+  @Column(name = "transfer_id")
+  UUID transferId;
+
+  @Column(name = "linked_account_id")
+  UUID linkedAccountId;
+
+  @Column(name = "external_address", length = 255)
+  String externalAddress;
+
+  @Column(name = "transfer_direction", length = 10)
+  String transferDirection;
+
   protected TransactionJpaEntity() {}
 }

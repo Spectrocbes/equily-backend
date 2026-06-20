@@ -210,6 +210,10 @@ class HoldingTest {
             new BigDecimal("920.0000"),
             fxRate,
             null,
+            null,
+            null,
+            null,
+            null,
             null);
     Optional<Holding> result = Holding.computeFrom(List.of(usdBuy), STOCK, META);
 

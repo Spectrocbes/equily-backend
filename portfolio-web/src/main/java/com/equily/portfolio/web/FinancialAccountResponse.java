@@ -2,6 +2,7 @@ package com.equily.portfolio.web;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.UUID;
 
 public record FinancialAccountResponse(
     String id,
@@ -18,4 +19,5 @@ public record FinancialAccountResponse(
     LocalDate openedAt,
     BigDecimal portfolioValue,
     String status,
-    LocalDate closedAt) {}
+    LocalDate closedAt,
+    UUID linkedCheckingAccountId) {}

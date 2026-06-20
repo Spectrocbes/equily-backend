@@ -81,7 +81,8 @@ class FinancialAccountServiceTest {
             UserId.generate(),
             null,
             OPENED_AT,
-            "EUR");
+            "EUR",
+            null);
 
     FinancialAccountId result = service.createAccount(command);
 
@@ -101,7 +102,8 @@ class FinancialAccountServiceTest {
             UserId.generate(),
             AccountSubType.LIVRET_A,
             OPENED_AT,
-            "EUR");
+            "EUR",
+            null);
 
     service.createAccount(command);
 
@@ -120,7 +122,8 @@ class FinancialAccountServiceTest {
             UserId.generate(),
             null,
             OPENED_AT,
-            "EUR");
+            "EUR",
+            null);
 
     service.createAccount(command);
 
@@ -145,7 +148,8 @@ class FinancialAccountServiceTest {
             LocalDate.of(2026, 5, 24),
             null,
             null,
-            "EUR");
+            "EUR",
+            null);
 
     service.recordTransaction(command);
 
@@ -170,7 +174,8 @@ class FinancialAccountServiceTest {
             LocalDate.of(2026, 5, 24),
             null,
             null,
-            "EUR");
+            "EUR",
+            null);
 
     assertThatThrownBy(() -> service.recordTransaction(command))
         .isInstanceOf(AccountNotFoundException.class);
@@ -216,7 +221,8 @@ class FinancialAccountServiceTest {
             LocalDate.of(2026, 5, 24),
             null,
             null,
-            "EUR");
+            "EUR",
+            null);
 
     assertThatThrownBy(() -> service.recordTransaction(command))
         .isInstanceOf(DepositLimitExceededException.class);
@@ -239,7 +245,8 @@ class FinancialAccountServiceTest {
             LocalDate.of(2026, 5, 24),
             null,
             null,
-            "EUR");
+            "EUR",
+            null);
 
     assertThatThrownBy(() -> service.recordTransaction(command))
         .isInstanceOf(AccountNotFoundException.class);
@@ -651,7 +658,7 @@ class FinancialAccountServiceTest {
     when(repository.findById(livretA.id())).thenReturn(Optional.of(livretA));
     when(repository.findAllByOwnerId(ownerId)).thenReturn(List.of(livretA));
 
-    // Edit the deposit to 23 000€ — exceeds 22 950€ Livret A cap
+    // Edit the deposit to 23 000â‚¬ â€” exceeds 22 950â‚¬ Livret A cap
     UpdatedTransactionValues values =
         new UpdatedTransactionValues(
             null,
@@ -695,7 +702,7 @@ class FinancialAccountServiceTest {
     when(repository.findById(livretA.id())).thenReturn(Optional.of(livretA));
     when(repository.findAllByOwnerId(ownerId)).thenReturn(List.of(livretA));
 
-    // Edit to 22 000€ — still under 22 950€ cap
+    // Edit to 22 000â‚¬ â€” still under 22 950â‚¬ cap
     UpdatedTransactionValues values =
         new UpdatedTransactionValues(
             null,
@@ -739,7 +746,7 @@ class FinancialAccountServiceTest {
     when(repository.findById(pea.id())).thenReturn(Optional.of(pea));
     when(repository.findAllByOwnerId(ownerId)).thenReturn(List.of(pea));
 
-    // Edit to 160 000€ — exceeds 150 000€ PEA cap
+    // Edit to 160 000â‚¬ â€” exceeds 150 000â‚¬ PEA cap
     UpdatedTransactionValues values =
         new UpdatedTransactionValues(
             null,
@@ -794,7 +801,7 @@ class FinancialAccountServiceTest {
     pea.recordTransaction(buy);
     when(repository.findById(pea.id())).thenReturn(Optional.of(pea));
 
-    // Edit the BUY — type is not DEPOSIT so no deposit limit check runs
+    // Edit the BUY â€” type is not DEPOSIT so no deposit limit check runs
     UpdatedTransactionValues values =
         new UpdatedTransactionValues(
             new BigDecimal("5"),
@@ -1289,10 +1296,10 @@ class FinancialAccountServiceTest {
             null));
     when(repository.findById(any())).thenReturn(Optional.of(account));
 
-    // Quote in USD, target is USD → liveToTarget short-circuits to ONE (no FX call for live)
+    // Quote in USD, target is USD â†’ liveToTarget short-circuits to ONE (no FX call for live)
     Quote quote = new Quote("AAPL", new BigDecimal("100.00"), "USD", "Apple", Instant.now(), null);
     when(marketDataPort.getQuotes(List.of("AAPL"))).thenReturn(Map.of("AAPL", quote));
-    // costToTarget: EUR→USD because targetCurrency != "EUR"
+    // costToTarget: EURâ†’USD because targetCurrency != "EUR"
     when(fxRatePort.getRate("EUR", "USD")).thenReturn(Optional.of(new BigDecimal("1.10")));
 
     List<EnrichedHolding> result = service.getEnrichedHoldings(account.id(), ownerId, "USD");
@@ -1318,7 +1325,8 @@ class FinancialAccountServiceTest {
             ownerId,
             AccountSubType.LIVRET_A,
             OPENED_AT,
-            "USD");
+            "USD",
+            null);
 
     service.createAccount(command);
 
@@ -1343,7 +1351,8 @@ class FinancialAccountServiceTest {
             ownerId,
             null,
             OPENED_AT,
-            "USD");
+            "USD",
+            null);
     when(fxRatePort.getRateToEur(eq("USD"), any(LocalDate.class)))
         .thenReturn(Optional.of(new BigDecimal("0.920000")));
 
@@ -1360,7 +1369,7 @@ class FinancialAccountServiceTest {
   @Test
   void createAccount_initial_deposit_forces_eur_for_pea() {
     UserId ownerId = UserId.generate();
-    // Client sends USD but PEA is EUR-only — service must force EUR
+    // Client sends USD but PEA is EUR-only â€” service must force EUR
     Money initialBalance = new Money(new BigDecimal("1000"), Currency.getInstance("USD"));
     CreateFinancialAccountCommand command =
         new CreateFinancialAccountCommand(
@@ -1371,7 +1380,8 @@ class FinancialAccountServiceTest {
             ownerId,
             AccountSubType.PEA,
             OPENED_AT,
-            "USD");
+            "USD",
+            null);
 
     service.createAccount(command);
 
@@ -1419,10 +1429,10 @@ class FinancialAccountServiceTest {
             null));
     when(repository.findAllByOwnerId(ownerId)).thenReturn(List.of(pea));
 
-    // Quote in USD, target is USD → liveToTarget short-circuits to ONE
+    // Quote in USD, target is USD â†’ liveToTarget short-circuits to ONE
     Quote quote = new Quote("AAPL", new BigDecimal("100.00"), "USD", "Apple", Instant.now(), null);
     when(marketDataPort.getQuotes(List.of("AAPL"))).thenReturn(Map.of("AAPL", quote));
-    // costToTarget: EUR→USD
+    // costToTarget: EURâ†’USD
     when(fxRatePort.getRate("EUR", "USD")).thenReturn(Optional.of(new BigDecimal("1.10")));
 
     List<AccountPortfolioSummary> result = service.getPortfolioSummaries(ownerId, "USD");
@@ -1608,7 +1618,8 @@ class FinancialAccountServiceTest {
             LocalDate.of(2026, 6, 1),
             BigDecimal.ZERO,
             null,
-            "EUR");
+            "EUR",
+            null);
 
     service.recordTransaction(command);
 
@@ -1620,7 +1631,7 @@ class FinancialAccountServiceTest {
 
   @Test
   void recordTransaction_stores_eur_fx_rate_for_usd_transaction() {
-    // CRYPTO_WALLET is not EUR-only — USD transactions are permitted
+    // CRYPTO_WALLET is not EUR-only â€” USD transactions are permitted
     UserId ownerId = UserId.generate();
     FinancialAccount account =
         FinancialAccount.open(
@@ -1659,7 +1670,8 @@ class FinancialAccountServiceTest {
             txDate,
             BigDecimal.ZERO,
             null,
-            "USD");
+            "USD",
+            null);
 
     service.recordTransaction(command);
 
@@ -1709,7 +1721,8 @@ class FinancialAccountServiceTest {
             LocalDate.of(2026, 6, 1),
             BigDecimal.ZERO,
             null,
-            "EUR");
+            "EUR",
+            null);
 
     assertThatThrownBy(() -> service.recordTransaction(command))
         .isInstanceOf(DepositLimitExceededException.class);
@@ -1732,7 +1745,8 @@ class FinancialAccountServiceTest {
             LocalDate.of(2026, 6, 1),
             BigDecimal.ZERO,
             null,
-            "USD"); // client sends USD, but PEA is EUR-only
+            "USD",
+            null); // client sends USD, but PEA is EUR-only
 
     service.recordTransaction(command);
 
@@ -1781,18 +1795,19 @@ class FinancialAccountServiceTest {
             txDate,
             BigDecimal.ZERO,
             null,
-            "USD");
+            "USD",
+            null);
 
     service.recordTransaction(command);
 
     Transaction recorded = account.transactions().get(account.transactions().size() - 1);
-    // totalAmount in domain must always be EUR — currency mismatch with EUR balance would throw
+    // totalAmount in domain must always be EUR â€” currency mismatch with EUR balance would throw
     assertThat(recorded.totalAmount().amount()).isEqualByComparingTo(new BigDecimal("920.0000"));
     assertThat(recorded.totalAmount().currency()).isEqualTo(EUR);
     assertThat(recorded.currency()).isEqualTo("USD");
   }
 
-  // --- PEA ≥5y WITHDRAWAL fiscal split tests ---
+  // --- PEA â‰¥5y WITHDRAWAL fiscal split tests ---
 
   private static final LocalDate OVER_5Y_AGO = LocalDate.of(2019, 1, 1);
 
@@ -1810,7 +1825,8 @@ class FinancialAccountServiceTest {
 
   @Test
   void recordTransaction_pea_over5y_withdrawal_applies_ps_tax() {
-    // totalDeposits=100000, dividend=6000 → balance=106000, no holdings → liquidationValue=106000
+    // totalDeposits=100000, dividend=6000 â†’ balance=106000, no holdings â†’
+    // liquidationValue=106000
     // gainGlobal=6000, gainRatio=6000/106000=0.056604
     // withdrawal=10000, taxableGain=566.04, psTax=105.28, netAmount=9894.72
     FinancialAccount account = openPeaOver5y();
@@ -1850,7 +1866,8 @@ class FinancialAccountServiceTest {
             LocalDate.of(2026, 6, 12),
             BigDecimal.ZERO,
             null,
-            "EUR");
+            "EUR",
+            null);
 
     service.recordTransaction(command);
 
@@ -1870,8 +1887,9 @@ class FinancialAccountServiceTest {
 
   @Test
   void recordTransaction_pea_over5y_withdrawal_no_tax_when_at_loss() {
-    // totalDeposits=100000, withdrawal=20000 pre-existing → balance=80000 < totalDeposits → atLoss
-    // gainGlobal=max(-20000,0)=0 → psTax=0 → only 1 new WITHDRAWAL (no tax split)
+    // totalDeposits=100000, withdrawal=20000 pre-existing â†’ balance=80000 < totalDeposits â†’
+    // atLoss
+    // gainGlobal=max(-20000,0)=0 â†’ psTax=0 â†’ only 1 new WITHDRAWAL (no tax split)
     FinancialAccount account = openPeaOver5y();
     account.recordTransaction(
         Transaction.ofEur(
@@ -1909,7 +1927,8 @@ class FinancialAccountServiceTest {
             LocalDate.of(2026, 6, 12),
             BigDecimal.ZERO,
             null,
-            "EUR");
+            "EUR",
+            null);
 
     service.recordTransaction(command);
 
@@ -1922,7 +1941,7 @@ class FinancialAccountServiceTest {
 
   @Test
   void recordTransaction_pea_under5y_withdrawal_no_automatic_tax() {
-    // PEA <5y → isPeaOlderThan5Years=false → normal WITHDRAWAL path, no fiscal split
+    // PEA <5y â†’ isPeaOlderThan5Years=false â†’ normal WITHDRAWAL path, no fiscal split
     UserId ownerId = UserId.generate();
     FinancialAccount account =
         FinancialAccount.open(
@@ -1932,7 +1951,7 @@ class FinancialAccountServiceTest {
             "Fortuneo",
             ownerId,
             AccountSubType.PEA,
-            OPENED_AT); // 2024-01-01 — under 5 years
+            OPENED_AT); // 2024-01-01 â€” under 5 years
     account.recordTransaction(
         Transaction.ofEur(
             TransactionId.generate(),
@@ -1958,7 +1977,8 @@ class FinancialAccountServiceTest {
             LocalDate.of(2026, 6, 12),
             BigDecimal.ZERO,
             null,
-            "EUR");
+            "EUR",
+            null);
 
     service.recordTransaction(command);
 
@@ -1985,7 +2005,8 @@ class FinancialAccountServiceTest {
             ownerId,
             AccountSubType.LIVRET_A,
             OPENED_AT,
-            "EUR");
+            "EUR",
+            null);
 
     assertThatThrownBy(() -> service.createAccount(command))
         .isInstanceOf(DepositLimitExceededException.class);
@@ -2007,14 +2028,15 @@ class FinancialAccountServiceTest {
 
     CreateFinancialAccountCommand command =
         new CreateFinancialAccountCommand(
-            "Deuxième Livret A",
+            "DeuxiÃ¨me Livret A",
             AccountType.SAVINGS_ACCOUNT,
             new Money(BigDecimal.ZERO, EUR),
             "BNP",
             ownerId,
             AccountSubType.LIVRET_A,
             OPENED_AT,
-            "EUR");
+            "EUR",
+            null);
 
     assertThatThrownBy(() -> service.createAccount(command))
         .isInstanceOf(AccountCardinalityException.class)
@@ -2044,7 +2066,8 @@ class FinancialAccountServiceTest {
             ownerId,
             AccountSubType.PEA_PME,
             OPENED_AT,
-            "EUR");
+            "EUR",
+            null);
 
     FinancialAccountId result = service.createAccount(command);
 
@@ -2074,7 +2097,8 @@ class FinancialAccountServiceTest {
             ownerId,
             AccountSubType.PEA,
             OPENED_AT,
-            "EUR");
+            "EUR",
+            null);
 
     assertThatThrownBy(() -> service.createAccount(command))
         .isInstanceOf(AccountCardinalityException.class)
@@ -2164,7 +2188,8 @@ class FinancialAccountServiceTest {
             txDate,
             new BigDecimal("10"),
             null,
-            "USD");
+            "USD",
+            null);
 
     service.recordTransaction(command);
 

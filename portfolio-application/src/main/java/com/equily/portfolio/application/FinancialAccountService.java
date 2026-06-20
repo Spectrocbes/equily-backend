@@ -85,7 +85,9 @@ class FinancialAccountService implements FinancialAccountUseCase {
   private static final Map<TransactionType, Integer> TYPE_PRIORITY =
       Map.of(
           TransactionType.DEPOSIT, 1,
+          TransactionType.TRANSFER, 1,
           TransactionType.WITHDRAWAL, 2,
+          TransactionType.PAYMENT, 2,
           TransactionType.DIVIDEND, 3,
           TransactionType.INTEREST, 3,
           TransactionType.BUY, 4,
@@ -125,6 +127,10 @@ class FinancialAccountService implements FinancialAccountUseCase {
             command.subType(),
             command.openedAt());
 
+    if (command.linkedCheckingAccountId() != null) {
+      account.linkCheckingAccount(command.linkedCheckingAccountId());
+    }
+
     if (command.initialBalance().amount().compareTo(BigDecimal.ZERO) > 0) {
       String currency = isEurOnly(account) ? "EUR" : command.currency();
       BigDecimal eurFxRate =
@@ -142,7 +148,7 @@ class FinancialAccountService implements FinancialAccountUseCase {
       }
 
       Money domainAmount = new Money(amountEur, Currency.getInstance("EUR"));
-      Transaction initialDeposit =
+      Transaction initialTx =
           Transaction.of(
               TransactionId.generate(),
               TransactionType.DEPOSIT,
@@ -157,8 +163,12 @@ class FinancialAccountService implements FinancialAccountUseCase {
               amountEur,
               eurFxRate,
               null,
+              null,
+              null,
+              null,
+              null,
               null);
-      account.recordTransaction(initialDeposit);
+      account.recordTransaction(initialTx);
     }
 
     repository.save(account);
@@ -229,6 +239,10 @@ class FinancialAccountService implements FinancialAccountUseCase {
             amountEur,
             eurFxRate,
             null,
+            null,
+            null,
+            null,
+            command.externalAddress(),
             null);
 
     account.recordTransaction(transaction);
@@ -546,7 +560,11 @@ class FinancialAccountService implements FinancialAccountUseCase {
             netAmount,
             BigDecimal.ONE,
             liquidationValue,
-            withdrawalAmount));
+            withdrawalAmount,
+            null,
+            null,
+            null,
+            null));
 
     if (psTax.compareTo(BigDecimal.ZERO) > 0) {
       account.recordTransaction(
