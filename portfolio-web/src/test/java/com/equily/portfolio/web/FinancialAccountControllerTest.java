@@ -474,7 +474,7 @@ class FinancialAccountControllerTest {
   }
 
   @Test
-  void recordTransaction_throws_InvalidTransactionException_returns_400() throws Exception {
+  void recordTransaction_throws_InvalidTransactionException_returns_422() throws Exception {
     when(useCase.getAccountById(any(), any())).thenReturn(testAccount);
     doThrow(new InvalidTransactionException("bad tx")).when(useCase).recordTransaction(any());
 
@@ -488,7 +488,7 @@ class FinancialAccountControllerTest {
                     {"type": "DEPOSIT", "totalAmount": 500,
                      "date": "2026-05-24", "fees": 0}
                     """))
-        .andExpect(status().isBadRequest())
+        .andExpect(status().isUnprocessableEntity())
         .andExpect(content().string("bad tx"));
   }
 
