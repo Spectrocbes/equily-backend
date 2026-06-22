@@ -68,7 +68,7 @@ class GlobalExceptionHandler {
 
   @ExceptionHandler(InvalidTransactionException.class)
   ResponseEntity<String> handleInvalidTransaction(InvalidTransactionException ex) {
-    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
+    return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(ex.getMessage());
   }
 
   @ExceptionHandler(IllegalArgumentException.class)
