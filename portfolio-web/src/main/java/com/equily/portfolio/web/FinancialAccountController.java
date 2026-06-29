@@ -402,17 +402,30 @@ class FinancialAccountController {
         rawDepositLimit != null
             ? rawDepositLimit.multiply(eurToTarget).setScale(2, RoundingMode.HALF_EVEN)
             : null;
-    BigDecimal totalDeposits =
-        account.transactions().stream()
-            .filter(
-                t ->
-                    t.type() == TransactionType.DEPOSIT
-                        || (t.type() == TransactionType.TRANSFER
-                            && t.transferDirection() == TransferDirection.INCOMING))
-            .map(t -> t.totalAmount().amount())
-            .reduce(BigDecimal.ZERO, BigDecimal::add)
-            .multiply(eurToTarget)
-            .setScale(2, RoundingMode.HALF_EVEN);
+    // PEA-PME: show combined PEA+PEA-PME deposits vs the 225k combined cap
+    BigDecimal totalDeposits;
+    if (subType == AccountSubType.PEA_PME) {
+      totalDeposits =
+          allUserAccounts.stream()
+              .filter(
+                  a -> a.subType() == AccountSubType.PEA || a.subType() == AccountSubType.PEA_PME)
+              .map(AccountBusinessRules::computePublicTotalDeposits)
+              .reduce(BigDecimal.ZERO, BigDecimal::add)
+              .multiply(eurToTarget)
+              .setScale(2, RoundingMode.HALF_EVEN);
+    } else {
+      totalDeposits =
+          account.transactions().stream()
+              .filter(
+                  t ->
+                      t.type() == TransactionType.DEPOSIT
+                          || (t.type() == TransactionType.TRANSFER
+                              && t.transferDirection() == TransferDirection.INCOMING))
+              .map(t -> t.totalAmount().amount())
+              .reduce(BigDecimal.ZERO, BigDecimal::add)
+              .multiply(eurToTarget)
+              .setScale(2, RoundingMode.HALF_EVEN);
+    }
     BigDecimal rawRemainingCapacity =
         AccountBusinessRules.remainingCapacity(account, allUserAccounts)
             .map(Money::amount)
@@ -427,6 +440,21 @@ class FinancialAccountController {
     BigDecimal convertedPortfolioValue =
         rawPortfolioValue != null
             ? rawPortfolioValue.multiply(eurToTarget).setScale(2, RoundingMode.HALF_EVEN)
+            : null;
+    BigDecimal ownDeposits =
+        account.transactions().stream()
+            .filter(
+                t ->
+                    t.type() == TransactionType.DEPOSIT
+                        || (t.type() == TransactionType.TRANSFER
+                            && t.transferDirection() == TransferDirection.INCOMING))
+            .map(Transaction::amountEur)
+            .reduce(BigDecimal.ZERO, BigDecimal::add)
+            .multiply(eurToTarget)
+            .setScale(2, RoundingMode.HALF_EVEN);
+    String depositNote =
+        subType == AccountSubType.PEA_PME && totalDeposits.compareTo(ownDeposits) > 0
+            ? "Includes deposits from linked PEA"
             : null;
     return new FinancialAccountResponse(
         account.id().value().toString(),
@@ -444,7 +472,9 @@ class FinancialAccountController {
         convertedPortfolioValue,
         account.status() != null ? account.status().name() : "ACTIVE",
         account.closedAt(),
-        account.linkedCheckingAccountId());
+        account.linkedCheckingAccountId(),
+        ownDeposits,
+        depositNote);
   }
 
   private PeaWithdrawalSimulationResponse toSimulationResponse(PeaWithdrawalSimulation sim) {

@@ -20,4 +20,6 @@ public record FinancialAccountResponse(
     BigDecimal portfolioValue,
     String status,
     LocalDate closedAt,
-    UUID linkedCheckingAccountId) {}
+    UUID linkedCheckingAccountId,
+    BigDecimal ownDeposits,
+    String depositNote) {}

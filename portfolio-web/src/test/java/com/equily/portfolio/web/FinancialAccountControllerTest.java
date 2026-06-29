@@ -1169,6 +1169,103 @@ class FinancialAccountControllerTest {
   }
 
   @Test
+  void toAccountResponse_pea_pme_shows_own_deposits_and_deposit_note() throws Exception {
+    UserId userId = UserId.generate();
+    FinancialAccount pea =
+        FinancialAccount.open(
+            "Mon PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, Currency.getInstance("EUR")),
+            "Fortuneo",
+            userId,
+            AccountSubType.PEA,
+            LocalDate.of(2020, 1, 1));
+    pea.recordTransaction(
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("30000"), Currency.getInstance("EUR")),
+            LocalDate.of(2020, 6, 1),
+            BigDecimal.ZERO,
+            null));
+
+    FinancialAccount peaPme =
+        FinancialAccount.open(
+            "Mon PEA-PME",
+            AccountType.PEA_PME,
+            new Money(BigDecimal.ZERO, Currency.getInstance("EUR")),
+            "Fortuneo",
+            userId,
+            AccountSubType.PEA_PME,
+            LocalDate.of(2021, 1, 1));
+    peaPme.recordTransaction(
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("10000"), Currency.getInstance("EUR")),
+            LocalDate.of(2021, 6, 1),
+            BigDecimal.ZERO,
+            null));
+
+    FinancialAccountId id = peaPme.id();
+    when(useCase.getAccountById(eq(id), any())).thenReturn(peaPme);
+    when(useCase.getAllAccounts(any())).thenReturn(List.of(pea, peaPme));
+
+    mockMvc
+        .perform(
+            get("/api/v1/accounts/{id}", id.value().toString())
+                .with(
+                    authentication(
+                        new UsernamePasswordAuthenticationToken(userId, null, List.of()))))
+        .andExpect(status().isOk())
+        // ownDeposits = only PEA-PME's 10 000
+        .andExpect(jsonPath("$.ownDeposits").value(10000.00))
+        // combined 40 000 > own 10 000 → note is present
+        .andExpect(jsonPath("$.depositNote").value("Includes deposits from linked PEA"));
+  }
+
+  @Test
+  void toAccountResponse_non_pea_pme_has_no_deposit_note() throws Exception {
+    FinancialAccount pea =
+        FinancialAccount.open(
+            "Mon PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, Currency.getInstance("EUR")),
+            "Fortuneo",
+            testUserId,
+            AccountSubType.PEA,
+            LocalDate.of(2020, 1, 1));
+    pea.recordTransaction(
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("20000"), Currency.getInstance("EUR")),
+            LocalDate.of(2020, 6, 1),
+            BigDecimal.ZERO,
+            null));
+
+    FinancialAccountId id = pea.id();
+    when(useCase.getAccountById(eq(id), any())).thenReturn(pea);
+    when(useCase.getAllAccounts(any())).thenReturn(List.of(pea));
+
+    mockMvc
+        .perform(
+            get("/api/v1/accounts/{id}", id.value().toString()).with(authentication(mockAuth())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.ownDeposits").value(20000.00))
+        .andExpect(jsonPath("$.depositNote").doesNotExist());
+  }
+
+  @Test
   void deleteTransaction_returns_422_when_account_closed() throws Exception {
     UUID txId = UUID.randomUUID();
     doThrow(new AccountClosedException(testAccount.id()))

@@ -545,6 +545,30 @@
   `POST /api/v1/transfers` endpoint — all complete.
 - 514 tests, 0 failures, 10/10 modules green.
 
+## 2026-06-29 — Phase 3: Portfolio analytics charts
+
+- `PortfolioHistoryPoint`, `GeographicExposure`, `TopPerformer` domain records in `portfolio-domain/analytics`
+- `MarketDataPort.getHistoricalPrices(List<Ticker>, LocalDate from, LocalDate to)` added; `YahooFinanceAdapter`
+  implements it via `/v8/finance/chart/{symbol}?interval=1d` — returns `Map<LocalDate, BigDecimal>` per ticker
+- `PortfolioAnalyticsService` (`@Service @Transactional(readOnly=true)`, package-private) in `portfolio-application`:
+  `getPortfolioHistory`, `getAccountHistory`, `getPortfolioHistoryByType`, `getGeographicExposure`, `getTopPerformers`
+- `computeBalanceAsOf(List<Transaction>, LocalDate)` mirrors domain `applyToBalance` logic (BUY/SELL correct,
+  DEPOSIT/WITHDRAWAL/DIVIDEND/INTEREST/TRANSFER handled)
+- Per-quote FX rate for historical prices: each data point converts the asset value to target currency using
+  the Yahoo FX quote fetched alongside the price series
+- `Period` enum in `portfolio-application` (1D, 1W, 1M, YTD, 1Y, ALL) with `toStartDate(LocalDate)` — ALL clamps
+  to `account.openedAt()` so history never starts before the account existed
+- Initial deposit transaction uses `openedAt` as its date (not `now()`) — ensures history for ALL period is
+  non-zero from day one
+- 4 new REST endpoints on `PortfolioAnalyticsController`:
+  - `GET /api/v1/analytics/history?period=&currency=&accountType=`
+  - `GET /api/v1/analytics/accounts/{id}/history?period=&currency=`
+  - `GET /api/v1/analytics/accounts/{id}/geographic-exposure?currency=`
+  - `GET /api/v1/analytics/top-performers?period=&currency=&limit=`
+- Response DTOs: `PortfolioHistoryPointResponse`, `GeographicExposureResponse`, `TopPerformerResponse`
+- `PortfolioAnalyticsUseCase` input port + `PortfolioAnalyticsControllerTest` (`@WebMvcTest`)
+- 547 tests, 0 failures, 10/10 modules green
+
 ## Architecture Decisions
 
 - Lombok is forbidden everywhere. Java 21 records replace POJOs; explicit methods replace generated ones.

@@ -148,6 +148,7 @@ class FinancialAccountService implements FinancialAccountUseCase {
       }
 
       Money domainAmount = new Money(amountEur, Currency.getInstance("EUR"));
+      LocalDate depositDate = command.openedAt() != null ? command.openedAt() : LocalDate.now();
       Transaction initialTx =
           Transaction.of(
               TransactionId.generate(),
@@ -156,7 +157,7 @@ class FinancialAccountService implements FinancialAccountUseCase {
               null,
               null,
               domainAmount,
-              LocalDate.now(),
+              depositDate,
               BigDecimal.ZERO,
               "Initial deposit",
               currency,

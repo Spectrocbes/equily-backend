@@ -235,6 +235,11 @@ public final class AccountBusinessRules {
    * <p>For each such post-anniversary withdrawal: capitalRatio = runningDeposits / liqValue;
    * withdrawnCapital = grossAmount × capitalRatio; runningDeposits -= withdrawnCapital.
    */
+  /** Returns the raw sum of DEPOSIT + TRANSFER INCOMING amounts for an account (EUR). */
+  public static BigDecimal computePublicTotalDeposits(FinancialAccount account) {
+    return sumDeposits(account).amount();
+  }
+
   /** Public alias used by TransferService for Loi Pacte capacity replay. */
   public static BigDecimal computeAdjustedTotalDepositsForCapacity(FinancialAccount account) {
     return computeAdjustedTotalDeposits(account);

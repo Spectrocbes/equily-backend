@@ -1106,6 +1106,31 @@ class FinancialAccountServiceTest {
   }
 
   @Test
+  void createAccount_initial_deposit_uses_openedAt_as_date() {
+    UserId ownerId = UserId.generate();
+    LocalDate openedAt = LocalDate.of(2022, 3, 15);
+    Money initialBalance = new Money(new BigDecimal("5000"), EUR);
+    CreateFinancialAccountCommand command =
+        new CreateFinancialAccountCommand(
+            "Mon PEA",
+            AccountType.PEA,
+            initialBalance,
+            "Fortuneo",
+            ownerId,
+            AccountSubType.PEA,
+            openedAt,
+            "EUR",
+            null);
+
+    service.createAccount(command);
+
+    ArgumentCaptor<FinancialAccount> captor = ArgumentCaptor.forClass(FinancialAccount.class);
+    verify(repository).save(captor.capture());
+    Transaction deposit = captor.getValue().transactions().get(0);
+    assertThat(deposit.date()).isEqualTo(openedAt);
+  }
+
+  @Test
   void getPortfolioSummaries_returns_live_values_when_prices_available() {
     UserId ownerId = UserId.generate();
     FinancialAccount pea =
