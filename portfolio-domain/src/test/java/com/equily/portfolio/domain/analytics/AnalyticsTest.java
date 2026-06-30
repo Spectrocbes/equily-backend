@@ -4,13 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.Month;
 import org.junit.jupiter.api.Test;
 
 class AnalyticsTest {
 
   @Test
   void portfolioHistoryPoint_creates_with_all_fields() {
-    LocalDate date = LocalDate.of(2026, 6, 1);
+    LocalDate date = LocalDate.of(2026, Month.JUNE, 1);
     BigDecimal totalValue = new BigDecimal("10500.00");
     BigDecimal invested = new BigDecimal("9000.00");
     BigDecimal pnl = new BigDecimal("1500.00");

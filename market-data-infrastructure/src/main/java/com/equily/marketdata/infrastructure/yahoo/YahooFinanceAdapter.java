@@ -24,6 +24,10 @@ public class YahooFinanceAdapter {
   private static final Logger log = LoggerFactory.getLogger(YahooFinanceAdapter.class);
 
   private static final String BASE_URL = "https://query1.finance.yahoo.com/v8/finance/chart/";
+  private static final String USER_AGENT_HEADER = "User-Agent";
+  private static final String USER_AGENT_VALUE = "Mozilla/5.0 (compatible; Equily/1.0)";
+  private static final String JSON_KEY_CHART = "chart";
+  private static final String JSON_KEY_RESULT = "result";
 
   private final RestClient restClient;
   private final ObjectMapper objectMapper;
@@ -39,7 +43,7 @@ public class YahooFinanceAdapter {
           restClient
               .get()
               .uri(BASE_URL + symbol + "?interval=1d&range=1d")
-              .header("User-Agent", "Mozilla/5.0 (compatible; Equily/1.0)")
+              .header(USER_AGENT_HEADER, USER_AGENT_VALUE)
               .retrieve()
               .body(String.class);
       return parseResponse(symbol, response);
@@ -69,7 +73,7 @@ public class YahooFinanceAdapter {
           restClient
               .get()
               .uri(url)
-              .header("User-Agent", "Mozilla/5.0 (compatible; Equily/1.0)")
+              .header(USER_AGENT_HEADER, USER_AGENT_VALUE)
               .retrieve()
               .body(String.class);
       return parseHistoricalClose(response);
@@ -89,7 +93,7 @@ public class YahooFinanceAdapter {
           restClient
               .get()
               .uri(url)
-              .header("User-Agent", "Mozilla/5.0 (compatible; Equily/1.0)")
+              .header(USER_AGENT_HEADER, USER_AGENT_VALUE)
               .retrieve()
               .body(String.class);
       return parseHistoricalPrices(response);
@@ -102,7 +106,7 @@ public class YahooFinanceAdapter {
   Map<LocalDate, BigDecimal> parseHistoricalPrices(String json) {
     try {
       JsonNode root = objectMapper.readTree(json);
-      JsonNode result = root.path("chart").path("result");
+      JsonNode result = root.path(JSON_KEY_CHART).path(JSON_KEY_RESULT);
       if (result.isEmpty() || result.isNull()) return Map.of();
 
       JsonNode timestamps = result.path(0).path("timestamp");
@@ -127,7 +131,7 @@ public class YahooFinanceAdapter {
   Optional<BigDecimal> parseHistoricalClose(String json) {
     try {
       JsonNode root = objectMapper.readTree(json);
-      JsonNode result = root.path("chart").path("result");
+      JsonNode result = root.path(JSON_KEY_CHART).path(JSON_KEY_RESULT);
       if (result.isEmpty() || result.isNull()) return Optional.empty();
 
       JsonNode closes = result.path(0).path("indicators").path("quote").path(0).path("close");
@@ -149,8 +153,8 @@ public class YahooFinanceAdapter {
   private Optional<Quote> parseResponse(String symbol, String json) {
     try {
       JsonNode root = objectMapper.readTree(json);
-      JsonNode chart = root.path("chart");
-      JsonNode result = chart.path("result");
+      JsonNode chart = root.path(JSON_KEY_CHART);
+      JsonNode result = chart.path(JSON_KEY_RESULT);
 
       if (result.isEmpty() || result.isNull() || !chart.path("error").isNull()) {
         return Optional.empty();

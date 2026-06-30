@@ -29,6 +29,7 @@ import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.Month;
 import java.time.ZoneId;
 import java.util.Currency;
 import java.util.List;
@@ -51,7 +52,7 @@ class PortfolioAnalyticsServiceTest {
   @InjectMocks private PortfolioAnalyticsService service;
 
   private static final Currency EUR = Currency.getInstance("EUR");
-  private static final LocalDate OPENED_AT = LocalDate.of(2024, 1, 1);
+  private static final LocalDate OPENED_AT = LocalDate.of(2024, Month.JANUARY, 1);
   private static final UserId USER_ID = UserId.generate();
 
   private FinancialAccount cashAccount() {

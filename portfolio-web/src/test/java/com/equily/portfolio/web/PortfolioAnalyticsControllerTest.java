@@ -18,6 +18,7 @@ import com.equily.portfolio.domain.analytics.PortfolioHistoryPoint;
 import com.equily.portfolio.domain.analytics.TopPerformer;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.Month;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,7 +55,7 @@ class PortfolioAnalyticsControllerTest {
     List<PortfolioHistoryPoint> points =
         List.of(
             new PortfolioHistoryPoint(
-                LocalDate.of(2024, 6, 1),
+                LocalDate.of(2024, Month.JUNE, 1),
                 BigDecimal.valueOf(10000),
                 BigDecimal.valueOf(9000),
                 BigDecimal.valueOf(1000)));
@@ -89,7 +90,7 @@ class PortfolioAnalyticsControllerTest {
     List<PortfolioHistoryPoint> points =
         List.of(
             new PortfolioHistoryPoint(
-                LocalDate.of(2024, 6, 1),
+                LocalDate.of(2024, Month.JUNE, 1),
                 BigDecimal.valueOf(3000),
                 BigDecimal.valueOf(3000),
                 BigDecimal.ZERO));
@@ -144,7 +145,7 @@ class PortfolioAnalyticsControllerTest {
     List<PortfolioHistoryPoint> points =
         List.of(
             new PortfolioHistoryPoint(
-                LocalDate.of(2024, 6, 1),
+                LocalDate.of(2024, Month.JUNE, 1),
                 BigDecimal.valueOf(5000),
                 BigDecimal.valueOf(4500),
                 BigDecimal.valueOf(500)));
