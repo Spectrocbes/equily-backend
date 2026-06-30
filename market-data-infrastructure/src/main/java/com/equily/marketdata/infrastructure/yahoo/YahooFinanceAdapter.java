@@ -105,8 +105,8 @@ public class YahooFinanceAdapter {
       JsonNode result = root.path("chart").path("result");
       if (result.isEmpty() || result.isNull()) return Map.of();
 
-      JsonNode timestamps = result.get(0).path("timestamp");
-      JsonNode closes = result.get(0).path("indicators").path("quote").get(0).path("close");
+      JsonNode timestamps = result.path(0).path("timestamp");
+      JsonNode closes = result.path(0).path("indicators").path("quote").path(0).path("close");
 
       Map<LocalDate, BigDecimal> prices = new LinkedHashMap<>();
       for (int i = 0; i < timestamps.size(); i++) {
@@ -130,7 +130,7 @@ public class YahooFinanceAdapter {
       JsonNode result = root.path("chart").path("result");
       if (result.isEmpty() || result.isNull()) return Optional.empty();
 
-      JsonNode closes = result.get(0).path("indicators").path("quote").get(0).path("close");
+      JsonNode closes = result.path(0).path("indicators").path("quote").path(0).path("close");
       if (closes == null || closes.isEmpty()) return Optional.empty();
 
       BigDecimal rate = null;

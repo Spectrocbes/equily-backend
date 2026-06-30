@@ -192,6 +192,71 @@ class HoldingTest {
   }
 
   @Test
+  void computeFrom_list_groups_by_ticker_and_returns_holding() {
+    List<Holding> holdings = Holding.computeFrom(List.of(buy("10", "100"), sell("3", "150")));
+
+    assertThat(holdings).hasSize(1);
+    assertThat(holdings.get(0).ticker()).isEqualTo(AAPL);
+    assertThat(holdings.get(0).quantity()).isEqualByComparingTo("7");
+    assertThat(holdings.get(0).averageCostPrice().amount()).isEqualByComparingTo("100");
+  }
+
+  @Test
+  void computeFrom_list_handles_multiple_tickers() {
+    Ticker msft = new Ticker("MSFT");
+    Transaction buyMsft =
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.BUY,
+            msft,
+            new BigDecimal("5"),
+            new Money(new BigDecimal("200"), EUR),
+            new Money(new BigDecimal("1000"), EUR),
+            TODAY,
+            null,
+            null);
+
+    List<Holding> holdings = Holding.computeFrom(List.of(buy("10", "100"), buyMsft));
+
+    assertThat(holdings).hasSize(2);
+    assertThat(holdings)
+        .extracting(h -> h.ticker().symbol())
+        .containsExactlyInAnyOrder("AAPL", "MSFT");
+  }
+
+  @Test
+  void computeFrom_list_ignores_non_buy_sell_transactions() {
+    Transaction deposit =
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("1000"), EUR),
+            TODAY,
+            null,
+            null);
+
+    List<Holding> holdings = Holding.computeFrom(List.of(deposit, buy("10", "100")));
+
+    assertThat(holdings).hasSize(1);
+    assertThat(holdings.get(0).quantity()).isEqualByComparingTo("10");
+  }
+
+  @Test
+  void computeFrom_list_returns_empty_for_empty_input() {
+    assertThat(Holding.computeFrom(List.<Transaction>of())).isEmpty();
+  }
+
+  @Test
+  void computeFrom_list_excludes_fully_sold_positions() {
+    List<Holding> holdings = Holding.computeFrom(List.of(buy("10", "100"), sell("10", "150")));
+
+    assertThat(holdings).isEmpty();
+  }
+
+  @Test
   void usd_buy_uses_amountEur_for_cost_basis() {
     // USD BUY: 10 shares @ $100, eurFxRate=0.92 → amountEur=920, avgCostEur=92
     BigDecimal fxRate = new BigDecimal("0.920000");

@@ -182,6 +182,67 @@ class YahooFinanceAdapterTest {
   }
 
   @Test
+  void getHistoricalPrices_returns_prices_for_valid_response() {
+    String json =
+        """
+        {"chart":{"result":[{
+          "timestamp":[1704067200,1704153600],
+          "indicators":{"quote":[{"close":[150.0000,155.5000]}]}
+        }]}}
+        """;
+    mockResponse(json);
+
+    Map<LocalDate, BigDecimal> result =
+        adapter.getHistoricalPrices("AAPL", LocalDate.of(2024, 1, 1), LocalDate.of(2024, 1, 2));
+
+    assertThat(result).hasSize(2);
+    assertThat(result.values())
+        .extracting(v -> v.doubleValue())
+        .containsExactlyInAnyOrder(150.0, 155.5);
+  }
+
+  @Test
+  void getHistoricalPrices_returns_empty_on_http_failure() {
+    when(restClient.get()).thenThrow(new RuntimeException("timeout"));
+
+    Map<LocalDate, BigDecimal> result =
+        adapter.getHistoricalPrices("AAPL", LocalDate.of(2024, 1, 1), LocalDate.of(2024, 1, 2));
+
+    assertThat(result).isEmpty();
+  }
+
+  @Test
+  void getHistoricalPrices_returns_empty_on_empty_result_array() {
+    mockResponse(
+        """
+        {"chart":{"result":[]}}
+        """);
+
+    Map<LocalDate, BigDecimal> result =
+        adapter.getHistoricalPrices("AAPL", LocalDate.of(2024, 1, 1), LocalDate.of(2024, 1, 2));
+
+    assertThat(result).isEmpty();
+  }
+
+  @Test
+  void parseHistoricalPrices_skips_null_close_values() {
+    String json =
+        """
+        {"chart":{"result":[{
+          "timestamp":[1704067200,1704153600,1704240000],
+          "indicators":{"quote":[{"close":[150.0000,null,155.5000]}]}
+        }]}}
+        """;
+
+    Map<LocalDate, BigDecimal> result = adapter.parseHistoricalPrices(json);
+
+    assertThat(result).hasSize(2);
+    assertThat(result.values())
+        .extracting(v -> v.doubleValue())
+        .containsExactlyInAnyOrder(150.0, 155.5);
+  }
+
+  @Test
   void parseHistoricalClose_skips_null_entries_and_returns_last_non_null() {
     String json =
         """

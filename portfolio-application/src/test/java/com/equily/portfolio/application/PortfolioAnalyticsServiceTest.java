@@ -34,6 +34,7 @@ import java.util.Currency;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -850,6 +851,288 @@ class PortfolioAnalyticsServiceTest {
 
     assertThat(points).isNotEmpty();
     assertThat(points.get(0).date()).isAfterOrEqualTo(recentOpen);
+  }
+
+  @Test
+  void matchesCategory_investment_includes_pea_excludes_crypto_wallet() {
+    FinancialAccount pea = peaAccount();
+    pea.recordTransaction(
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(BigDecimal.valueOf(1000), EUR),
+            OPENED_AT,
+            null,
+            "dep"));
+    FinancialAccount crypto =
+        FinancialAccount.open(
+            "Crypto",
+            AccountType.CRYPTO_WALLET,
+            new Money(BigDecimal.ZERO, EUR),
+            "Binance",
+            USER_ID,
+            null,
+            OPENED_AT);
+    crypto.recordTransaction(
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(BigDecimal.valueOf(500), EUR),
+            OPENED_AT,
+            null,
+            "dep crypto"));
+
+    when(repository.findAllByOwnerId(USER_ID)).thenReturn(List.of(pea, crypto));
+
+    List<PortfolioHistoryPoint> points =
+        service.getPortfolioHistoryByType(USER_ID, "INVESTMENT", Period.ONE_WEEK, "EUR");
+
+    // PEA included (investment, not crypto), CRYPTO_WALLET excluded → only 1000 visible
+    assertThat(points).isNotEmpty();
+    assertThat(points.get(points.size() - 1).totalValue())
+        .isEqualByComparingTo(new BigDecimal("1000.00"));
+  }
+
+  @Test
+  void matchesCategory_crypto_includes_crypto_wallet() {
+    FinancialAccount crypto =
+        FinancialAccount.open(
+            "BTC Wallet",
+            AccountType.CRYPTO_WALLET,
+            new Money(BigDecimal.ZERO, EUR),
+            "Binance",
+            USER_ID,
+            null,
+            OPENED_AT);
+    crypto.recordTransaction(
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(BigDecimal.valueOf(2000), EUR),
+            OPENED_AT,
+            null,
+            "dep"));
+
+    when(repository.findAllByOwnerId(USER_ID)).thenReturn(List.of(crypto));
+
+    List<PortfolioHistoryPoint> points =
+        service.getPortfolioHistoryByType(USER_ID, "CRYPTO", Period.ONE_WEEK, "EUR");
+
+    assertThat(points).isNotEmpty();
+    assertThat(points.get(points.size() - 1).totalValue())
+        .isEqualByComparingTo(new BigDecimal("2000.00"));
+  }
+
+  @Test
+  void matchesCategory_savings_includes_savings_account() {
+    FinancialAccount savings =
+        FinancialAccount.open(
+            "Livret A",
+            AccountType.SAVINGS_ACCOUNT,
+            new Money(BigDecimal.ZERO, EUR),
+            "BNP",
+            USER_ID,
+            null,
+            OPENED_AT);
+    savings.recordTransaction(
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(BigDecimal.valueOf(800), EUR),
+            OPENED_AT,
+            null,
+            "dep"));
+    FinancialAccount pea = peaAccount();
+    pea.recordTransaction(
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(BigDecimal.valueOf(1000), EUR),
+            OPENED_AT,
+            null,
+            "dep pea"));
+
+    when(repository.findAllByOwnerId(USER_ID)).thenReturn(List.of(savings, pea));
+
+    List<PortfolioHistoryPoint> points =
+        service.getPortfolioHistoryByType(USER_ID, "SAVINGS", Period.ONE_WEEK, "EUR");
+
+    // Only savings account included → max 800
+    assertThat(points).isNotEmpty();
+    assertThat(points.get(points.size() - 1).totalValue())
+        .isEqualByComparingTo(new BigDecimal("800.00"));
+  }
+
+  @Test
+  void matchesCategory_cash_includes_cash_account() {
+    FinancialAccount cash = cashAccount();
+    cash.recordTransaction(
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(BigDecimal.valueOf(300), EUR),
+            OPENED_AT,
+            null,
+            "dep"));
+    FinancialAccount pea = peaAccount();
+    pea.recordTransaction(
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(BigDecimal.valueOf(1000), EUR),
+            OPENED_AT,
+            null,
+            "dep pea"));
+
+    when(repository.findAllByOwnerId(USER_ID)).thenReturn(List.of(cash, pea));
+
+    List<PortfolioHistoryPoint> points =
+        service.getPortfolioHistoryByType(USER_ID, "CASH", Period.ONE_WEEK, "EUR");
+
+    // Only CASH_ACCOUNT included → max 300
+    assertThat(points).isNotEmpty();
+    assertThat(points.get(points.size() - 1).totalValue())
+        .isEqualByComparingTo(new BigDecimal("300.00"));
+  }
+
+  @Test
+  void matchesCategory_unknown_category_includes_all_accounts() {
+    FinancialAccount pea = peaAccount();
+    pea.recordTransaction(
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(BigDecimal.valueOf(1000), EUR),
+            OPENED_AT,
+            null,
+            "dep pea"));
+    FinancialAccount cash = cashAccount();
+    cash.recordTransaction(
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(BigDecimal.valueOf(500), EUR),
+            OPENED_AT,
+            null,
+            "dep cash"));
+
+    when(repository.findAllByOwnerId(USER_ID)).thenReturn(List.of(pea, cash));
+
+    List<PortfolioHistoryPoint> points =
+        service.getPortfolioHistoryByType(USER_ID, "UNKNOWN_CATEGORY", Period.ONE_WEEK, "EUR");
+
+    // Default → all accounts included → 1500
+    assertThat(points).isNotEmpty();
+    assertThat(points.get(points.size() - 1).totalValue())
+        .isEqualByComparingTo(new BigDecimal("1500.00"));
+  }
+
+  @Test
+  void computeCurrentValue_investment_account_with_no_holdings_returns_zero() {
+    // openedAt in the future forces Period.ALL to produce empty tradingDays list,
+    // triggering the computeCurrentValue path for an investment account
+    LocalDate tomorrow = LocalDate.now().plusDays(1);
+    FinancialAccount pea =
+        FinancialAccount.open(
+            "Future PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, EUR),
+            "Fortuneo",
+            USER_ID,
+            null,
+            tomorrow);
+
+    FinancialAccountId accountId = pea.id();
+    when(repository.findById(accountId)).thenReturn(Optional.of(pea));
+
+    List<PortfolioHistoryPoint> points =
+        service.getAccountHistory(accountId, USER_ID, Period.ALL, "EUR");
+
+    assertThat(points).hasSize(1);
+    assertThat(points.get(0).totalValue()).isEqualByComparingTo(BigDecimal.ZERO);
+  }
+
+  @Test
+  void getAccountHistory_throws_when_account_not_found() {
+    FinancialAccountId accountId = FinancialAccountId.generate();
+    when(repository.findById(accountId)).thenReturn(Optional.empty());
+
+    Assertions.assertThrows(
+        AccountNotFoundException.class,
+        () -> service.getAccountHistory(accountId, USER_ID, Period.ONE_WEEK, "EUR"));
+  }
+
+  @Test
+  void periodToStartDate_ytd_starts_at_beginning_of_current_year() {
+    when(repository.findAllByOwnerId(USER_ID)).thenReturn(List.of(cashAccount()));
+
+    List<PortfolioHistoryPoint> points = service.getPortfolioHistory(USER_ID, Period.YTD, "EUR");
+
+    LocalDate startOfYear = LocalDate.now(ZoneId.of("Europe/Paris")).withDayOfYear(1);
+    assertThat(points).isNotEmpty();
+    assertThat(points.get(0).date()).isAfterOrEqualTo(startOfYear);
+  }
+
+  @Test
+  void periodToStartDate_all_returns_openedAt_as_start() {
+    LocalDate openedAt = LocalDate.now().minusDays(20);
+    FinancialAccount cash =
+        FinancialAccount.open(
+            "Cash",
+            AccountType.CASH_ACCOUNT,
+            new Money(BigDecimal.ZERO, EUR),
+            "BNP",
+            USER_ID,
+            null,
+            openedAt);
+    cash.recordTransaction(
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(BigDecimal.valueOf(500), EUR),
+            openedAt,
+            null,
+            "dep"));
+
+    FinancialAccountId accountId = cash.id();
+    when(repository.findById(accountId)).thenReturn(Optional.of(cash));
+
+    List<PortfolioHistoryPoint> points =
+        service.getAccountHistory(accountId, USER_ID, Period.ALL, "EUR");
+
+    assertThat(points).isNotEmpty();
+    assertThat(points.get(0).date()).isAfterOrEqualTo(openedAt);
+    assertThat(points.get(0).date()).isBeforeOrEqualTo(openedAt.plusWeeks(1));
   }
 
   @Test

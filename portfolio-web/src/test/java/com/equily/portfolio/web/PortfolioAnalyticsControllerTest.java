@@ -164,6 +164,11 @@ class PortfolioAnalyticsControllerTest {
   }
 
   @Test
+  void getHistory_returns_401_when_unauthenticated() throws Exception {
+    mockMvc.perform(get("/api/v1/analytics/history")).andExpect(status().isUnauthorized());
+  }
+
+  @Test
   void getTopPerformers_returns_200_with_limit() throws Exception {
     List<TopPerformer> performers =
         List.of(
