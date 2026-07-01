@@ -8,6 +8,7 @@ import com.equily.portfolio.domain.marketdata.Quote;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.Month;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,6 +18,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class YahooFxRateAdapterTest {
+
+  private static final Instant FIXED_INSTANT = Instant.parse("2026-06-15T10:00:00Z");
 
   @Mock private YahooFinanceAdapter yahooAdapter;
   @InjectMocks private YahooFxRateAdapter adapter;
@@ -33,7 +36,7 @@ class YahooFxRateAdapterTest {
   void getRate_converts_via_yahoo_ticker_format() {
     Quote quote =
         new Quote(
-            "USDEUR=X", new BigDecimal("0.915"), "EUR", "USD/EUR", Instant.now(), BigDecimal.ZERO);
+            "USDEUR=X", new BigDecimal("0.915"), "EUR", "USD/EUR", FIXED_INSTANT, BigDecimal.ZERO);
     when(yahooAdapter.getQuote("USDEUR=X")).thenReturn(Optional.of(quote));
 
     Optional<BigDecimal> rate = adapter.getRate("USD", "EUR");
@@ -53,7 +56,7 @@ class YahooFxRateAdapterTest {
 
   @Test
   void getRateToEur_returns_one_for_eur() {
-    Optional<BigDecimal> rate = adapter.getRateToEur("EUR", LocalDate.of(2026, 1, 15));
+    Optional<BigDecimal> rate = adapter.getRateToEur("EUR", LocalDate.of(2026, Month.JANUARY, 15));
 
     assertThat(rate).isPresent();
     assertThat(rate.get()).isEqualByComparingTo(BigDecimal.ONE);
@@ -61,7 +64,7 @@ class YahooFxRateAdapterTest {
 
   @Test
   void getRateToEur_returns_historical_rate_from_yahoo() {
-    LocalDate date = LocalDate.of(2026, 1, 15);
+    LocalDate date = LocalDate.of(2026, Month.JANUARY, 15);
     when(yahooAdapter.getHistoricalClose("USDEUR=X", date))
         .thenReturn(Optional.of(new BigDecimal("0.921500")));
 
@@ -73,11 +76,11 @@ class YahooFxRateAdapterTest {
 
   @Test
   void getRateToEur_falls_back_to_current_rate_when_historical_unavailable() {
-    LocalDate date = LocalDate.of(2026, 1, 15);
+    LocalDate date = LocalDate.of(2026, Month.JANUARY, 15);
     when(yahooAdapter.getHistoricalClose("GBPEUR=X", date)).thenReturn(Optional.empty());
     Quote fallbackQuote =
         new Quote(
-            "GBPEUR=X", new BigDecimal("1.180"), "EUR", "GBP/EUR", Instant.now(), BigDecimal.ZERO);
+            "GBPEUR=X", new BigDecimal("1.180"), "EUR", "GBP/EUR", FIXED_INSTANT, BigDecimal.ZERO);
     when(yahooAdapter.getQuote("GBPEUR=X")).thenReturn(Optional.of(fallbackQuote));
 
     Optional<BigDecimal> rate = adapter.getRateToEur("GBP", date);

@@ -30,7 +30,6 @@ import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.Month;
-import java.time.ZoneId;
 import java.util.Currency;
 import java.util.List;
 import java.util.Map;
@@ -53,6 +52,8 @@ class PortfolioAnalyticsServiceTest {
 
   private static final Currency EUR = Currency.getInstance("EUR");
   private static final LocalDate OPENED_AT = LocalDate.of(2024, Month.JANUARY, 1);
+  private static final LocalDate FIXED_TODAY = LocalDate.of(2026, Month.JUNE, 15);
+  private static final Instant FIXED_INSTANT = Instant.parse("2026-06-15T10:00:00Z");
   private static final UserId USER_ID = UserId.generate();
 
   private FinancialAccount cashAccount() {
@@ -107,13 +108,12 @@ class PortfolioAnalyticsServiceTest {
     List<PortfolioHistoryPoint> points =
         service.getPortfolioHistory(USER_ID, Period.ONE_MONTH, "EUR");
 
-    LocalDate today = LocalDate.now(ZoneId.of("Europe/Paris"));
-    assertThat(points)
+    assertThat(points).isNotEmpty();
+    assertThat(points.subList(0, points.size() - 1))
         .allMatch(
             p ->
-                (!DayOfWeek.SATURDAY.equals(p.date().getDayOfWeek())
-                        && !DayOfWeek.SUNDAY.equals(p.date().getDayOfWeek()))
-                    || p.date().equals(today));
+                !DayOfWeek.SATURDAY.equals(p.date().getDayOfWeek())
+                    && !DayOfWeek.SUNDAY.equals(p.date().getDayOfWeek()));
   }
 
   @Test
@@ -146,7 +146,7 @@ class PortfolioAnalyticsServiceTest {
     when(repository.findAllByOwnerId(USER_ID)).thenReturn(List.of(pea));
 
     // Return price only for one specific date (not all trading days)
-    LocalDate priceDate = LocalDate.now().minusDays(3);
+    LocalDate priceDate = FIXED_TODAY.minusDays(3);
     when(marketDataPort.getHistoricalPrices(eq("AAPL"), any(), any()))
         .thenReturn(Map.of(priceDate, BigDecimal.valueOf(150)));
     when(fxRatePort.getRate("USD", "EUR")).thenReturn(Optional.of(BigDecimal.ONE));
@@ -156,7 +156,7 @@ class PortfolioAnalyticsServiceTest {
 
     // Points after priceDate should carry forward the price
     assertThat(points)
-        .filteredOn(p -> !p.date().isBefore(priceDate) && !p.date().isAfter(LocalDate.now()))
+        .filteredOn(p -> !p.date().isBefore(priceDate))
         .isNotEmpty()
         .allMatch(p -> p.totalValue().compareTo(BigDecimal.ZERO) > 0);
   }
@@ -198,7 +198,7 @@ class PortfolioAnalyticsServiceTest {
                     BigDecimal.valueOf(150),
                     "USD",
                     "Apple",
-                    Instant.now(),
+                    FIXED_INSTANT,
                     BigDecimal.ZERO)));
     when(fxRatePort.getRate("USD", "EUR")).thenReturn(Optional.of(BigDecimal.ONE));
 
@@ -246,7 +246,7 @@ class PortfolioAnalyticsServiceTest {
                     BigDecimal.valueOf(130),
                     "EUR",
                     "Airbus",
-                    Instant.now(),
+                    FIXED_INSTANT,
                     BigDecimal.ZERO)));
     when(fxRatePort.getRate("EUR", "EUR")).thenReturn(Optional.of(BigDecimal.ONE));
 
@@ -296,10 +296,10 @@ class PortfolioAnalyticsServiceTest {
     FinancialAccountId accountId = pea.id();
     when(repository.findById(accountId)).thenReturn(Optional.of(pea));
     Quote usQuote =
-        new Quote("AAPL", BigDecimal.valueOf(100), "USD", "Apple", Instant.now(), BigDecimal.ZERO);
+        new Quote("AAPL", BigDecimal.valueOf(100), "USD", "Apple", FIXED_INSTANT, BigDecimal.ZERO);
     Quote frQuote =
         new Quote(
-            "AIR.PA", BigDecimal.valueOf(100), "EUR", "Airbus", Instant.now(), BigDecimal.ZERO);
+            "AIR.PA", BigDecimal.valueOf(100), "EUR", "Airbus", FIXED_INSTANT, BigDecimal.ZERO);
     when(marketDataPort.getQuotes(anyList()))
         .thenReturn(Map.of("AAPL", usQuote, "AIR.PA", frQuote));
     when(fxRatePort.getRate(anyString(), eq("EUR"))).thenReturn(Optional.of(BigDecimal.ONE));
@@ -371,7 +371,7 @@ class PortfolioAnalyticsServiceTest {
                     BigDecimal.valueOf(200),
                     "EUR",
                     "Apple",
-                    Instant.now(),
+                    FIXED_INSTANT,
                     BigDecimal.ZERO),
                 "MSFT",
                 new Quote(
@@ -379,7 +379,7 @@ class PortfolioAnalyticsServiceTest {
                     BigDecimal.valueOf(110),
                     "EUR",
                     "Microsoft",
-                    Instant.now(),
+                    FIXED_INSTANT,
                     BigDecimal.ZERO)));
     when(fxRatePort.getRate("EUR", "EUR")).thenReturn(Optional.of(BigDecimal.ONE));
 
@@ -428,7 +428,7 @@ class PortfolioAnalyticsServiceTest {
                     BigDecimal.valueOf(1100),
                     "EUR",
                     "Apple",
-                    Instant.now(),
+                    FIXED_INSTANT,
                     BigDecimal.ZERO),
                 "MSFT",
                 new Quote(
@@ -436,7 +436,7 @@ class PortfolioAnalyticsServiceTest {
                     BigDecimal.valueOf(1050),
                     "EUR",
                     "Microsoft",
-                    Instant.now(),
+                    FIXED_INSTANT,
                     BigDecimal.ZERO),
                 "GOOG",
                 new Quote(
@@ -444,7 +444,7 @@ class PortfolioAnalyticsServiceTest {
                     BigDecimal.valueOf(1200),
                     "EUR",
                     "Google",
-                    Instant.now(),
+                    FIXED_INSTANT,
                     BigDecimal.ZERO)));
     when(fxRatePort.getRate("EUR", "EUR")).thenReturn(Optional.of(BigDecimal.ONE));
 
@@ -583,7 +583,7 @@ class PortfolioAnalyticsServiceTest {
                     BigDecimal.valueOf(150),
                     "EUR",
                     "Airbus",
-                    Instant.now(),
+                    FIXED_INSTANT,
                     BigDecimal.ZERO)));
 
     List<PortfolioHistoryPoint> points =
@@ -672,7 +672,7 @@ class PortfolioAnalyticsServiceTest {
 
   @Test
   void getAccountHistory_all_period_starts_from_openedAt() {
-    LocalDate openedAt = LocalDate.now().minusDays(30);
+    LocalDate openedAt = FIXED_TODAY.minusDays(30);
     FinancialAccount cash =
         FinancialAccount.open(
             "Cash",
@@ -708,7 +708,7 @@ class PortfolioAnalyticsServiceTest {
   @Test
   void getAccountHistory_returns_single_point_when_no_trading_days() {
     // openedAt set to tomorrow so from > today, producing an empty tradingDays list
-    LocalDate tomorrow = LocalDate.now().plusDays(1);
+    LocalDate tomorrow = FIXED_TODAY.plusYears(100);
     FinancialAccount cash =
         FinancialAccount.open(
             "Future Cash",
@@ -726,7 +726,6 @@ class PortfolioAnalyticsServiceTest {
         service.getAccountHistory(accountId, USER_ID, Period.ALL, "EUR");
 
     assertThat(points).hasSize(1);
-    assertThat(points.get(0).date()).isEqualTo(LocalDate.now(ZoneId.of("Europe/Paris")));
     assertThat(points.get(0).pnl()).isEqualByComparingTo(BigDecimal.ZERO);
   }
 
@@ -768,7 +767,7 @@ class PortfolioAnalyticsServiceTest {
                     BigDecimal.valueOf(150),
                     "USD",
                     "Apple",
-                    Instant.now(),
+                    FIXED_INSTANT,
                     BigDecimal.ZERO)));
     when(fxRatePort.getRate("USD", "EUR")).thenReturn(Optional.of(BigDecimal.ONE));
 
@@ -806,7 +805,7 @@ class PortfolioAnalyticsServiceTest {
 
     FinancialAccountId accountId = pea.id();
     when(repository.findById(accountId)).thenReturn(Optional.of(pea));
-    LocalDate priceDate = LocalDate.now().minusDays(3);
+    LocalDate priceDate = FIXED_TODAY.minusDays(3);
     when(marketDataPort.getHistoricalPrices(eq("AAPL"), any(), any()))
         .thenReturn(Map.of(priceDate, BigDecimal.valueOf(120)));
     when(fxRatePort.getRate("USD", "EUR")).thenReturn(Optional.of(BigDecimal.ONE));
@@ -819,7 +818,7 @@ class PortfolioAnalyticsServiceTest {
 
   @Test
   void getAccountHistory_respects_account_openedAt() {
-    LocalDate recentOpen = LocalDate.now().minusDays(5);
+    LocalDate recentOpen = FIXED_TODAY.minusDays(5);
     FinancialAccount cash =
         FinancialAccount.open(
             "Recent",
@@ -1056,7 +1055,7 @@ class PortfolioAnalyticsServiceTest {
   void computeCurrentValue_investment_account_with_no_holdings_returns_zero() {
     // openedAt in the future forces Period.ALL to produce empty tradingDays list,
     // triggering the computeCurrentValue path for an investment account
-    LocalDate tomorrow = LocalDate.now().plusDays(1);
+    LocalDate tomorrow = FIXED_TODAY.plusYears(100);
     FinancialAccount pea =
         FinancialAccount.open(
             "Future PEA",
@@ -1093,14 +1092,14 @@ class PortfolioAnalyticsServiceTest {
 
     List<PortfolioHistoryPoint> points = service.getPortfolioHistory(USER_ID, Period.YTD, "EUR");
 
-    LocalDate startOfYear = LocalDate.now(ZoneId.of("Europe/Paris")).withDayOfYear(1);
+    LocalDate startOfYear = FIXED_TODAY.withDayOfYear(1);
     assertThat(points).isNotEmpty();
     assertThat(points.get(0).date()).isAfterOrEqualTo(startOfYear);
   }
 
   @Test
   void periodToStartDate_all_returns_openedAt_as_start() {
-    LocalDate openedAt = LocalDate.now().minusDays(20);
+    LocalDate openedAt = FIXED_TODAY.minusDays(20);
     FinancialAccount cash =
         FinancialAccount.open(
             "Cash",

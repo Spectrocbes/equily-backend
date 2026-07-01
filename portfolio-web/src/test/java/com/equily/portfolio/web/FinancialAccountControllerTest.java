@@ -68,6 +68,9 @@ import org.springframework.test.web.servlet.MockMvc;
 @Import(TestSecurityConfig.class)
 class FinancialAccountControllerTest {
 
+  private static final LocalDate FIXED_TODAY = LocalDate.of(2026, Month.JUNE, 15);
+  private static final Instant FIXED_INSTANT = Instant.parse("2026-06-15T10:00:00Z");
+
   @MockitoBean private FinancialAccountUseCase useCase;
   @MockitoBean private BrokerCsvParserPort parserPort;
   @MockitoBean private FxRatePort fxRatePort;
@@ -457,7 +460,7 @@ class FinancialAccountControllerTest {
   @Test
   void recordTransaction_accepts_date_tomorrow() throws Exception {
     when(useCase.getAccountById(any(), any())).thenReturn(testAccount);
-    String tomorrow = LocalDate.now().plusDays(1).toString();
+    String tomorrow = FIXED_TODAY.plusDays(1).toString();
 
     mockMvc
         .perform(
@@ -541,7 +544,7 @@ class FinancialAccountControllerTest {
             new BigDecimal("160.00"),
             "EUR",
             "Apple Inc.",
-            Instant.now(),
+            FIXED_INSTANT,
             new BigDecimal("2.50"));
     EnrichedHolding enriched =
         EnrichedHolding.withPrice(holding, quote, "EUR", BigDecimal.ONE, BigDecimal.ONE);

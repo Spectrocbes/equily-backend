@@ -22,6 +22,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class CompositeMarketDataAdapterTest {
 
+  private static final Instant FIXED_INSTANT = Instant.parse("2026-06-15T10:00:00Z");
+
   @Mock private CoinGeckoAdapter coinGecko;
   @Mock private YahooFinanceAdapter yahoo;
   @Mock private FmpAdapter fmp;
@@ -35,7 +37,7 @@ class CompositeMarketDataAdapterTest {
   }
 
   private Quote quote(String symbol, String price) {
-    return new Quote(symbol, new BigDecimal(price), "EUR", symbol, Instant.now(), null);
+    return new Quote(symbol, new BigDecimal(price), "EUR", symbol, FIXED_INSTANT, null);
   }
 
   @Test
