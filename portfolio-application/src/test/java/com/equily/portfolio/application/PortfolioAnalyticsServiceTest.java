@@ -97,8 +97,7 @@ class PortfolioAnalyticsServiceTest {
     List<PortfolioHistoryPoint> points =
         service.getPortfolioHistory(USER_ID, Period.ONE_WEEK, "EUR");
 
-    assertThat(points).isNotEmpty();
-    assertThat(points).allMatch(p -> p.totalValue().compareTo(BigDecimal.ZERO) >= 0);
+    assertThat(points).isNotEmpty().allMatch(p -> p.totalValue().compareTo(BigDecimal.ZERO) >= 0);
   }
 
   @Test
@@ -112,8 +111,8 @@ class PortfolioAnalyticsServiceTest {
     assertThat(points)
         .allMatch(
             p ->
-                (p.date().getDayOfWeek() != DayOfWeek.SATURDAY
-                        && p.date().getDayOfWeek() != DayOfWeek.SUNDAY)
+                (!DayOfWeek.SATURDAY.equals(p.date().getDayOfWeek())
+                        && !DayOfWeek.SUNDAY.equals(p.date().getDayOfWeek()))
                     || p.date().equals(today));
   }
 
@@ -639,8 +638,8 @@ class PortfolioAnalyticsServiceTest {
         service.getPortfolioHistoryByType(USER_ID, "CASH", Period.ONE_WEEK, "EUR");
 
     // Only the CASH_ACCOUNT is included — PEA deposits must not appear
-    assertThat(points).isNotEmpty();
     assertThat(points)
+        .isNotEmpty()
         .allMatch(
             p ->
                 p.totalValue().compareTo(BigDecimal.valueOf(500)) <= 0
@@ -703,8 +702,7 @@ class PortfolioAnalyticsServiceTest {
 
     assertThat(points).isNotEmpty();
     // ALL period starts from openedAt, not 10 years ago
-    assertThat(points.get(0).date()).isAfterOrEqualTo(openedAt);
-    assertThat(points.get(0).date()).isBeforeOrEqualTo(openedAt.plusDays(6));
+    assertThat(points.get(0).date()).isBetween(openedAt, openedAt.plusDays(6));
   }
 
   @Test
@@ -816,8 +814,7 @@ class PortfolioAnalyticsServiceTest {
     List<PortfolioHistoryPoint> points =
         service.getAccountHistory(accountId, USER_ID, Period.ONE_WEEK, "EUR");
 
-    assertThat(points).isNotEmpty();
-    assertThat(points).allMatch(p -> p.totalValue().compareTo(BigDecimal.ZERO) >= 0);
+    assertThat(points).isNotEmpty().allMatch(p -> p.totalValue().compareTo(BigDecimal.ZERO) >= 0);
   }
 
   @Test
@@ -1132,8 +1129,7 @@ class PortfolioAnalyticsServiceTest {
         service.getAccountHistory(accountId, USER_ID, Period.ALL, "EUR");
 
     assertThat(points).isNotEmpty();
-    assertThat(points.get(0).date()).isAfterOrEqualTo(openedAt);
-    assertThat(points.get(0).date()).isBeforeOrEqualTo(openedAt.plusWeeks(1));
+    assertThat(points.get(0).date()).isBetween(openedAt, openedAt.plusWeeks(1));
   }
 
   @Test
@@ -1157,7 +1153,6 @@ class PortfolioAnalyticsServiceTest {
     List<PortfolioHistoryPoint> points =
         service.getAccountHistory(accountId, USER_ID, Period.ONE_WEEK, "EUR");
 
-    assertThat(points).isNotEmpty();
-    assertThat(points).allMatch(p -> p.pnl().compareTo(BigDecimal.ZERO) == 0);
+    assertThat(points).isNotEmpty().allMatch(p -> p.pnl().compareTo(BigDecimal.ZERO) == 0);
   }
 }

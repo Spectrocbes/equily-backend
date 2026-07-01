@@ -375,7 +375,6 @@ class PortfolioAnalyticsService implements PortfolioAnalyticsUseCase {
   @Override
   public List<PortfolioHistoryPoint> getAccountHistory(
       FinancialAccountId accountId, UserId userId, Period period, String targetCurrency) {
-
     FinancialAccount account =
         repository
             .findById(accountId)
@@ -385,141 +384,97 @@ class PortfolioAnalyticsService implements PortfolioAnalyticsUseCase {
     LocalDate today = LocalDate.now(PARIS_ZONE);
     LocalDate from = periodToStartDate(period, today, account.openedAt());
 
-    BigDecimal eurToTarget =
-        targetCurrency.equals("EUR")
-            ? BigDecimal.ONE
-            : fxRatePort.getRate("EUR", targetCurrency).orElse(BigDecimal.ONE);
-
-    BigDecimal usdToTarget =
-        targetCurrency.equals("USD")
-            ? BigDecimal.ONE
-            : fxRatePort.getRate("USD", targetCurrency).orElse(BigDecimal.ONE);
-
-    boolean isInvestment = INVESTMENT_ACCOUNT_TYPES.contains(account.accountType());
-
-    List<Holding> currentHoldings =
-        isInvestment ? Holding.computeFrom(account.transactions()) : List.of();
-
-    Map<String, Map<LocalDate, BigDecimal>> allPrices = new HashMap<>();
-    for (Holding h : currentHoldings) {
-      allPrices.put(
-          h.ticker().symbol(),
-          marketDataPort.getHistoricalPrices(h.ticker().symbol(), from, today));
-    }
-
-    Map<String, Quote> liveQuotes =
-        currentHoldings.isEmpty()
-            ? Map.of()
-            : marketDataPort.getQuotes(
-                currentHoldings.stream().map(h -> h.ticker().symbol()).distinct().toList());
-
+    BigDecimal eurToTarget = resolveEurToTarget(targetCurrency);
+    Map<String, Map<LocalDate, BigDecimal>> allPrices =
+        fetchAccountHistoricalPrices(account, from, today);
+    Map<String, Quote> liveQuotes = fetchAccountLiveQuotes(account);
     List<LocalDate> tradingDays = buildTradingDays(from, today);
 
     if (tradingDays.isEmpty()) {
-      BigDecimal currentValue = computeCurrentValue(account, liveQuotes, eurToTarget, usdToTarget);
-      return List.of(new PortfolioHistoryPoint(today, currentValue, currentValue, BigDecimal.ZERO));
+      return List.of(
+          computeCurrentValuePoint(account, today, liveQuotes, eurToTarget, targetCurrency));
     }
 
-    List<PortfolioHistoryPoint> points = new ArrayList<>();
-
-    for (LocalDate date : tradingDays) {
-      boolean isToday = date.equals(today);
-      BigDecimal totalValue;
-      BigDecimal totalCost;
-
-      if (isInvestment) {
-        List<Transaction> txUpToDate =
-            account.transactions().stream().filter(t -> !t.date().isAfter(date)).toList();
-        List<Holding> holdingsAsOfDate = Holding.computeFrom(txUpToDate);
-
-        BigDecimal holdingsValue = BigDecimal.ZERO;
-        BigDecimal costBasis = BigDecimal.ZERO;
-
-        for (Holding h : holdingsAsOfDate) {
-          BigDecimal priceInTarget = null;
-          if (isToday) {
-            Quote liveQuote = liveQuotes.get(h.ticker().symbol());
-            if (liveQuote != null) {
-              String quoteCurrency = liveQuote.currency() != null ? liveQuote.currency() : "USD";
-              BigDecimal fxRate =
-                  quoteCurrency.equals(targetCurrency)
-                      ? BigDecimal.ONE
-                      : fxRatePort.getRate(quoteCurrency, targetCurrency).orElse(BigDecimal.ONE);
-              priceInTarget = liveQuote.price().multiply(fxRate);
-            }
-          }
-          if (priceInTarget == null) {
-            BigDecimal raw =
-                getClosestPrice(allPrices.getOrDefault(h.ticker().symbol(), Map.of()), date);
-            if (raw != null) {
-              String quoteCurrency = inferQuoteCurrency(h.ticker().symbol());
-              BigDecimal fxRate =
-                  quoteCurrency.equals(targetCurrency)
-                      ? BigDecimal.ONE
-                      : fxRatePort.getRate(quoteCurrency, targetCurrency).orElse(BigDecimal.ONE);
-              priceInTarget = raw.multiply(fxRate);
-            }
-          }
-
-          if (priceInTarget != null) {
-            holdingsValue =
-                holdingsValue.add(
-                    priceInTarget.multiply(h.quantity()).setScale(2, RoundingMode.HALF_EVEN));
-          } else {
-            holdingsValue =
-                holdingsValue.add(
-                    h.totalInvested()
-                        .amount()
-                        .multiply(eurToTarget)
-                        .setScale(2, RoundingMode.HALF_EVEN));
-          }
-          costBasis =
-              costBasis.add(
-                  h.totalInvested()
-                      .amount()
-                      .multiply(eurToTarget)
-                      .setScale(2, RoundingMode.HALF_EVEN));
-        }
-
-        BigDecimal cashConverted = computeBalanceAsOf(account, date).multiply(eurToTarget);
-        totalValue = holdingsValue.add(cashConverted).setScale(2, RoundingMode.HALF_EVEN);
-        totalCost = costBasis.add(cashConverted).setScale(2, RoundingMode.HALF_EVEN);
-      } else {
-        BigDecimal balance =
-            computeBalanceAsOf(account, date)
-                .multiply(eurToTarget)
-                .setScale(2, RoundingMode.HALF_EVEN);
-        totalValue = balance;
-        totalCost = balance;
-      }
-
-      BigDecimal pnl = totalValue.subtract(totalCost).setScale(2, RoundingMode.HALF_EVEN);
-      points.add(new PortfolioHistoryPoint(date, totalValue, totalCost, pnl));
-    }
-    return points;
+    return tradingDays.stream()
+        .map(
+            date ->
+                computeAccountPoint(
+                    account, date, today, allPrices, liveQuotes, eurToTarget, targetCurrency))
+        .toList();
   }
 
-  private BigDecimal computeCurrentValue(
+  private PortfolioHistoryPoint computeCurrentValuePoint(
       FinancialAccount account,
+      LocalDate today,
       Map<String, Quote> liveQuotes,
       BigDecimal eurToTarget,
-      BigDecimal usdToTarget) {
-    BigDecimal cashBalance =
-        computeBalanceAsOf(account, LocalDate.now(PARIS_ZONE)).multiply(eurToTarget);
+      String targetCurrency) {
     if (!INVESTMENT_ACCOUNT_TYPES.contains(account.accountType())) {
-      return cashBalance.setScale(2, RoundingMode.HALF_EVEN);
+      BigDecimal balance =
+          computeBalanceAsOf(account, today)
+              .multiply(eurToTarget)
+              .setScale(2, RoundingMode.HALF_EVEN);
+      return new PortfolioHistoryPoint(today, balance, balance, BigDecimal.ZERO);
     }
-    List<Holding> holdings = Holding.computeFrom(account.transactions());
-    BigDecimal holdingsValue = BigDecimal.ZERO;
-    for (Holding h : holdings) {
-      Quote q = liveQuotes.get(h.ticker().symbol());
-      BigDecimal price = q != null ? q.price() : h.averageCostPrice().amount();
-      BigDecimal fx = q != null ? usdToTarget : eurToTarget;
-      holdingsValue =
-          holdingsValue.add(
-              price.multiply(fx).multiply(h.quantity()).setScale(2, RoundingMode.HALF_EVEN));
+    AccountValues vals =
+        computeInvestmentValues(
+            account, today, true, Map.of(), liveQuotes, eurToTarget, targetCurrency);
+    return toHistoryPoint(today, vals);
+  }
+
+  private PortfolioHistoryPoint computeAccountPoint(
+      FinancialAccount account,
+      LocalDate date,
+      LocalDate today,
+      Map<String, Map<LocalDate, BigDecimal>> allPrices,
+      Map<String, Quote> liveQuotes,
+      BigDecimal eurToTarget,
+      String targetCurrency) {
+    boolean isToday = date.equals(today);
+    if (INVESTMENT_ACCOUNT_TYPES.contains(account.accountType())) {
+      AccountValues vals =
+          computeInvestmentValues(
+              account, date, isToday, allPrices, liveQuotes, eurToTarget, targetCurrency);
+      return toHistoryPoint(date, vals);
     }
-    return holdingsValue.add(cashBalance).setScale(2, RoundingMode.HALF_EVEN);
+    BigDecimal balance =
+        computeBalanceAsOf(account, date).multiply(eurToTarget).setScale(2, RoundingMode.HALF_EVEN);
+    return toHistoryPoint(date, new AccountValues(balance, balance));
+  }
+
+  private PortfolioHistoryPoint toHistoryPoint(LocalDate date, AccountValues vals) {
+    return new PortfolioHistoryPoint(
+        date,
+        vals.value().setScale(2, RoundingMode.HALF_EVEN),
+        vals.cost().setScale(2, RoundingMode.HALF_EVEN),
+        vals.value().subtract(vals.cost()).setScale(2, RoundingMode.HALF_EVEN));
+  }
+
+  private Map<String, Map<LocalDate, BigDecimal>> fetchAccountHistoricalPrices(
+      FinancialAccount account, LocalDate from, LocalDate today) {
+    if (!INVESTMENT_ACCOUNT_TYPES.contains(account.accountType())) {
+      return Map.of();
+    }
+    Map<String, Map<LocalDate, BigDecimal>> prices = new HashMap<>();
+    Holding.computeFrom(account.transactions())
+        .forEach(
+            h ->
+                prices.put(
+                    h.ticker().symbol(),
+                    marketDataPort.getHistoricalPrices(h.ticker().symbol(), from, today)));
+    return prices;
+  }
+
+  private Map<String, Quote> fetchAccountLiveQuotes(FinancialAccount account) {
+    if (!INVESTMENT_ACCOUNT_TYPES.contains(account.accountType())) {
+      return Map.of();
+    }
+    List<String> tickers =
+        Holding.computeFrom(account.transactions()).stream()
+            .map(h -> h.ticker().symbol())
+            .distinct()
+            .toList();
+    return tickers.isEmpty() ? Map.of() : marketDataPort.getQuotes(tickers);
   }
 
   private BigDecimal computeBalanceAsOf(FinancialAccount account, LocalDate date) {
@@ -552,7 +507,8 @@ class PortfolioAnalyticsService implements PortfolioAnalyticsUseCase {
     LocalDate current = from;
     while (!current.isAfter(to)) {
       DayOfWeek dow = current.getDayOfWeek();
-      if ((dow != DayOfWeek.SATURDAY && dow != DayOfWeek.SUNDAY) || current.equals(to)) {
+      if ((!DayOfWeek.SATURDAY.equals(dow) && !DayOfWeek.SUNDAY.equals(dow))
+          || current.equals(to)) {
         days.add(current);
       }
       current = current.plusDays(1);

@@ -203,7 +203,7 @@ class YahooFinanceAdapterTest {
 
     assertThat(result).hasSize(2);
     assertThat(result.values())
-        .extracting(v -> v.doubleValue())
+        .extracting(BigDecimal::doubleValue)
         .containsExactlyInAnyOrder(150.0, 155.5);
   }
 
@@ -246,7 +246,7 @@ class YahooFinanceAdapterTest {
 
     assertThat(result).hasSize(2);
     assertThat(result.values())
-        .extracting(v -> v.doubleValue())
+        .extracting(BigDecimal::doubleValue)
         .containsExactlyInAnyOrder(150.0, 155.5);
   }
 
