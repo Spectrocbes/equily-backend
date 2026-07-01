@@ -39,6 +39,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @Import(TestSecurityConfig.class)
 class AuthControllerTest {
 
+  private static final Instant FIXED_INSTANT = Instant.parse("2026-06-15T10:00:00Z");
+
   @MockitoBean AuthService authService;
   @MockitoBean UserRepository userRepository;
 
@@ -46,7 +48,7 @@ class AuthControllerTest {
 
   private User testUser() {
     return User.reconstruct(
-        UserId.generate(), "alice@example.com", "hashed", "Alice", true, Instant.now());
+        UserId.generate(), "alice@example.com", "hashed", "Alice", true, FIXED_INSTANT);
   }
 
   @Test
@@ -177,7 +179,7 @@ class AuthControllerTest {
   @Test
   void getMe_returns_200_with_user_info() throws Exception {
     UserId userId = UserId.generate();
-    User user = User.reconstruct(userId, "me@test.com", "hash", "Me User", true, Instant.now());
+    User user = User.reconstruct(userId, "me@test.com", "hash", "Me User", true, FIXED_INSTANT);
     when(userRepository.findById(userId)).thenReturn(Optional.of(user));
 
     mockMvc

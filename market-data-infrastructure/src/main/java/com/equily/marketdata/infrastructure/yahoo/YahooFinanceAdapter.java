@@ -7,6 +7,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -22,6 +24,10 @@ public class YahooFinanceAdapter {
   private static final Logger log = LoggerFactory.getLogger(YahooFinanceAdapter.class);
 
   private static final String BASE_URL = "https://query1.finance.yahoo.com/v8/finance/chart/";
+  private static final String USER_AGENT_HEADER = "User-Agent";
+  private static final String USER_AGENT_VALUE = "Mozilla/5.0 (compatible; Equily/1.0)";
+  private static final String JSON_KEY_CHART = "chart";
+  private static final String JSON_KEY_RESULT = "result";
 
   private final RestClient restClient;
   private final ObjectMapper objectMapper;
@@ -37,7 +43,7 @@ public class YahooFinanceAdapter {
           restClient
               .get()
               .uri(BASE_URL + symbol + "?interval=1d&range=1d")
-              .header("User-Agent", "Mozilla/5.0 (compatible; Equily/1.0)")
+              .header(USER_AGENT_HEADER, USER_AGENT_VALUE)
               .retrieve()
               .body(String.class);
       return parseResponse(symbol, response);
@@ -67,7 +73,7 @@ public class YahooFinanceAdapter {
           restClient
               .get()
               .uri(url)
-              .header("User-Agent", "Mozilla/5.0 (compatible; Equily/1.0)")
+              .header(USER_AGENT_HEADER, USER_AGENT_VALUE)
               .retrieve()
               .body(String.class);
       return parseHistoricalClose(response);
@@ -77,13 +83,58 @@ public class YahooFinanceAdapter {
     }
   }
 
+  public Map<LocalDate, BigDecimal> getHistoricalPrices(
+      String ticker, LocalDate from, LocalDate to) {
+    long period1 = from.atStartOfDay(ZoneOffset.UTC).toEpochSecond();
+    long period2 = to.atStartOfDay(ZoneOffset.UTC).toEpochSecond();
+    String url = BASE_URL + ticker + "?interval=1d&period1=" + period1 + "&period2=" + period2;
+    try {
+      String response =
+          restClient
+              .get()
+              .uri(url)
+              .header(USER_AGENT_HEADER, USER_AGENT_VALUE)
+              .retrieve()
+              .body(String.class);
+      return parseHistoricalPrices(response);
+    } catch (Exception e) {
+      log.warn("Failed to fetch historical prices for {}: {}", ticker, e.getMessage());
+      return Map.of();
+    }
+  }
+
+  Map<LocalDate, BigDecimal> parseHistoricalPrices(String json) {
+    try {
+      JsonNode root = objectMapper.readTree(json);
+      JsonNode result = root.path(JSON_KEY_CHART).path(JSON_KEY_RESULT);
+      if (result.isEmpty() || result.isNull()) return Map.of();
+
+      JsonNode timestamps = result.path(0).path("timestamp");
+      JsonNode closes = result.path(0).path("indicators").path("quote").path(0).path("close");
+
+      Map<LocalDate, BigDecimal> prices = new LinkedHashMap<>();
+      for (int i = 0; i < timestamps.size(); i++) {
+        if (closes.get(i) == null || closes.get(i).isNull()) continue;
+        LocalDate date =
+            Instant.ofEpochSecond(timestamps.get(i).asLong()).atZone(ZoneOffset.UTC).toLocalDate();
+        BigDecimal price =
+            new BigDecimal(closes.get(i).asText()).setScale(4, RoundingMode.HALF_EVEN);
+        prices.put(date, price);
+      }
+      return prices;
+    } catch (Exception e) {
+      log.warn("Failed to parse historical prices: {}", e.getMessage());
+      return Map.of();
+    }
+  }
+
   Optional<BigDecimal> parseHistoricalClose(String json) {
     try {
       JsonNode root = objectMapper.readTree(json);
-      JsonNode result = root.path("chart").path("result");
+      JsonNode result = root.path(JSON_KEY_CHART).path(JSON_KEY_RESULT);
       if (result.isEmpty() || result.isNull()) return Optional.empty();
 
-      JsonNode closes = result.get(0).path("indicators").path("quote").get(0).path("close");
+      JsonNode closes = result.path(0).path("indicators").path("quote").path(0).path("close");
       if (closes == null || closes.isEmpty()) return Optional.empty();
 
       BigDecimal rate = null;
@@ -102,8 +153,8 @@ public class YahooFinanceAdapter {
   private Optional<Quote> parseResponse(String symbol, String json) {
     try {
       JsonNode root = objectMapper.readTree(json);
-      JsonNode chart = root.path("chart");
-      JsonNode result = chart.path("result");
+      JsonNode chart = root.path(JSON_KEY_CHART);
+      JsonNode result = chart.path(JSON_KEY_RESULT);
 
       if (result.isEmpty() || result.isNull() || !chart.path("error").isNull()) {
         return Optional.empty();

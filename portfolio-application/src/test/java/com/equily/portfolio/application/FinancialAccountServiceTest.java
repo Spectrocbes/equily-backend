@@ -34,6 +34,7 @@ import com.equily.shared.Money;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.Month;
 import java.util.Currency;
 import java.util.List;
 import java.util.Map;
@@ -57,7 +58,9 @@ class FinancialAccountServiceTest {
 
   private static final Currency EUR = Currency.getInstance("EUR");
 
-  private static final LocalDate OPENED_AT = LocalDate.of(2024, 1, 1);
+  private static final LocalDate OPENED_AT = LocalDate.of(2024, Month.JANUARY, 1);
+  private static final LocalDate FIXED_TODAY = LocalDate.of(2026, Month.JUNE, 15);
+  private static final Instant FIXED_INSTANT = Instant.parse("2026-06-15T10:00:00Z");
 
   private static FinancialAccount openAccount(String name, String balance) {
     return FinancialAccount.open(
@@ -145,7 +148,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(BigDecimal.valueOf(500), EUR),
-            LocalDate.of(2026, 5, 24),
+            LocalDate.of(2026, Month.MAY, 24),
             null,
             null,
             "EUR",
@@ -171,7 +174,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(BigDecimal.valueOf(100), EUR),
-            LocalDate.of(2026, 5, 24),
+            LocalDate.of(2026, Month.MAY, 24),
             null,
             null,
             "EUR",
@@ -202,7 +205,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("22000"), EUR),
-            LocalDate.of(2026, 1, 1),
+            LocalDate.of(2026, Month.JANUARY, 1),
             null,
             null);
     livretA.recordTransaction(existingDeposit);
@@ -218,7 +221,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("1000"), EUR),
-            LocalDate.of(2026, 5, 24),
+            LocalDate.of(2026, Month.MAY, 24),
             null,
             null,
             "EUR",
@@ -242,7 +245,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(BigDecimal.valueOf(500), EUR),
-            LocalDate.of(2026, 5, 24),
+            LocalDate.of(2026, Month.MAY, 24),
             null,
             null,
             "EUR",
@@ -298,7 +301,8 @@ class FinancialAccountServiceTest {
     FinancialAccountId id = FinancialAccountId.generate();
     when(repository.findById(id)).thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> service.getAccountById(id, UserId.generate()))
+    UserId otherId = UserId.generate();
+    assertThatThrownBy(() -> service.getAccountById(id, otherId))
         .isInstanceOf(AccountNotFoundException.class)
         .hasMessageContaining(id.value().toString());
   }
@@ -318,7 +322,8 @@ class FinancialAccountServiceTest {
             OPENED_AT);
     when(repository.findById(account.id())).thenReturn(Optional.of(account));
 
-    assertThatThrownBy(() -> service.getAccountById(account.id(), otherUser))
+    FinancialAccountId accountId = account.id();
+    assertThatThrownBy(() -> service.getAccountById(accountId, otherUser))
         .isInstanceOf(AccountNotFoundException.class);
   }
 
@@ -342,7 +347,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("10000"), Currency.getInstance("EUR")),
-            LocalDate.now(),
+            FIXED_TODAY,
             BigDecimal.ZERO,
             null));
     Transaction buy =
@@ -353,7 +358,7 @@ class FinancialAccountServiceTest {
             new BigDecimal("10"),
             new Money(new BigDecimal("150.00"), Currency.getInstance("EUR")),
             new Money(new BigDecimal("1500.00"), Currency.getInstance("EUR")),
-            LocalDate.now(),
+            FIXED_TODAY,
             BigDecimal.ZERO,
             null);
     account.recordTransaction(buy);
@@ -373,7 +378,9 @@ class FinancialAccountServiceTest {
   void getHoldings_throws_AccountNotFoundException_when_account_not_found() {
     when(repository.findById(any())).thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> service.getHoldings(FinancialAccountId.generate(), UserId.generate()))
+    FinancialAccountId unknownId = FinancialAccountId.generate();
+    UserId unknownUser = UserId.generate();
+    assertThatThrownBy(() -> service.getHoldings(unknownId, unknownUser))
         .isInstanceOf(AccountNotFoundException.class);
   }
 
@@ -397,7 +404,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("500.00"), EUR),
-            LocalDate.of(2026, 5, 27),
+            LocalDate.of(2026, Month.MAY, 27),
             null,
             null);
     account.recordTransaction(deposit);
@@ -430,7 +437,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("500"), EUR),
-            LocalDate.of(2026, 1, 15),
+            LocalDate.of(2026, Month.JANUARY, 15),
             BigDecimal.ZERO,
             "Imported from Boursobank");
     CsvImportResult parsed = new CsvImportResult(1, 0, 0, List.of(), List.of(newTx));
@@ -462,7 +469,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("3700"), EUR),
-            LocalDate.of(2026, 1, 29),
+            LocalDate.of(2026, Month.JANUARY, 29),
             BigDecimal.ZERO,
             null);
     account.recordTransaction(existingDeposit);
@@ -476,7 +483,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("3700"), EUR),
-            LocalDate.of(2026, 1, 29),
+            LocalDate.of(2026, Month.JANUARY, 29),
             BigDecimal.ZERO,
             "Imported from Boursobank");
     CsvImportResult parsed = new CsvImportResult(1, 0, 0, List.of(), List.of(duplicateTx));
@@ -493,8 +500,9 @@ class FinancialAccountServiceTest {
     when(repository.findById(any())).thenReturn(Optional.empty());
     CsvImportResult parsed = new CsvImportResult(0, 0, 0, List.of(), List.of());
 
-    assertThatThrownBy(
-            () -> service.importCsv(FinancialAccountId.generate(), parsed, UserId.generate()))
+    FinancialAccountId unknownAccount = FinancialAccountId.generate();
+    UserId unknownImporter = UserId.generate();
+    assertThatThrownBy(() -> service.importCsv(unknownAccount, parsed, unknownImporter))
         .isInstanceOf(AccountNotFoundException.class);
   }
 
@@ -520,7 +528,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("500"), EUR),
-            LocalDate.of(2026, 1, 15),
+            LocalDate.of(2026, Month.JANUARY, 15),
             BigDecimal.ZERO,
             "Imported from Boursobank");
     Transaction tx2 =
@@ -531,7 +539,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("500"), EUR),
-            LocalDate.of(2026, 1, 15),
+            LocalDate.of(2026, Month.JANUARY, 15),
             BigDecimal.ZERO,
             "Imported from Boursobank");
     CsvImportResult parsed = new CsvImportResult(2, 0, 0, List.of(), List.of(tx1, tx2));
@@ -565,7 +573,7 @@ class FinancialAccountServiceTest {
             new BigDecimal("1"),
             new Money(new BigDecimal("1100"), EUR),
             new Money(new BigDecimal("1100"), EUR),
-            LocalDate.of(2026, 1, 30),
+            LocalDate.of(2026, Month.JANUARY, 30),
             BigDecimal.ZERO,
             "Imported from Boursobank");
     Transaction depositDay1 =
@@ -576,7 +584,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("3700"), EUR),
-            LocalDate.of(2026, 1, 29),
+            LocalDate.of(2026, Month.JANUARY, 29),
             BigDecimal.ZERO,
             "Imported from Boursobank");
     CsvImportResult parsed = new CsvImportResult(2, 0, 0, List.of(), List.of(buyDay2, depositDay1));
@@ -609,7 +617,7 @@ class FinancialAccountServiceTest {
             new BigDecimal("1"),
             new Money(new BigDecimal("1100"), EUR),
             new Money(new BigDecimal("1100"), EUR),
-            LocalDate.of(2026, 1, 29),
+            LocalDate.of(2026, Month.JANUARY, 29),
             BigDecimal.ZERO,
             "Imported from Boursobank");
     Transaction sameDayDeposit =
@@ -620,7 +628,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("3700"), EUR),
-            LocalDate.of(2026, 1, 29),
+            LocalDate.of(2026, Month.JANUARY, 29),
             BigDecimal.ZERO,
             "Imported from Boursobank");
     CsvImportResult parsed =
@@ -651,7 +659,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("22000"), EUR),
-            LocalDate.of(2026, 1, 1),
+            LocalDate.of(2026, Month.JANUARY, 1),
             BigDecimal.ZERO,
             null);
     livretA.recordTransaction(deposit);
@@ -664,7 +672,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("23000"), EUR),
-            LocalDate.of(2026, 1, 1),
+            LocalDate.of(2026, Month.JANUARY, 1),
             BigDecimal.ZERO,
             null);
     UpdateTransactionCommand command =
@@ -695,7 +703,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("20000"), EUR),
-            LocalDate.of(2026, 1, 1),
+            LocalDate.of(2026, Month.JANUARY, 1),
             BigDecimal.ZERO,
             null);
     livretA.recordTransaction(deposit);
@@ -708,7 +716,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("22000"), EUR),
-            LocalDate.of(2026, 1, 1),
+            LocalDate.of(2026, Month.JANUARY, 1),
             BigDecimal.ZERO,
             null);
     UpdateTransactionCommand command =
@@ -739,7 +747,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("140000"), EUR),
-            LocalDate.of(2026, 1, 1),
+            LocalDate.of(2026, Month.JANUARY, 1),
             BigDecimal.ZERO,
             null);
     pea.recordTransaction(deposit);
@@ -752,7 +760,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("160000"), EUR),
-            LocalDate.of(2026, 1, 1),
+            LocalDate.of(2026, Month.JANUARY, 1),
             BigDecimal.ZERO,
             null);
     UpdateTransactionCommand command =
@@ -783,7 +791,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("10000"), EUR),
-            LocalDate.of(2026, 1, 1),
+            LocalDate.of(2026, Month.JANUARY, 1),
             BigDecimal.ZERO,
             null);
     pea.recordTransaction(deposit);
@@ -795,7 +803,7 @@ class FinancialAccountServiceTest {
             new BigDecimal("10"),
             new Money(new BigDecimal("100"), EUR),
             new Money(new BigDecimal("1000"), EUR),
-            LocalDate.of(2026, 1, 2),
+            LocalDate.of(2026, Month.JANUARY, 2),
             BigDecimal.ZERO,
             null);
     pea.recordTransaction(buy);
@@ -807,7 +815,7 @@ class FinancialAccountServiceTest {
             new BigDecimal("5"),
             new Money(new BigDecimal("200"), EUR),
             new Money(new BigDecimal("1000"), EUR),
-            LocalDate.of(2026, 1, 2),
+            LocalDate.of(2026, Month.JANUARY, 2),
             BigDecimal.ZERO,
             null);
     UpdateTransactionCommand command =
@@ -839,7 +847,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("5000"), EUR),
-            LocalDate.of(2026, 1, 1),
+            LocalDate.of(2026, Month.JANUARY, 1),
             BigDecimal.ZERO,
             null);
     account.recordTransaction(deposit);
@@ -855,10 +863,10 @@ class FinancialAccountServiceTest {
     FinancialAccount account = openAccount("My PEA", "10000");
     when(repository.findById(account.id())).thenReturn(Optional.of(account));
 
-    assertThatThrownBy(
-            () ->
-                service.getTransactionType(
-                    account.id(), TransactionId.generate(), UserId.generate()))
+    FinancialAccountId accountId = account.id();
+    TransactionId unknownTx = TransactionId.generate();
+    UserId unknownUser = UserId.generate();
+    assertThatThrownBy(() -> service.getTransactionType(accountId, unknownTx, unknownUser))
         .isInstanceOf(AccountNotFoundException.class);
   }
 
@@ -876,8 +884,9 @@ class FinancialAccountServiceTest {
             OPENED_AT);
     when(repository.findById(account.id())).thenReturn(Optional.of(account));
 
-    assertThatThrownBy(
-            () -> service.getTransactionType(account.id(), TransactionId.generate(), ownerId))
+    FinancialAccountId accountId = account.id();
+    TransactionId missingTx = TransactionId.generate();
+    assertThatThrownBy(() -> service.getTransactionType(accountId, missingTx, ownerId))
         .isInstanceOf(TransactionNotFoundException.class);
   }
 
@@ -901,7 +910,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("1000"), EUR),
-            LocalDate.of(2026, 1, 1),
+            LocalDate.of(2026, Month.JANUARY, 1),
             BigDecimal.ZERO,
             null);
     account.recordTransaction(deposit);
@@ -912,7 +921,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("2000"), EUR),
-            LocalDate.of(2026, 1, 1),
+            LocalDate.of(2026, Month.JANUARY, 1),
             BigDecimal.ZERO,
             "Updated");
     UpdateTransactionCommand command =
@@ -933,7 +942,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("500"), EUR),
-            LocalDate.of(2026, 1, 1),
+            LocalDate.of(2026, Month.JANUARY, 1),
             BigDecimal.ZERO,
             null);
     UpdateTransactionCommand command =
@@ -954,7 +963,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("500"), EUR),
-            LocalDate.of(2026, 1, 1),
+            LocalDate.of(2026, Month.JANUARY, 1),
             BigDecimal.ZERO,
             null);
     UpdateTransactionCommand command =
@@ -983,7 +992,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("500"), EUR),
-            LocalDate.of(2026, 1, 1),
+            LocalDate.of(2026, Month.JANUARY, 1),
             BigDecimal.ZERO,
             null);
     UpdateTransactionCommand command =
@@ -1013,7 +1022,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("10000"), EUR),
-            LocalDate.now(),
+            FIXED_TODAY,
             BigDecimal.ZERO,
             null));
     account.recordTransaction(
@@ -1024,12 +1033,12 @@ class FinancialAccountServiceTest {
             new BigDecimal("10"),
             new Money(new BigDecimal("100.00"), EUR),
             new Money(new BigDecimal("1000.00"), EUR),
-            LocalDate.now(),
+            FIXED_TODAY,
             BigDecimal.ZERO,
             null));
     when(repository.findById(any())).thenReturn(Optional.of(account));
 
-    Quote quote = new Quote("AAPL", new BigDecimal("150.00"), "EUR", "Apple", Instant.now(), null);
+    Quote quote = new Quote("AAPL", new BigDecimal("150.00"), "EUR", "Apple", FIXED_INSTANT, null);
     when(marketDataPort.getQuotes(List.of("AAPL"))).thenReturn(Map.of("AAPL", quote));
 
     List<EnrichedHolding> result = service.getEnrichedHoldings(account.id(), ownerId, "EUR");
@@ -1061,7 +1070,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("10000"), EUR),
-            LocalDate.now(),
+            FIXED_TODAY,
             BigDecimal.ZERO,
             null));
     account.recordTransaction(
@@ -1072,7 +1081,7 @@ class FinancialAccountServiceTest {
             new BigDecimal("5"),
             new Money(new BigDecimal("200.00"), EUR),
             new Money(new BigDecimal("1000.00"), EUR),
-            LocalDate.now(),
+            FIXED_TODAY,
             BigDecimal.ZERO,
             null));
     when(repository.findById(any())).thenReturn(Optional.of(account));
@@ -1106,6 +1115,31 @@ class FinancialAccountServiceTest {
   }
 
   @Test
+  void createAccount_initial_deposit_uses_openedAt_as_date() {
+    UserId ownerId = UserId.generate();
+    LocalDate openedAt = LocalDate.of(2022, Month.MARCH, 15);
+    Money initialBalance = new Money(new BigDecimal("5000"), EUR);
+    CreateFinancialAccountCommand command =
+        new CreateFinancialAccountCommand(
+            "Mon PEA",
+            AccountType.PEA,
+            initialBalance,
+            "Fortuneo",
+            ownerId,
+            AccountSubType.PEA,
+            openedAt,
+            "EUR",
+            null);
+
+    service.createAccount(command);
+
+    ArgumentCaptor<FinancialAccount> captor = ArgumentCaptor.forClass(FinancialAccount.class);
+    verify(repository).save(captor.capture());
+    Transaction deposit = captor.getValue().transactions().get(0);
+    assertThat(deposit.date()).isEqualTo(openedAt);
+  }
+
+  @Test
   void getPortfolioSummaries_returns_live_values_when_prices_available() {
     UserId ownerId = UserId.generate();
     FinancialAccount pea =
@@ -1125,7 +1159,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("10000"), EUR),
-            LocalDate.now(),
+            FIXED_TODAY,
             BigDecimal.ZERO,
             null));
     pea.recordTransaction(
@@ -1136,11 +1170,11 @@ class FinancialAccountServiceTest {
             new BigDecimal("1"),
             new Money(new BigDecimal("150.00"), EUR),
             new Money(new BigDecimal("150.00"), EUR),
-            LocalDate.now(),
+            FIXED_TODAY,
             BigDecimal.ZERO,
             null));
     when(repository.findAllByOwnerId(ownerId)).thenReturn(List.of(pea));
-    Quote quote = new Quote("AAPL", new BigDecimal("300.00"), "EUR", "Apple", Instant.now(), null);
+    Quote quote = new Quote("AAPL", new BigDecimal("300.00"), "EUR", "Apple", FIXED_INSTANT, null);
     when(marketDataPort.getQuotes(List.of("AAPL"))).thenReturn(Map.of("AAPL", quote));
 
     List<AccountPortfolioSummary> result = service.getPortfolioSummaries(ownerId, "EUR");
@@ -1173,7 +1207,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("10000"), EUR),
-            LocalDate.now(),
+            FIXED_TODAY,
             BigDecimal.ZERO,
             null));
     pea.recordTransaction(
@@ -1184,7 +1218,7 @@ class FinancialAccountServiceTest {
             new BigDecimal("5"),
             new Money(new BigDecimal("200.00"), EUR),
             new Money(new BigDecimal("1000.00"), EUR),
-            LocalDate.now(),
+            FIXED_TODAY,
             BigDecimal.ZERO,
             null));
     when(repository.findAllByOwnerId(ownerId)).thenReturn(List.of(pea));
@@ -1247,7 +1281,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("5000"), EUR),
-            LocalDate.now(),
+            FIXED_TODAY,
             BigDecimal.ZERO,
             null));
     when(repository.findAllByOwnerId(ownerId)).thenReturn(List.of(pea));
@@ -1280,7 +1314,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("10000"), EUR),
-            LocalDate.now(),
+            FIXED_TODAY,
             BigDecimal.ZERO,
             null));
     account.recordTransaction(
@@ -1291,13 +1325,13 @@ class FinancialAccountServiceTest {
             new BigDecimal("10"),
             new Money(new BigDecimal("100.00"), EUR),
             new Money(new BigDecimal("1000.00"), EUR),
-            LocalDate.now(),
+            FIXED_TODAY,
             BigDecimal.ZERO,
             null));
     when(repository.findById(any())).thenReturn(Optional.of(account));
 
     // Quote in USD, target is USD â†’ liveToTarget short-circuits to ONE (no FX call for live)
-    Quote quote = new Quote("AAPL", new BigDecimal("100.00"), "USD", "Apple", Instant.now(), null);
+    Quote quote = new Quote("AAPL", new BigDecimal("100.00"), "USD", "Apple", FIXED_INSTANT, null);
     when(marketDataPort.getQuotes(List.of("AAPL"))).thenReturn(Map.of("AAPL", quote));
     // costToTarget: EURâ†’USD because targetCurrency != "EUR"
     when(fxRatePort.getRate("EUR", "USD")).thenReturn(Optional.of(new BigDecimal("1.10")));
@@ -1413,7 +1447,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("10000"), EUR),
-            LocalDate.now(),
+            FIXED_TODAY,
             BigDecimal.ZERO,
             null));
     pea.recordTransaction(
@@ -1424,13 +1458,13 @@ class FinancialAccountServiceTest {
             new BigDecimal("1"),
             new Money(new BigDecimal("100.00"), EUR),
             new Money(new BigDecimal("100.00"), EUR),
-            LocalDate.now(),
+            FIXED_TODAY,
             BigDecimal.ZERO,
             null));
     when(repository.findAllByOwnerId(ownerId)).thenReturn(List.of(pea));
 
     // Quote in USD, target is USD â†’ liveToTarget short-circuits to ONE
-    Quote quote = new Quote("AAPL", new BigDecimal("100.00"), "USD", "Apple", Instant.now(), null);
+    Quote quote = new Quote("AAPL", new BigDecimal("100.00"), "USD", "Apple", FIXED_INSTANT, null);
     when(marketDataPort.getQuotes(List.of("AAPL"))).thenReturn(Map.of("AAPL", quote));
     // costToTarget: EURâ†’USD
     when(fxRatePort.getRate("EUR", "USD")).thenReturn(Optional.of(new BigDecimal("1.10")));
@@ -1465,7 +1499,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("10000"), EUR),
-            LocalDate.of(2026, 4, 1),
+            LocalDate.of(2026, Month.APRIL, 1),
             BigDecimal.ZERO,
             null));
     Transaction buy1 =
@@ -1476,7 +1510,7 @@ class FinancialAccountServiceTest {
             new BigDecimal("5"),
             new Money(new BigDecimal("100.00"), EUR),
             new Money(new BigDecimal("500.00"), EUR),
-            LocalDate.of(2026, 5, 1),
+            LocalDate.of(2026, Month.MAY, 1),
             BigDecimal.ZERO,
             null);
     Transaction buy2 =
@@ -1487,7 +1521,7 @@ class FinancialAccountServiceTest {
             new BigDecimal("5"),
             new Money(new BigDecimal("200.00"), EUR),
             new Money(new BigDecimal("1000.00"), EUR),
-            LocalDate.of(2026, 5, 15),
+            LocalDate.of(2026, Month.MAY, 15),
             BigDecimal.ZERO,
             null);
     account.recordTransaction(buy1);
@@ -1523,7 +1557,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("10000"), EUR),
-            LocalDate.now(),
+            FIXED_TODAY,
             BigDecimal.ZERO,
             null));
     account.recordTransaction(
@@ -1534,12 +1568,12 @@ class FinancialAccountServiceTest {
             new BigDecimal("10"),
             new Money(new BigDecimal("100.00"), EUR),
             new Money(new BigDecimal("1000.00"), EUR),
-            LocalDate.now(),
+            FIXED_TODAY,
             BigDecimal.ZERO,
             null));
     when(repository.findById(any())).thenReturn(Optional.of(account));
 
-    Quote quote = new Quote("AAPL", new BigDecimal("200.00"), "USD", "Apple", Instant.now(), null);
+    Quote quote = new Quote("AAPL", new BigDecimal("200.00"), "USD", "Apple", FIXED_INSTANT, null);
     when(marketDataPort.getQuotes(List.of("AAPL"))).thenReturn(Map.of("AAPL", quote));
     when(fxRatePort.getRate("USD", "EUR")).thenReturn(Optional.of(new BigDecimal("0.90")));
 
@@ -1574,7 +1608,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("5000"), EUR),
-            LocalDate.now(),
+            FIXED_TODAY,
             BigDecimal.ZERO,
             null));
     account.recordTransaction(
@@ -1585,13 +1619,13 @@ class FinancialAccountServiceTest {
             new BigDecimal("5"),
             new Money(new BigDecimal("150.00"), EUR),
             new Money(new BigDecimal("750.00"), EUR),
-            LocalDate.now(),
+            FIXED_TODAY,
             BigDecimal.ZERO,
             null));
     when(repository.findById(any())).thenReturn(Optional.of(account));
 
     Quote quote =
-        new Quote("AIR.PA", new BigDecimal("160.00"), "EUR", "Airbus", Instant.now(), null);
+        new Quote("AIR.PA", new BigDecimal("160.00"), "EUR", "Airbus", FIXED_INSTANT, null);
     when(marketDataPort.getQuotes(List.of("AIR.PA"))).thenReturn(Map.of("AIR.PA", quote));
 
     List<EnrichedHolding> result = service.getEnrichedHoldings(account.id(), ownerId, "EUR");
@@ -1615,7 +1649,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("500"), EUR),
-            LocalDate.of(2026, 6, 1),
+            LocalDate.of(2026, Month.JUNE, 1),
             BigDecimal.ZERO,
             null,
             "EUR",
@@ -1654,7 +1688,7 @@ class FinancialAccountServiceTest {
             BigDecimal.ZERO,
             null));
     when(repository.findById(account.id())).thenReturn(Optional.of(account));
-    LocalDate txDate = LocalDate.of(2026, 6, 1);
+    LocalDate txDate = LocalDate.of(2026, Month.JUNE, 1);
     when(fxRatePort.getRateToEur("USD", txDate))
         .thenReturn(Optional.of(new BigDecimal("0.920000")));
 
@@ -1701,7 +1735,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("22000"), EUR),
-            LocalDate.of(2026, 1, 1),
+            LocalDate.of(2026, Month.JANUARY, 1),
             BigDecimal.ZERO,
             null);
     livretA.recordTransaction(existingDeposit);
@@ -1718,7 +1752,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("1100"), EUR),
-            LocalDate.of(2026, 6, 1),
+            LocalDate.of(2026, Month.JUNE, 1),
             BigDecimal.ZERO,
             null,
             "EUR",
@@ -1742,7 +1776,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("500"), EUR),
-            LocalDate.of(2026, 6, 1),
+            LocalDate.of(2026, Month.JUNE, 1),
             BigDecimal.ZERO,
             null,
             "USD",
@@ -1780,7 +1814,7 @@ class FinancialAccountServiceTest {
             BigDecimal.ZERO,
             null));
     when(repository.findById(account.id())).thenReturn(Optional.of(account));
-    LocalDate txDate = LocalDate.of(2026, 6, 1);
+    LocalDate txDate = LocalDate.of(2026, Month.JUNE, 1);
     when(fxRatePort.getRateToEur("USD", txDate)).thenReturn(Optional.of(new BigDecimal("0.92")));
 
     RecordTransactionCommand command =
@@ -1809,7 +1843,7 @@ class FinancialAccountServiceTest {
 
   // --- PEA â‰¥5y WITHDRAWAL fiscal split tests ---
 
-  private static final LocalDate OVER_5Y_AGO = LocalDate.of(2019, 1, 1);
+  private static final LocalDate OVER_5Y_AGO = LocalDate.of(2019, Month.JANUARY, 1);
 
   private FinancialAccount openPeaOver5y() {
     UserId ownerId = UserId.generate();
@@ -1863,7 +1897,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("10000"), EUR),
-            LocalDate.of(2026, 6, 12),
+            LocalDate.of(2026, Month.JUNE, 12),
             BigDecimal.ZERO,
             null,
             "EUR",
@@ -1924,7 +1958,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("5000"), EUR),
-            LocalDate.of(2026, 6, 12),
+            LocalDate.of(2026, Month.JUNE, 12),
             BigDecimal.ZERO,
             null,
             "EUR",
@@ -1974,7 +2008,7 @@ class FinancialAccountServiceTest {
             null,
             null,
             new Money(new BigDecimal("3000"), EUR),
-            LocalDate.of(2026, 6, 12),
+            LocalDate.of(2026, Month.JUNE, 12),
             BigDecimal.ZERO,
             null,
             "EUR",
@@ -2142,10 +2176,10 @@ class FinancialAccountServiceTest {
     FinancialAccount account = openAccount("My PEA", "1000");
     when(repository.findById(account.id())).thenReturn(Optional.of(account));
 
-    assertThatThrownBy(
-            () ->
-                service.deleteTransaction(
-                    account.id(), TransactionId.generate(), UserId.generate()))
+    FinancialAccountId accountId = account.id();
+    TransactionId unknownTxId = TransactionId.generate();
+    UserId unknownDeleter = UserId.generate();
+    assertThatThrownBy(() -> service.deleteTransaction(accountId, unknownTxId, unknownDeleter))
         .isInstanceOf(AccountNotFoundException.class);
   }
 
@@ -2173,7 +2207,7 @@ class FinancialAccountServiceTest {
             BigDecimal.ZERO,
             null));
     when(repository.findById(account.id())).thenReturn(Optional.of(account));
-    LocalDate txDate = LocalDate.of(2026, 6, 1);
+    LocalDate txDate = LocalDate.of(2026, Month.JUNE, 1);
     when(fxRatePort.getRateToEur("USD", txDate)).thenReturn(Optional.of(new BigDecimal("0.92")));
 
     RecordTransactionCommand command =

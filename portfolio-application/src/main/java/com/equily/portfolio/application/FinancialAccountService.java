@@ -27,6 +27,7 @@ import com.equily.shared.Money;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Currency;
@@ -148,6 +149,10 @@ class FinancialAccountService implements FinancialAccountUseCase {
       }
 
       Money domainAmount = new Money(amountEur, Currency.getInstance("EUR"));
+      LocalDate depositDate =
+          command.openedAt() != null
+              ? command.openedAt()
+              : LocalDate.now(ZoneId.of("Europe/Paris"));
       Transaction initialTx =
           Transaction.of(
               TransactionId.generate(),
@@ -156,7 +161,7 @@ class FinancialAccountService implements FinancialAccountUseCase {
               null,
               null,
               domainAmount,
-              LocalDate.now(),
+              depositDate,
               BigDecimal.ZERO,
               "Initial deposit",
               currency,

@@ -6,6 +6,8 @@ import com.equily.marketdata.infrastructure.fmp.FmpAdapter;
 import com.equily.marketdata.infrastructure.yahoo.YahooFinanceAdapter;
 import com.equily.portfolio.domain.marketdata.MarketDataPort;
 import com.equily.portfolio.domain.marketdata.Quote;
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -79,6 +81,14 @@ public class CompositeMarketDataAdapter implements MarketDataPort {
     results.putAll(fmp.getQuotes(usMissing));
 
     return results;
+  }
+
+  @Override
+  @Cacheable(value = "historicalPrices", key = "#ticker + '_' + #from + '_' + #to")
+  public Map<LocalDate, BigDecimal> getHistoricalPrices(
+      String ticker, LocalDate from, LocalDate to) {
+    String symbol = CryptoSymbols.isCrypto(ticker) ? ticker + "-USD" : ticker;
+    return yahoo.getHistoricalPrices(symbol, from, to);
   }
 
   private boolean isEuTicker(String symbol) {

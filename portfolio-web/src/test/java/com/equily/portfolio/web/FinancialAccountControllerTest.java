@@ -47,6 +47,7 @@ import com.equily.shared.Money;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.Month;
 import java.util.Currency;
 import java.util.List;
 import java.util.Optional;
@@ -66,6 +67,9 @@ import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest(FinancialAccountController.class)
 @Import(TestSecurityConfig.class)
 class FinancialAccountControllerTest {
+
+  private static final LocalDate FIXED_TODAY = LocalDate.of(2026, Month.JUNE, 15);
+  private static final Instant FIXED_INSTANT = Instant.parse("2026-06-15T10:00:00Z");
 
   @MockitoBean private FinancialAccountUseCase useCase;
   @MockitoBean private BrokerCsvParserPort parserPort;
@@ -87,7 +91,7 @@ class FinancialAccountControllerTest {
             "Fortuneo",
             testUserId,
             null,
-            LocalDate.of(2024, 1, 1));
+            LocalDate.of(2024, Month.JANUARY, 1));
   }
 
   private Authentication mockAuth() {
@@ -114,7 +118,7 @@ class FinancialAccountControllerTest {
             "Fortuneo",
             testUserId,
             null,
-            LocalDate.of(2024, 1, 1));
+            LocalDate.of(2024, Month.JANUARY, 1));
     account.recordTransaction(
         Transaction.ofEur(
             TransactionId.generate(),
@@ -123,7 +127,7 @@ class FinancialAccountControllerTest {
             null,
             null,
             new Money(new BigDecimal("1000"), Currency.getInstance("EUR")),
-            LocalDate.of(2024, 1, 1),
+            LocalDate.of(2024, Month.JANUARY, 1),
             BigDecimal.ZERO,
             null));
     when(useCase.getAllAccounts(any())).thenReturn(List.of(account));
@@ -146,7 +150,7 @@ class FinancialAccountControllerTest {
             "Fortuneo",
             testUserId,
             null,
-            LocalDate.of(2024, 1, 1));
+            LocalDate.of(2024, Month.JANUARY, 1));
     account.recordTransaction(
         Transaction.ofEur(
             TransactionId.generate(),
@@ -155,7 +159,7 @@ class FinancialAccountControllerTest {
             null,
             null,
             new Money(new BigDecimal("1000"), Currency.getInstance("EUR")),
-            LocalDate.of(2024, 1, 1),
+            LocalDate.of(2024, Month.JANUARY, 1),
             BigDecimal.ZERO,
             null));
     when(useCase.getAllAccounts(any())).thenReturn(List.of(account));
@@ -279,7 +283,7 @@ class FinancialAccountControllerTest {
             "Fortuneo",
             testUserId,
             null,
-            LocalDate.of(2024, 1, 1));
+            LocalDate.of(2024, Month.JANUARY, 1));
     account.recordTransaction(
         Transaction.ofEur(
             TransactionId.generate(),
@@ -288,7 +292,7 @@ class FinancialAccountControllerTest {
             null,
             null,
             new Money(BigDecimal.valueOf(2000), Currency.getInstance("EUR")),
-            LocalDate.of(2026, 1, 1),
+            LocalDate.of(2026, Month.JANUARY, 1),
             BigDecimal.ZERO,
             null));
     Transaction buyTx =
@@ -299,7 +303,7 @@ class FinancialAccountControllerTest {
             BigDecimal.valueOf(10),
             new Money(BigDecimal.valueOf(150), Currency.getInstance("EUR")),
             new Money(BigDecimal.valueOf(1500), Currency.getInstance("EUR")),
-            LocalDate.of(2026, 1, 15),
+            LocalDate.of(2026, Month.JANUARY, 15),
             BigDecimal.ZERO,
             "DCA janvier");
     account.recordTransaction(buyTx);
@@ -330,7 +334,7 @@ class FinancialAccountControllerTest {
             null,
             null,
             new Money(BigDecimal.valueOf(1000), Currency.getInstance("EUR")),
-            LocalDate.of(2026, 1, 15),
+            LocalDate.of(2026, Month.JANUARY, 15),
             null,
             null);
     testAccount.recordTransaction(depositTx);
@@ -357,7 +361,7 @@ class FinancialAccountControllerTest {
             "IBKR",
             testUserId,
             null,
-            LocalDate.of(2024, 1, 1));
+            LocalDate.of(2024, Month.JANUARY, 1));
     account.recordTransaction(
         Transaction.ofEur(
             TransactionId.generate(),
@@ -366,7 +370,7 @@ class FinancialAccountControllerTest {
             null,
             null,
             new Money(new BigDecimal("10000"), Currency.getInstance("EUR")),
-            LocalDate.of(2026, 1, 1),
+            LocalDate.of(2026, Month.JANUARY, 1),
             BigDecimal.ZERO,
             null));
     account.recordTransaction(
@@ -377,7 +381,7 @@ class FinancialAccountControllerTest {
             new BigDecimal("10"),
             new Money(new BigDecimal("150.00"), Currency.getInstance("EUR")),
             new Money(new BigDecimal("1500.00"), Currency.getInstance("EUR")),
-            LocalDate.of(2026, 1, 15),
+            LocalDate.of(2026, Month.JANUARY, 15),
             new BigDecimal("4.99"),
             null));
     when(useCase.getAccountById(any(), any())).thenReturn(account);
@@ -456,7 +460,7 @@ class FinancialAccountControllerTest {
   @Test
   void recordTransaction_accepts_date_tomorrow() throws Exception {
     when(useCase.getAccountById(any(), any())).thenReturn(testAccount);
-    String tomorrow = LocalDate.now().plusDays(1).toString();
+    String tomorrow = FIXED_TODAY.plusDays(1).toString();
 
     mockMvc
         .perform(
@@ -540,7 +544,7 @@ class FinancialAccountControllerTest {
             new BigDecimal("160.00"),
             "EUR",
             "Apple Inc.",
-            Instant.now(),
+            FIXED_INSTANT,
             new BigDecimal("2.50"));
     EnrichedHolding enriched =
         EnrichedHolding.withPrice(holding, quote, "EUR", BigDecimal.ONE, BigDecimal.ONE);
@@ -722,7 +726,7 @@ class FinancialAccountControllerTest {
             "La Banque Postale",
             userId,
             AccountSubType.LIVRET_A,
-            LocalDate.of(2020, 3, 1));
+            LocalDate.of(2020, Month.MARCH, 1));
     Transaction deposit =
         Transaction.ofEur(
             TransactionId.generate(),
@@ -731,7 +735,7 @@ class FinancialAccountControllerTest {
             null,
             null,
             new Money(new BigDecimal("10000"), Currency.getInstance("EUR")),
-            LocalDate.of(2026, 1, 15),
+            LocalDate.of(2026, Month.JANUARY, 15),
             null,
             null);
     livretA.recordTransaction(deposit);
@@ -866,7 +870,7 @@ class FinancialAccountControllerTest {
             "Fortuneo",
             userId,
             AccountSubType.PEA,
-            LocalDate.of(2020, 1, 1));
+            LocalDate.of(2020, Month.JANUARY, 1));
     Transaction deposit =
         Transaction.ofEur(
             TransactionId.generate(),
@@ -875,7 +879,7 @@ class FinancialAccountControllerTest {
             null,
             null,
             new Money(new BigDecimal("50000"), Currency.getInstance("EUR")),
-            LocalDate.of(2020, 6, 1),
+            LocalDate.of(2020, Month.JUNE, 1),
             BigDecimal.ZERO,
             null);
     pea.recordTransaction(deposit);
@@ -907,7 +911,7 @@ class FinancialAccountControllerTest {
             "Fortuneo",
             testUserId,
             null,
-            LocalDate.of(2024, 1, 1));
+            LocalDate.of(2024, Month.JANUARY, 1));
     pea.recordTransaction(
         Transaction.ofEur(
             TransactionId.generate(),
@@ -916,7 +920,7 @@ class FinancialAccountControllerTest {
             null,
             null,
             new Money(new BigDecimal("1000"), Currency.getInstance("EUR")),
-            LocalDate.of(2024, 1, 10),
+            LocalDate.of(2024, Month.JANUARY, 10),
             BigDecimal.ZERO,
             null));
     pea.recordTransaction(
@@ -927,7 +931,7 @@ class FinancialAccountControllerTest {
             new BigDecimal("10"),
             new Money(new BigDecimal("100"), Currency.getInstance("EUR")),
             new Money(new BigDecimal("1000"), Currency.getInstance("EUR")),
-            LocalDate.of(2024, 2, 1),
+            LocalDate.of(2024, Month.FEBRUARY, 1),
             BigDecimal.ZERO,
             null));
 
@@ -952,7 +956,7 @@ class FinancialAccountControllerTest {
             "Boursobank",
             testUserId,
             null,
-            LocalDate.of(2024, 1, 1));
+            LocalDate.of(2024, Month.JANUARY, 1));
 
     FinancialAccountId id = savings.id();
     when(useCase.getAccountById(eq(id), any())).thenReturn(savings);
@@ -1015,7 +1019,7 @@ class FinancialAccountControllerTest {
             "BNP",
             testUserId,
             AccountSubType.LIVRET_A,
-            LocalDate.of(2024, 1, 1));
+            LocalDate.of(2024, Month.JANUARY, 1));
     livretA.recordTransaction(
         Transaction.ofEur(
             TransactionId.generate(),
@@ -1024,7 +1028,7 @@ class FinancialAccountControllerTest {
             null,
             null,
             new Money(new BigDecimal("10000"), Currency.getInstance("EUR")),
-            LocalDate.of(2024, 6, 1),
+            LocalDate.of(2024, Month.JUNE, 1),
             BigDecimal.ZERO,
             null));
     when(useCase.getAllAccounts(any())).thenReturn(List.of(livretA));
@@ -1049,7 +1053,7 @@ class FinancialAccountControllerTest {
             "BNP",
             testUserId,
             AccountSubType.LIVRET_A,
-            LocalDate.of(2024, 1, 1));
+            LocalDate.of(2024, Month.JANUARY, 1));
     when(useCase.getAllAccounts(any())).thenReturn(List.of(livretA));
     when(fxRatePort.getRate("EUR", "USD")).thenReturn(Optional.of(new BigDecimal("1.10")));
 
@@ -1166,6 +1170,103 @@ class FinancialAccountControllerTest {
                     txId.toString())
                 .with(authentication(mockAuth())))
         .andExpect(status().isUnprocessableEntity());
+  }
+
+  @Test
+  void toAccountResponse_pea_pme_shows_own_deposits_and_deposit_note() throws Exception {
+    UserId userId = UserId.generate();
+    FinancialAccount pea =
+        FinancialAccount.open(
+            "Mon PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, Currency.getInstance("EUR")),
+            "Fortuneo",
+            userId,
+            AccountSubType.PEA,
+            LocalDate.of(2020, Month.JANUARY, 1));
+    pea.recordTransaction(
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("30000"), Currency.getInstance("EUR")),
+            LocalDate.of(2020, Month.JUNE, 1),
+            BigDecimal.ZERO,
+            null));
+
+    FinancialAccount peaPme =
+        FinancialAccount.open(
+            "Mon PEA-PME",
+            AccountType.PEA_PME,
+            new Money(BigDecimal.ZERO, Currency.getInstance("EUR")),
+            "Fortuneo",
+            userId,
+            AccountSubType.PEA_PME,
+            LocalDate.of(2021, Month.JANUARY, 1));
+    peaPme.recordTransaction(
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("10000"), Currency.getInstance("EUR")),
+            LocalDate.of(2021, Month.JUNE, 1),
+            BigDecimal.ZERO,
+            null));
+
+    FinancialAccountId id = peaPme.id();
+    when(useCase.getAccountById(eq(id), any())).thenReturn(peaPme);
+    when(useCase.getAllAccounts(any())).thenReturn(List.of(pea, peaPme));
+
+    mockMvc
+        .perform(
+            get("/api/v1/accounts/{id}", id.value().toString())
+                .with(
+                    authentication(
+                        new UsernamePasswordAuthenticationToken(userId, null, List.of()))))
+        .andExpect(status().isOk())
+        // ownDeposits = only PEA-PME's 10 000
+        .andExpect(jsonPath("$.ownDeposits").value(10000.00))
+        // combined 40 000 > own 10 000 → note is present
+        .andExpect(jsonPath("$.depositNote").value("Includes deposits from linked PEA"));
+  }
+
+  @Test
+  void toAccountResponse_non_pea_pme_has_no_deposit_note() throws Exception {
+    FinancialAccount pea =
+        FinancialAccount.open(
+            "Mon PEA",
+            AccountType.PEA,
+            new Money(BigDecimal.ZERO, Currency.getInstance("EUR")),
+            "Fortuneo",
+            testUserId,
+            AccountSubType.PEA,
+            LocalDate.of(2020, Month.JANUARY, 1));
+    pea.recordTransaction(
+        Transaction.ofEur(
+            TransactionId.generate(),
+            TransactionType.DEPOSIT,
+            null,
+            null,
+            null,
+            new Money(new BigDecimal("20000"), Currency.getInstance("EUR")),
+            LocalDate.of(2020, Month.JUNE, 1),
+            BigDecimal.ZERO,
+            null));
+
+    FinancialAccountId id = pea.id();
+    when(useCase.getAccountById(eq(id), any())).thenReturn(pea);
+    when(useCase.getAllAccounts(any())).thenReturn(List.of(pea));
+
+    mockMvc
+        .perform(
+            get("/api/v1/accounts/{id}", id.value().toString()).with(authentication(mockAuth())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.ownDeposits").value(20000.00))
+        .andExpect(jsonPath("$.depositNote").doesNotExist());
   }
 
   @Test

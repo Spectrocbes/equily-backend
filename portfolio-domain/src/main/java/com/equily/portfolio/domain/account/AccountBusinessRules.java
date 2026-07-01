@@ -227,6 +227,16 @@ public final class AccountBusinessRules {
     return new Money(a.amount().add(b.amount()), a.currency());
   }
 
+  /** Returns the raw sum of DEPOSIT + TRANSFER INCOMING amounts for an account (EUR). */
+  public static BigDecimal computePublicTotalDeposits(FinancialAccount account) {
+    return sumDeposits(account).amount();
+  }
+
+  /** Public alias used by TransferService for Loi Pacte capacity replay. */
+  public static BigDecimal computeAdjustedTotalDepositsForCapacity(FinancialAccount account) {
+    return computeAdjustedTotalDeposits(account);
+  }
+
   /**
    * Computes adjusted total deposits for a PEA account by replaying all WITHDRAWAL transactions
    * that carry stored {@code liquidationValueAtWithdrawal} and {@code grossWithdrawalAmount}
@@ -235,11 +245,6 @@ public final class AccountBusinessRules {
    * <p>For each such post-anniversary withdrawal: capitalRatio = runningDeposits / liqValue;
    * withdrawnCapital = grossAmount × capitalRatio; runningDeposits -= withdrawnCapital.
    */
-  /** Public alias used by TransferService for Loi Pacte capacity replay. */
-  public static BigDecimal computeAdjustedTotalDepositsForCapacity(FinancialAccount account) {
-    return computeAdjustedTotalDeposits(account);
-  }
-
   public static BigDecimal computeAdjustedTotalDeposits(FinancialAccount account) {
     LocalDate fiveYearDate =
         account.openedAt() != null ? account.openedAt().plusYears(5) : LocalDate.MIN;

@@ -34,8 +34,16 @@ public class MarketDataCacheConfig {
                 .maximumSize(20)
                 .recordStats()
                 .build());
+    CaffeineCache historicalPricesCache =
+        new CaffeineCache(
+            "historicalPrices",
+            Caffeine.newBuilder()
+                .expireAfterWrite(1, TimeUnit.HOURS)
+                .maximumSize(200)
+                .recordStats()
+                .build());
     SimpleCacheManager manager = new SimpleCacheManager();
-    manager.setCaches(List.of(quotesCache, fxRatesCache));
+    manager.setCaches(List.of(quotesCache, fxRatesCache, historicalPricesCache));
     return manager;
   }
 }

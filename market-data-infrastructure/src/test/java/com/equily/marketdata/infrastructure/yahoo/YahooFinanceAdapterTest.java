@@ -8,6 +8,7 @@ import com.equily.portfolio.domain.marketdata.Quote;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.Month;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -140,7 +141,8 @@ class YahooFinanceAdapterTest {
         """;
     mockResponse(json);
 
-    Optional<BigDecimal> result = adapter.getHistoricalClose("USDEUR=X", LocalDate.of(2026, 1, 15));
+    Optional<BigDecimal> result =
+        adapter.getHistoricalClose("USDEUR=X", LocalDate.of(2026, Month.JANUARY, 15));
 
     assertThat(result).isPresent();
     assertThat(result.get()).isEqualByComparingTo("0.921500");
@@ -154,7 +156,8 @@ class YahooFinanceAdapterTest {
         """;
     mockResponse(json);
 
-    Optional<BigDecimal> result = adapter.getHistoricalClose("USDEUR=X", LocalDate.of(2026, 1, 15));
+    Optional<BigDecimal> result =
+        adapter.getHistoricalClose("USDEUR=X", LocalDate.of(2026, Month.JANUARY, 15));
 
     assertThat(result).isEmpty();
   }
@@ -163,7 +166,8 @@ class YahooFinanceAdapterTest {
   void getHistoricalClose_returns_empty_when_restclient_throws() {
     when(restClient.get()).thenThrow(new RuntimeException("timeout"));
 
-    Optional<BigDecimal> result = adapter.getHistoricalClose("USDEUR=X", LocalDate.of(2026, 1, 15));
+    Optional<BigDecimal> result =
+        adapter.getHistoricalClose("USDEUR=X", LocalDate.of(2026, Month.JANUARY, 15));
 
     assertThat(result).isEmpty();
   }
@@ -176,9 +180,74 @@ class YahooFinanceAdapterTest {
         """;
     mockResponse(json);
 
-    Optional<BigDecimal> result = adapter.getHistoricalClose("USDEUR=X", LocalDate.of(2026, 1, 15));
+    Optional<BigDecimal> result =
+        adapter.getHistoricalClose("USDEUR=X", LocalDate.of(2026, Month.JANUARY, 15));
 
     assertThat(result).isEmpty();
+  }
+
+  @Test
+  void getHistoricalPrices_returns_prices_for_valid_response() {
+    String json =
+        """
+        {"chart":{"result":[{
+          "timestamp":[1704067200,1704153600],
+          "indicators":{"quote":[{"close":[150.0000,155.5000]}]}
+        }]}}
+        """;
+    mockResponse(json);
+
+    Map<LocalDate, BigDecimal> result =
+        adapter.getHistoricalPrices(
+            "AAPL", LocalDate.of(2024, Month.JANUARY, 1), LocalDate.of(2024, Month.JANUARY, 2));
+
+    assertThat(result).hasSize(2);
+    assertThat(result.values())
+        .extracting(BigDecimal::doubleValue)
+        .containsExactlyInAnyOrder(150.0, 155.5);
+  }
+
+  @Test
+  void getHistoricalPrices_returns_empty_on_http_failure() {
+    when(restClient.get()).thenThrow(new RuntimeException("timeout"));
+
+    Map<LocalDate, BigDecimal> result =
+        adapter.getHistoricalPrices(
+            "AAPL", LocalDate.of(2024, Month.JANUARY, 1), LocalDate.of(2024, Month.JANUARY, 2));
+
+    assertThat(result).isEmpty();
+  }
+
+  @Test
+  void getHistoricalPrices_returns_empty_on_empty_result_array() {
+    mockResponse(
+        """
+        {"chart":{"result":[]}}
+        """);
+
+    Map<LocalDate, BigDecimal> result =
+        adapter.getHistoricalPrices(
+            "AAPL", LocalDate.of(2024, Month.JANUARY, 1), LocalDate.of(2024, Month.JANUARY, 2));
+
+    assertThat(result).isEmpty();
+  }
+
+  @Test
+  void parseHistoricalPrices_skips_null_close_values() {
+    String json =
+        """
+        {"chart":{"result":[{
+          "timestamp":[1704067200,1704153600,1704240000],
+          "indicators":{"quote":[{"close":[150.0000,null,155.5000]}]}
+        }]}}
+        """;
+
+    Map<LocalDate, BigDecimal> result = adapter.parseHistoricalPrices(json);
+
+    assertThat(result).hasSize(2);
+    assertThat(result.values())
+        .extracting(BigDecimal::doubleValue)
+        .containsExactlyInAnyOrder(150.0, 155.5);
   }
 
   @Test
